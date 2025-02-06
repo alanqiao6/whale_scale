@@ -1,0 +1,4 @@
+Below is the information linking to the presentation used for our first sprints presentation:
+
+-Slideshow: https://docs.google.com/presentation/d/132Bb33vz4bDlogRL47zFgNAjgIlyMqYwOlwJfPFysr0/edit?usp=sharing
+-Figma Demo: https://www.figma.com/proto/PdocTeabVDRDCe2wIEwXY6/Wireframe-Demo?node-id=14-204&p=f&t=Vf3RrIlOqpfvzGSq-0&scaling=min-zoom&content-scaling=fixed&page-id=0%3A1&starting-point-node-id=14%3A204 
