@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import Navbar from './Navbar';
 import Data from './Data';
+import Xcertainty from './Xcertainty';
 
 function App() {
     const [message, setMessage] = useState("");
@@ -20,10 +21,11 @@ function App() {
         <div className="app-container">
             <Navbar /> {/* Learned how to create different components here: https://www.youtube.com/watch?v=0sSYmRImgRY */}
             <Data /> 
-            <div className="content">
+            <Xcertainty />
+            {/*<div className="content">
                 <h1>{message}</h1> 
                 <p>temporary content</p>
-            </div>
+            </div> */}
         </div>
     )
 }
