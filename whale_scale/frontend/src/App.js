@@ -2,10 +2,10 @@ import logo from './logo.svg';
 import './App.css';
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import Navbar from './Navbar';
-import Data from './Data';
-import Xcertainty from './Xcertainty';
-import Measure from './Measure';
+import Navbar from './Navbar/Navbar';
+import Data from './Data/Data';
+import Xcertainty from './Xcertainty/Xcertainty';
+import Measure from './Measure/Measure';
 
 function App() {
     const [message, setMessage] = useState("");
