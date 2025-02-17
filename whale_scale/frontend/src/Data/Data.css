@@ -1,0 +1,9 @@
+.data {
+    background-color: grey;
+    color: black;
+    width: 80vw;  /* Spans across the remaining width */
+    height: 25vh; /* Takes up the bottom 25% of the screen */
+    position: fixed;
+    bottom: 0;    /* Anchors it to the bottom */
+    left: 20vw;   /* Starts right after the navbar */
+}
