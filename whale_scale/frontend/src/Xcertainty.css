@@ -2,7 +2,7 @@
     background-color: green;
     color: black;
     width: 80vw; /* Fills the remaining width */
-    height: 80vh; /* Ensure it takes up the full height */
+    height: 75vh; /* Ensure it takes up the full height */
     position: relative; /* Ensure it behaves normally in the document flow */
     top: 0;
     left: 20vw;
