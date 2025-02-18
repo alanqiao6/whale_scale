@@ -36,3 +36,7 @@
     transform: rotate(360deg);
   }
 }
+
+.content {
+  margin-left: 22vw; /* Push content to the right of the sidebar */
+}
