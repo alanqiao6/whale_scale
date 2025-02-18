@@ -1,9 +1,0 @@
-.nav {
-    background-color: blue;
-    color: white;
-    width: 20vw;
-    height: 100vh;        /* Full viewport height */
-    position: fixed;      /* Stays on the left */
-    top: 0;
-    left: 0;
-}

@@ -1,0 +1,31 @@
+.measure-container {
+  text-align: center;
+}
+
+.measure-title {
+  color: var(--primary-color);
+  margin-bottom: 1rem;
+}
+
+.measure-actions {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.measure-button {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: background-color 0.3s ease;
+}
+
+.measure-button:hover {
+  background-color: #2980b9;
+}
+
