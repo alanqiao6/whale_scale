@@ -1,10 +1,10 @@
 import './Data.css'; // Import CSS for styling
 import React from 'react';
 
-const Data = () => {
+const Data = ({message}) => {
     return (
         <div className="data">
-            <p>Temporary data</p>
+            <p>{message} - this message is brought to you by our backend</p>
         </div>
     );
 }

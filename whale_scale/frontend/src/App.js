@@ -29,7 +29,7 @@ function App() {
     return (
         <div className="app-container">
             <Navbar /> {/* Learned how to create different components here: https://www.youtube.com/watch?v=0sSYmRImgRY */}
-            <Data /> 
+            <Data message = {message} /> 
             <div className="toggle-buttons">
                 <button onClick={toggleToMeasure}>Show Measure</button>
                 <button onClick={toggleToXcertainty}>Show Xcertainty</button>
