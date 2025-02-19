@@ -14,4 +14,13 @@
     border-radius: 5px;
     margin-left: 5px;
 }
+
+.whale-image{
+  width: 50%;
+  height: auto;
+  display: block;    /* Makes the image behave like a block element */
+
+  margin-left: auto; /* Centers the image horizontally */
+  margin-right: auto; /* Centers the image horizontally */
+}
   
