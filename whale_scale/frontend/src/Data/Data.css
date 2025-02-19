@@ -1,5 +1,5 @@
 .data {
-    background-color: grey;
+    background-color: rgb(180, 177, 177);
     color: black;
     width: 80vw;  /* Spans across the remaining width */
     height: 25vh; /* Takes up the bottom 25% of the screen */

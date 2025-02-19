@@ -1,10 +1,16 @@
 .xcertainty {
-    background-color: green;
+    background-color: lightblue;
     color: black;
     width: 80vw; /* Fills the remaining width */
     height: 75vh; /* Ensure it takes up the full height */
-    position: relative; /* Ensure it behaves normally in the document flow */
     top: 0;
     left: 20vw;
     position: fixed;
   }
+
+.toggle {
+  background-color: rgb(25, 106, 227);
+  color: white;
+  border-radius: 5px;
+  margin-left: 5px;
+}
