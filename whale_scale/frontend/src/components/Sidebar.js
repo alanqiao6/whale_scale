@@ -3,7 +3,7 @@ import React from 'react'
 import { useState } from "react"
 import "./Sidebar.css"
 
-export default function Sidebar() {
+export default function Sidebar({ onImageUpload }) {
   const [focalLength, setFocalLength] = useState("")
   const [altitude, setAltitude] = useState("")
   const [widthSegments, setWidthSegments] = useState("")
@@ -13,7 +13,10 @@ export default function Sidebar() {
   const [crosshairColor, setCrosshairColor] = useState("#e7403e")
 
   const handleImageUpload = (event) => {
-    console.log("Image uploaded:", event.target.files[0])
+    const file = event.target.files[0];
+    if (file) {
+      onImageUpload(file);
+    }
   }
 
   return (

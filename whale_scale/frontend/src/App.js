@@ -10,17 +10,24 @@ import "./App.css"
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("measure")
+  const [image, setImage] = useState("null")
+  
+  const handleImageUpload = (file) => {
+    if (file) {
+      setImage(URL.createObjectURL(file));
+    }
+  };
 
   return (
     <div className="app-container">
-      <Sidebar />
+      <Sidebar onImageUpload={handleImageUpload} />
       <div className="main-content">
         <TopBar activeTab={activeTab} setActiveTab={setActiveTab} />
-        <ImageViewer />
+        <ImageViewer image={image} onImageUpload={handleImageUpload} />
         <Data />
       </div>
     </div>
-  )
+  );
 }
 
 

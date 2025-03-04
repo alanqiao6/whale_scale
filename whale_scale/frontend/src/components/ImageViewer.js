@@ -1,13 +1,12 @@
 import "./ImageViewer.css";
 import React, { useState } from "react";
 
-export default function ImageViewer() {
-  const [image, setImage] = useState(null);
+export default function ImageViewer({ image, onImageUpload }) {
 
   const handleImageUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
-      setImage(URL.createObjectURL(file));
+      onImageUpload(file);
     }
   };
 
@@ -19,7 +18,7 @@ export default function ImageViewer() {
     event.preventDefault();
     const file = event.dataTransfer.files[0];
     if (file) {
-      setImage(URL.createObjectURL(file));
+      onImageUpload(file);
     }
   };
 
