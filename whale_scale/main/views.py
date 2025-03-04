@@ -9,6 +9,9 @@ import types
 from scipy.linalg import pascal
 from scipy.sparse import diags
 from itertools import cycle, islice
+from django.core.files.storage import default_storage
+import os
+import pandas as pd
 
 def index(request):
     return JsonResponse({"message": "Hello World!"})
@@ -94,10 +97,10 @@ def bezier(t,P,k,arc = False):
 # -------------------------
 # MorphoMetriX API
 # -------------------------
+@method_decorator(csrf_exempt, name='dispatch')
 class MorphoMetrix(View):
     """API endpoints for photogrammetry measurement tasks using MorphoMetriX."""
 
-    @csrf_exempt
     def calculate_curve(self, request):
         """Compute Bézier curve interpolation and arc length."""
         data = json.loads(request.body)
@@ -126,7 +129,6 @@ class MorphoMetrix(View):
         curve_points = [{"x": float(x), "y": float(y)} for x, y in B]
         return JsonResponse({"curve_points": curve_points, "length": measurement.measurement_value})
 
-    @csrf_exempt
     def calculate_length(self, request):
         """Compute total length of selected measurement."""
         data = json.loads(request.body)
@@ -140,7 +142,6 @@ class MorphoMetrix(View):
         measurement.measurement_value = sum([obj["parms"].get("length", 0) for obj in measurement.objects_params])
         return JsonResponse({"length": measurement.measurement_value})
 
-    @csrf_exempt
     def calculate_angle(self, request):
         """Compute the angle between two line segments."""
         data = json.loads(request.body)
@@ -153,7 +154,6 @@ class MorphoMetrix(View):
         measurement.measurement_value = lines[0]["parms"].angleTo(lines[1]["parms"])
         return JsonResponse({"angle": measurement.measurement_value})
 
-    @csrf_exempt
     def calculate_area(self, request):
         """Compute area using the Shoelace formula."""
         data = json.loads(request.body)
@@ -175,55 +175,144 @@ class MorphoMetrix(View):
 # -------------------------
 # CollatriX Endpoints
 # -------------------------
+@method_decorator(csrf_exempt, name='dispatch')
 class CollatriX(View):
     """API endpoints for metadata extraction, EXIF processing, and collation."""
 
-    @csrf_exempt
-    def extract_exif(self, request):
-        """
-        Extract EXIF metadata from an image.
-        Input:
-            - image_path: str
-        Output:
-            - metadata: dict (Extracted EXIF data)
-        """
-        data = json.loads(request.body)
-        image_path = data.get("image_path")
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.exiftool = ExifToolHelper()
 
-        metadata = {}  # Placeholder
-        return JsonResponse({"metadata": metadata})
-
-    @csrf_exempt
-    def collate_measurements(self, request):
+    def post(self, request, function_name):
         """
-        Collate measurements from multiple CSV files into a single dataset.
-        Input:
-            - csv_folder: str (Directory containing multiple CSV files)
-        Output:
-            - collated_file_path: str (Path to the combined CSV file)
+        Routes requests to the appropriate function based on the URL path.
         """
-        data = json.loads(request.body)
-        csv_folder = data.get("csv_folder")
+        if function_name == "extract-metadata":
+            return self.extract_metadata(request)
+        elif function_name == "merge-altimeter":
+            return self.merge_altimeter_data(request)
+        elif function_name == "calculate-body-condition":
+            return self.calculate_body_condition(request)
+        elif function_name == "collate-morphometrix":
+            return self.collate_morphometrix_csv(request)
+        else:
+            return JsonResponse({"error": "Invalid function name"}, status=400)
 
-        collated_file_path = ""  # Placeholder
-        return JsonResponse({"collated_file_path": collated_file_path})
-
-    @csrf_exempt
-    def match_lidar_to_images(self, request):
+    def extract_metadata(self, request):
         """
-        Match LiDAR data to images based on timestamps.
-        Input:
-            - image_folder: str
-            - lidar_file: str
-        Output:
-            - matched_data: dict (LiDAR data matched with images)
+        Extracts metadata from an uploaded image.
         """
-        data = json.loads(request.body)
-        image_folder = data.get("image_folder")
-        lidar_file = data.get("lidar_file")
+        if 'image' not in request.FILES:
+            return JsonResponse({"error": "No image file provided"}, status=400)
 
-        matched_data = {}  # Placeholder
-        return JsonResponse({"matched_data": matched_data})
+        uploaded_image = request.FILES['image']
+        image_path = default_storage.save(uploaded_image.name, uploaded_image)
+
+        try:
+            with self.exiftool as et:
+                metadata = et.get_metadata(image_path)
+
+            response_data = {
+                "timestamp": metadata.get("EXIF:DateTimeOriginal", "Unknown"),
+                "altitude": metadata.get("EXIF:GPSAltitude", None),
+                "camera_model": metadata.get("EXIF:Model", "Unknown"),
+                "file_name": metadata.get("File:FileName", os.path.basename(image_path)),
+            }
+
+            return JsonResponse(response_data)
+
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+        finally:
+            os.remove(image_path)
+
+    def merge_altimeter_data(self, request):
+        """
+        Merges uploaded altimeter CSV data with image metadata.
+        """
+        if 'metadata' not in request.FILES or 'altimeter' not in request.FILES:
+            return JsonResponse({"error": "Both metadata and altimeter CSVs are required"}, status=400)
+
+        metadata_csv = request.FILES['metadata']
+        altimeter_csv = request.FILES['altimeter']
+
+        metadata_path = default_storage.save(metadata_csv.name, metadata_csv)
+        altimeter_path = default_storage.save(altimeter_csv.name, altimeter_csv)
+
+        try:
+            df_images = pd.read_csv(metadata_path)
+            df_altimeter = pd.read_csv(altimeter_path)
+
+            # Convert timestamps to datetime format
+            df_images["timestamp"] = pd.to_datetime(df_images["timestamp"], errors="coerce")
+            df_altimeter["timestamp"] = pd.to_datetime(df_altimeter["timestamp"], errors="coerce")
+
+            # Merge using the closest timestamp
+            merged_df = pd.merge_asof(df_images.sort_values("timestamp"),
+                                      df_altimeter.sort_values("timestamp"),
+                                      on="timestamp", direction="nearest")
+
+            return JsonResponse(merged_df.to_dict(orient="records"), safe=False)
+
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+        finally:
+            os.remove(metadata_path)
+            os.remove(altimeter_path)
+
+    def calculate_body_condition(self, request):
+        """
+        Calculates cetacean body condition metrics based on uploaded measurement CSV.
+        """
+        if 'measurements' not in request.FILES:
+            return JsonResponse({"error": "Measurement CSV file required"}, status=400)
+
+        measurements_csv = request.FILES['measurements']
+        measurements_path = default_storage.save(measurements_csv.name, measurements_csv)
+
+        try:
+            measurements_df = pd.read_csv(measurements_path)
+
+            # Example metric: Body Mass Index-like formula
+            if "length" in measurements_df and "girth" in measurements_df:
+                measurements_df["body_condition_index"] = (
+                    measurements_df["length"] / (measurements_df["girth"] ** 2)
+                )
+            else:
+                return JsonResponse({"error": "CSV must contain 'length' and 'girth' columns"}, status=400)
+
+            return JsonResponse(measurements_df.to_dict(orient="records"), safe=False)
+
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+        finally:
+            os.remove(measurements_path)
+
+    def collate_morphometrix_csv(self, request):
+        """
+        Combines multiple MorphoMetriX CSV outputs into one dataset.
+        """
+        if 'csv_files' not in request.FILES:
+            return JsonResponse({"error": "CSV files required"}, status=400)
+
+        csv_files = request.FILES.getlist('csv_files')
+        file_paths = [default_storage.save(f.name, f) for f in csv_files]
+
+        try:
+            data_frames = [pd.read_csv(file) for file in file_paths]
+            combined_df = pd.concat(data_frames, ignore_index=True)
+
+            return JsonResponse(combined_df.to_dict(orient="records"), safe=False)
+
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+        finally:
+            for file_path in file_paths:
+                os.remove(file_path)
 
 
 # -------------------------
