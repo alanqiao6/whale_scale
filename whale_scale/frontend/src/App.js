@@ -10,7 +10,7 @@ import "./App.css"
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("measure")
-  const [image, setImage] = useState("null")
+  const [image, setImage] = useState()
   
   const handleImageUpload = (file) => {
     if (file) {
