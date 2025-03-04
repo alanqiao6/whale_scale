@@ -4,6 +4,10 @@ from django.views import View
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 import json
+import numpy as np
+import types
+from scipy.linalg import pascal
+from scipy.sparse import diags
 
 def index(request):
     return JsonResponse({"message": "Hello World!"})
@@ -26,10 +30,11 @@ consts.POLYGONITEM = 5
 consts.SIDE_A = 0
 consts.SIDE_B = 1
 
+
 # -------------------------
 # Measurement Class
 # -------------------------
-class Measurement():
+class Measurement:
     """Represents an individual measurement in the measurement stack."""
 
     def __init__(self, measurement_type, name):
@@ -62,6 +67,27 @@ class Measurement():
 
     def has_objects(self):
         return len(self.objects_params) > 0
+    
+
+def bezier(t,P,k,arc = False):
+    """
+    Matrix representation of Bezier curve following
+    https://pomax.github.io/bezierinfo/#arclength
+    """
+    signs = np.array([i for j,i in zip(range(k+1),islice(cycle([1, -1]),0,None))]) #create array alternating 0,1s for diagonals
+    A = pascal(k+1, kind='lower') #generate Pascal triangle matrix
+    S = diags(signs, [i-k for i in range(k+1)][::-1], shape=(k+1, k+1)).toarray() #create signs matrix
+    M = A*S #multiply pascals by signs to get Bernoulli polynomial matrix
+    coeff = A[-1,:]
+    C = M*coeff[:,None] #broadcast
+    T = np.array( [t**i for i in range(k+1)] ).T
+
+    B = T.dot( C.dot(P) )
+
+    if arc:
+        return np.linalg.norm(B, axis = 1)
+    else:
+        return B
 
 
 # -------------------------
@@ -72,65 +98,50 @@ class MorphoMetrix(View):
 
     @csrf_exempt
     def calculate_curve(self, request):
-        """
-        Compute Bézier curve interpolation and arc length.
-        Input:
-            - measurement_stack: list of Measurement objects (JSON)
-        Output:
-            - curve_points: list of (x, y) tuples
-            - length: float (arc length of the curve)
-        """
+        """Compute Bézier curve interpolation and arc length."""
         data = json.loads(request.body)
         measurement_stack = [Measurement(**m) for m in data.get("measurement_stack", [])]
 
         measurement = measurement_stack[-1]
-        control_points = np.array([[obj["parms"]["x"], obj["parms"]["y"]] for obj in measurement.get_objects()])
-        
+        control_points = np.array([[obj["parms"]["x"], obj["parms"]["y"]] for obj in measurement.objects_params])
+
         if len(control_points) < 2:
             return JsonResponse({"error": "At least two control points required"}, status=400)
 
         # Bézier curve computation
         nt = 100
         t = np.linspace(0.0, 1.0, nt)
-        kb = len(control_points) - 1  # Order of curve
+        kb = len(control_points) - 1
         P = np.vstack(control_points)
         B = bezier(t, P, k=kb)
         Q = kb * np.diff(P, axis=0)
 
-        measurement.measurement_value = np.sum(np.linalg.norm(Q, axis=1))  # Arc length
+        measurement.measurement_value = np.sum(np.linalg.norm(Q, axis=1))
         measurement.Q = Q
         measurement.kb = kb
         measurement.P = P
-        measurement.objects_params.clear()  # Clear previous objects
+        measurement.objects_params.clear()
 
         curve_points = [{"x": float(x), "y": float(y)} for x, y in B]
-
         return JsonResponse({"curve_points": curve_points, "length": measurement.measurement_value})
 
     @csrf_exempt
     def calculate_length(self, request):
-        """
-        Compute total length of selected measurement.
-        Input:
-            - measurement: Measurement object (JSON)
-        Output:
-            - length: float (Measured length in pixels)
-        """
+        """Compute total length of selected measurement."""
         data = json.loads(request.body)
-        measurement = Measurement(**data.get("measurement"))
+        measurement_data = data.get("measurement", {})
+        measurement = Measurement(
+            measurement_type=measurement_data.get("measurement_type"),
+            name=measurement_data.get("measurement_name")
+        )
+        measurement.objects_params = measurement_data.get("objects_params", [])
 
-        measurement.measurement_value = sum([obj["parms"]["length"] for obj in measurement.get_objects()])
+        measurement.measurement_value = sum([obj["parms"].get("length", 0) for obj in measurement.objects_params])
         return JsonResponse({"length": measurement.measurement_value})
 
     @csrf_exempt
     def calculate_angle(self, request):
-        """
-        Compute the angle between two line segments.
-        Input:
-            - measurement: Measurement object (JSON)
-        Output:
-            - angle: float (Measured angle in degrees)
-        """
+        """Compute the angle between two line segments."""
         data = json.loads(request.body)
         measurement = Measurement(**data.get("measurement"))
 
@@ -138,60 +149,27 @@ class MorphoMetrix(View):
         if len(lines) < 2:
             return JsonResponse({"error": "At least two line segments required"}, status=400)
 
-        measurement.measurement_value = lines[0]["parms"]["angleTo"](lines[1]["parms"])
+        measurement.measurement_value = lines[0]["parms"].angleTo(lines[1]["parms"])
         return JsonResponse({"angle": measurement.measurement_value})
 
     @csrf_exempt
     def calculate_area(self, request):
-        """
-        Compute area using the Shoelace formula.
-        Input:
-            - measurement: Measurement object (JSON)
-        Output:
-            - area: float (Measured area in pixels²)
-        """
+        """Compute area using the Shoelace formula."""
         data = json.loads(request.body)
         measurement = Measurement(**data.get("measurement"))
 
-        qpolygon = measurement.get_objects()[-1]["parms"]
-        S1 = sum((qpolygon[i]["x"] * qpolygon[i + 1]["y"]) - (qpolygon[i]["y"] * qpolygon[i + 1]["x"])
-                 for i in range(len(qpolygon) - 1))
+        qpolygon = [obj["parms"] for obj in measurement.objects_params if obj["type"] == consts.POLYGONITEM]
+
+        if not qpolygon:
+            return JsonResponse({"error": "No polygon found"}, status=400)
+
+        qpolygon = qpolygon[0]
+
+        S1 = sum((qpolygon[i]["x"] * qpolygon[i + 1]["y"]) - (qpolygon[i]["y"] * qpolygon[i + 1]["x"]) for i in range(len(qpolygon) - 1))
         conct = (qpolygon[-1]["x"] * qpolygon[0]["y"]) - (qpolygon[-1]["y"] * qpolygon[0]["x"])
         measurement.measurement_value = 0.5 * abs(S1 + conct)
 
         return JsonResponse({"area": measurement.measurement_value})
-
-    @csrf_exempt
-    def calculate_widths(self, request):
-        """
-        Compute width measurements with side biasing.
-        Input:
-            - measurement_stack: list of Measurement objects (JSON)
-            - bias: str ("Side A", "Side B", or None)
-        Output:
-            - widths: list of float (Calculated widths in pixels)
-        """
-        data = json.loads(request.body)
-        measurement_stack = [Measurement(**m) for m in data.get("measurement_stack", [])]
-        bias = data.get("bias")
-
-        for measurement in measurement_stack:
-            if measurement.get_type() == consts.WIDTH:
-                side_A_widths = [obj["parms"]["scenePos"] for obj in measurement.get_objects() if obj["type"] == consts.ELLIPSEITEM and obj["parms"]["side"] == consts.SIDE_A]
-                side_B_widths = [obj["parms"]["scenePos"] for obj in measurement.get_objects() if obj["type"] == consts.ELLIPSEITEM and obj["parms"]["side"] == consts.SIDE_B]
-
-                width_array = []
-                for A, B in zip(side_A_widths, side_B_widths):
-                    if bias == "Side A":
-                        width_array.append(np.linalg.norm(np.array(A) - np.array(A["centerLinePoint"])))
-                    elif bias == "Side B":
-                        width_array.append(np.linalg.norm(np.array(B) - np.array(B["centerLinePoint"])))
-                    else:
-                        width_array.append(np.linalg.norm(np.array(A) - np.array(B)))
-
-                measurement.measurement_value = width_array
-
-        return JsonResponse({"widths": width_array})
 
 # -------------------------
 # CollatriX Endpoints
