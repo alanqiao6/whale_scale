@@ -8,6 +8,7 @@ import numpy as np
 import types
 from scipy.linalg import pascal
 from scipy.sparse import diags
+from itertools import cycle, islice
 
 def index(request):
     return JsonResponse({"message": "Hello World!"})
