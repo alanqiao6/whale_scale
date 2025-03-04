@@ -63,3 +63,44 @@ class MorphoMetriX(View):
             - area: float (Measured area in pixels²)
         """
         pass
+
+
+# -------------------------
+# CollatriX Endpoints
+# -------------------------
+class CollatriX(View):
+    """API endpoints for metadata extraction, EXIF processing, and collation."""
+
+    @csrf_exempt
+    def extract_exif(self, request):
+        """
+        Extract EXIF metadata from an image.
+        Input:
+            - image_path: str
+        Output:
+            - metadata: dict (Extracted EXIF data)
+        """
+        pass
+
+    @csrf_exempt
+    def collate_measurements(self, request):
+        """
+        Collate measurements from multiple CSV files into a single dataset.
+        Input:
+            - csv_folder: str (Directory containing multiple CSV files)
+        Output:
+            - collated_file_path: str (Path to the combined CSV file)
+        """
+        pass
+
+    @csrf_exempt
+    def match_lidar_to_images(self, request):
+        """
+        Match LiDAR data to images based on timestamps.
+        Input:
+            - image_folder: str
+            - lidar_file: str
+        Output:
+            - matched_data: dict (LiDAR data matched with images)
+        """
+        pass
