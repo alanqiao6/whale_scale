@@ -104,3 +104,45 @@ class CollatriX(View):
             - matched_data: dict (LiDAR data matched with images)
         """
         pass
+
+
+# -------------------------
+# Xcertainty Endpoints
+# -------------------------
+class Xcertainty(View):
+    """API endpoints for uncertainty estimation and Bayesian modeling."""
+
+    @csrf_exempt
+    def estimate_length_uncertainty(self, request):
+        """
+        Estimate uncertainty in length measurement using Bayesian inference.
+        Input:
+            - measurements: list of floats
+            - priors: dict (Prior distributions)
+        Output:
+            - uncertainty: dict (Posterior estimates)
+        """
+        pass
+
+    @csrf_exempt
+    def fit_growth_curve(self, request):
+        """
+        Fit a growth curve model to whale measurement data.
+        Input:
+            - measurements: dict (Subject-wise measurement data)
+            - priors: dict (Prior distributions)
+        Output:
+            - model_results: dict (Posterior growth curve estimates)
+        """
+        pass
+
+    @csrf_exempt
+    def calibrate_measurements(self, request):
+        """
+        Perform calibration on measurement data to estimate systematic biases.
+        Input:
+            - calibration_data: dict (Known-length objects with measurements)
+        Output:
+            - calibration_results: dict (Bias-corrected estimates)
+        """
+        pass
