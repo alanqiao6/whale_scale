@@ -1,13 +1,48 @@
-import "./ImageViewer.css"
-import React from 'react'
+import "./ImageViewer.css";
+import React, { useState } from "react";
 
 export default function ImageViewer() {
+  const [image, setImage] = useState(null);
+
+  const handleImageUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setImage(URL.createObjectURL(file));
+    }
+  };
+
+  const handleDragOver = (event) => {
+    event.preventDefault();
+  };
+
+  const handleDrop = (event) => {
+    event.preventDefault();
+    const file = event.dataTransfer.files[0];
+    if (file) {
+      setImage(URL.createObjectURL(file));
+    }
+  };
+
   return (
-    <div className="image-container">
-      <img
-        src="https://scontent-iad3-1.xx.fbcdn.net/v/t1.6435-9/37582365_1841165835938790_909518462332698624_n.jpg?_nc_cat=108&ccb=1-7&_nc_sid=833d8c&_nc_ohc=FTc23F4kRHYQ7kNvgE5awkc&_nc_zt=23&_nc_ht=scontent-iad3-1.xx&_nc_gid=AmEGaL0kCuXcdkiDjyRss9p&oh=00_AYDBJU2IUloi0mmzhppSCgEpKVblQDrwJ2DyRyXNuLXVFQ&oe=67DDC9BD"
-        alt="Whale measurement"
-      />
+    <div className="image-container" onDragOver={handleDragOver} onDrop={handleDrop}>
+      <label htmlFor="image-upload" className="upload-label">
+        <input type="file" id="image-upload" accept="image/*" onChange={handleImageUpload} hidden />
+        <div className="upload-area">
+          <img
+            src={image || "https://png.pngtree.com/png-clipart/20221117/ourmid/pngtree-cute-cartoon-whale-png-image_6461281.png"}  // cartoon whale
+            alt="Cartoon Whale"
+            className="upload-placeholder"
+          />
+
+          {/* Second Image Right Below the Whale */}
+          <img
+            src="https://static-00.iconduck.com/assets.00/upload-icon-2048x2048-eu9n5hco.png" // upload image
+            alt="Upload image"
+            className="second-image"
+          />
+          {!image && <p className="upload-text">Upload image here or drag file here</p>}
+        </div>
+      </label>
     </div>
-  )
+  );
 }
