@@ -76,7 +76,7 @@
 .second-image {
   width: 25px;  /* Adjust as needed */
   height: auto;
-  margin-top: 15px;  /* Adds spacing between whale and second image */
+  margin-top: 35px;  /* Adds spacing between whale and second image */
   object-fit: contain;
   opacity: 0.9;
 }

@@ -10,8 +10,9 @@ export default function Sidebar({ metadata, onImageUpload }) {
   const [crosshairSize, setCrosshairSize] = useState(50);
   const [crosshairOpacity, setCrosshairOpacity] = useState(100);
   const [crosshairColor, setCrosshairColor] = useState("#e7403e");
+  const [message, setMessage] = useState(""); // To display response message
 
-  // Update input fields when metadata is available
+  // Auto-fill metadata fields when metadata updates
   useEffect(() => {
     if (metadata) {
       setFocalLength(metadata.focalLength || "");
@@ -19,10 +20,49 @@ export default function Sidebar({ metadata, onImageUpload }) {
     }
   }, [metadata]);
 
+  // Function to handle image upload from Sidebar
   const handleImageUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
-      onImageUpload(file);
+      onImageUpload(file); // Calls the function from App.js
+    }
+  };
+
+  // Function to submit form data
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    // Validate required fields
+    if (!focalLength || !altitude) {
+      setMessage("Please fill in all required fields.");
+      return;
+    }
+
+    const formData = {
+      focalLength,
+      altitude,
+      widthSegments,
+      mirrorSide,
+      crosshairSize,
+      crosshairOpacity,
+      crosshairColor,
+      imageMetadata: metadata, // Include extracted metadata from images
+    };
+
+    try {
+      const response = await fetch("http://your-backend-url.com/submit-form", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+      setMessage(data.message || "Form submitted successfully!");
+    } catch (error) {
+      console.error("Error submitting form:", error);
+      setMessage("Error submitting form. Please try again.");
     }
   };
 
@@ -31,13 +71,7 @@ export default function Sidebar({ metadata, onImageUpload }) {
       <div className="upload-section">
         <label className="upload-button" htmlFor="image-upload">
           📄 Add Image
-          <input
-            type="file"
-            id="image-upload"
-            accept="image/*"
-            onChange={handleImageUpload}
-            style={{ display: "none" }}
-          />
+          <input type="file" id="image-upload" accept="image/*" onChange={handleImageUpload} style={{ display: "none" }} />
         </label>
       </div>
 
@@ -97,8 +131,13 @@ export default function Sidebar({ metadata, onImageUpload }) {
         />
       </div>
 
-      <button className="submit-button">Submit</button>
-      <button className="export-button">Export 📤</button>
+      {/* ✅ Moved buttons OUTSIDE of <form> to restore original placement */}
+      <div className="button-group">
+        <button className="submit-button" onClick={handleSubmit}>Submit</button>
+        <button className="export-button">Export 📤</button>
+      </div>
+
+      {message && <p className="response-message">{message}</p>}
     </div>
   );
 }

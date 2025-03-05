@@ -44,8 +44,16 @@
   cursor: pointer;
 }
 
+.button-group {
+  display: flex;
+  flex-direction: column; /* Stack buttons vertically */
+  align-items: center; /* Center align buttons */
+  gap: 10px; /* Adds spacing between buttons */
+}
+
 .submit-button,
 .export-button {
+  width: 100%; /* Make buttons full width */
   padding: 10px;
   border: none;
   border-radius: 4px;
@@ -53,8 +61,9 @@
   color: var(--text-color);
   cursor: pointer;
   font-weight: bold;
-  margin-top: 10px;
+  margin-top: 0; /* Remove previous margin */
 }
+
 
 @media (max-width: 768px) {
   .sidebar {
