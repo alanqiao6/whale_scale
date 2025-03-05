@@ -37,6 +37,17 @@ def index(request):
 class MorphoMetrix(View):
     """API endpoints for photogrammetry measurement tasks using MorphoMetriX."""
 
+    def post(self, request, function_name):
+        """Route requests to the appropriate function."""
+        if function_name == "calculate_curve":
+            return self.calculate_curve(request)
+        elif function_name == "calculate_length":
+            return self.calculate_length(request)
+        elif function_name == "calculate_area":
+            return self.calculate_area(request)
+        else:
+            return JsonResponse({"error": "Invalid function name"}, status=400)
+
     def calculate_curve(self, request):
         """Compute Bézier curve interpolation and arc length."""
         data = json.loads(request.body)
@@ -260,6 +271,21 @@ class CollatriX(View):
 @method_decorator(csrf_exempt, name='dispatch')
 class Xcertainty(View):
     """API endpoints for Bayesian photogrammetric analysis using Xcertainty."""
+
+    def post(self, request, function_name):
+        """Route requests to the appropriate function."""
+        if function_name == "parse_observations":
+            return self.parse_observations(request)
+        elif function_name == "combine_observations":
+            return self.combine_observations(request)
+        elif function_name == "run_sampler":
+            return self.run_sampler(request)
+        elif function_name == "extract_summaries":
+            return self.extract_summaries(request)
+        elif function_name == "calculate_body_condition":
+            return self.calculate_body_condition(request)
+        else:
+            return JsonResponse({"error": "Invalid function name"}, status=400)
     
     def parse_observations(self, request):
         """Parse wide-format photogrammetric data into structured observations."""
