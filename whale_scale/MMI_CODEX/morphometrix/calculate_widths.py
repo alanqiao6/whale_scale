@@ -1,5 +1,5 @@
 import numpy as np
-from morphometrix.constants import BiasTypes, MeasurementTypes, ObjectTypes
+from .constants import BiasTypes, MeasurementTypes, ObjectTypes
 
 def calculate_widths(measurement_stack, bias):
     """Calculates distance in pixels for width measurements."""

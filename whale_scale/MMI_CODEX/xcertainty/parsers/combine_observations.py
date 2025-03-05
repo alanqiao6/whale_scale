@@ -1,5 +1,5 @@
 import pandas as pd
-from xcertainty.util.data_validation import validate_image_info, validate_pixel_counts, validate_prediction_objects, validate_training_objects
+from ..util.data_validation import validate_image_info, validate_pixel_counts, validate_prediction_objects, validate_training_objects
 
 def combine_observations(*args):
     """Combine multiple parsed observation datasets into a single dataset.

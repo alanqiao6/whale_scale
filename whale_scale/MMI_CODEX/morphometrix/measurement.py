@@ -1,11 +1,11 @@
 class Measurement:
     """Represents an individual measurement in the measurement stack."""
 
-    def __init__(self, measurement_type, name):
+    def __init__(self, measurement_type, name, objects_params=None, measurement_value=None):
         self.measurement_type = measurement_type
         self.measurement_name = name
-        self.objects_params = []
-        self.measurement_value = None
+        self.objects_params = objects_params if objects_params is not None else []
+        self.measurement_value = measurement_value
 
         # Used by width measurement
         self.Q = None

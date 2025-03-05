@@ -1,13 +1,13 @@
 import numpy as np
 import pandas as pd
-from xcertainty.formatters.format_altimeter_output import format_altimeter_output
-from xcertainty.formatters.format_growth_curve_output import format_growth_curve_output
-from xcertainty.formatters.format_image_output import format_image_output
-from xcertainty.formatters.format_object_output import format_object_output
-from xcertainty.formatters.format_pixel_output import format_pixel_output
-from xcertainty.util.data_validation import validate_prediction_objects, validate_training_objects
-from xcertainty.util.extract_summaries import extract_summaries
-from xcertainty.util.flatten_data import flatten_data
+from ..formatters.format_altimeter_output import format_altimeter_output
+from ..formatters.format_growth_curve_output import format_growth_curve_output
+from ..formatters.format_image_output import format_image_output
+from ..formatters.format_object_output import format_object_output
+from ..formatters.format_pixel_output import format_pixel_output
+from ..util.data_validation import validate_prediction_objects, validate_training_objects
+from ..util.extract_summaries import extract_summaries
+from ..util.flatten_data import flatten_data
 
 def growth_curve_sampler(data, priors, subject_info, package_only=False):
     """MCMC sampler for individual measurements with replicates and age information.

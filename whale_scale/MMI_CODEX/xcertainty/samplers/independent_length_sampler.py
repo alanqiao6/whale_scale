@@ -1,11 +1,11 @@
 import numpy as np
-from xcertainty.formatters.format_altimeter_output import format_altimeter_output
-from xcertainty.formatters.format_image_output import format_image_output
-from xcertainty.formatters.format_object_output import format_object_output
-from xcertainty.formatters.format_pixel_output import format_pixel_output
-from xcertainty.util.data_validation import validate_prediction_objects, validate_training_objects
-from xcertainty.util.extract_summaries import extract_summaries
-from xcertainty.util.flatten_data import flatten_data
+from ..formatters.format_altimeter_output import format_altimeter_output
+from ..formatters.format_image_output import format_image_output
+from ..formatters.format_object_output import format_object_output
+from ..formatters.format_pixel_output import format_pixel_output
+from ..util.data_validation import validate_prediction_objects, validate_training_objects
+from ..util.extract_summaries import extract_summaries
+from ..util.flatten_data import flatten_data
 
 def independent_length_sampler(data, priors, package_only=False):
     """MCMC sampler for independent length measurements.

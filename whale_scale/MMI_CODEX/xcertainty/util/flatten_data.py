@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from xcertainty.util.data_validation import validate_image_info, validate_pixel_counts, validate_prediction_objects, validate_training_objects
+from .data_validation import validate_image_info, validate_pixel_counts, validate_prediction_objects, validate_training_objects
 
 def flatten_data(data=None, priors=None, pixel_counts=None, 
                   training_objects=None, image_info=None, prediction_objects=None):

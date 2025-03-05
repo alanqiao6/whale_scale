@@ -1,12 +1,12 @@
 import pymc as pm
 import numpy as np
-from xcertainty.util.data_validation import validate_training_objects
-from xcertainty.formatters.format_altimeter_output import format_altimeter_output
-from xcertainty.formatters.format_image_output import format_image_output
-from xcertainty.formatters.format_pixel_output import format_pixel_output
-from xcertainty.models.template_model import template_model
-from xcertainty.util.extract_summaries import extract_summaries
-from xcertainty.util.flatten_data import flatten_data
+from ..util.data_validation import validate_training_objects
+from ..formatters.format_altimeter_output import format_altimeter_output
+from ..formatters.format_image_output import format_image_output
+from ..formatters.format_pixel_output import format_pixel_output
+from ..models.template_model import template_model
+from ..util.extract_summaries import extract_summaries
+from ..util.flatten_data import flatten_data
 
 def calibration_sampler(data, priors, package_only=False):
     """MCMC sampler for calibration data.

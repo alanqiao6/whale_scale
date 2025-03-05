@@ -1,5 +1,5 @@
 import numpy as np
-from morphometrix.bezier_curve import bezier_curve
+from .bezier_curve import bezier_curve
 
 def compute_curve_length(control_points):
     nt = 100
