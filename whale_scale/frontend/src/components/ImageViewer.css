@@ -74,9 +74,26 @@
 }
 
 .second-image {
-  width: 30px;  /* Adjust as needed */
+  width: 25px;  /* Adjust as needed */
   height: auto;
   margin-top: 15px;  /* Adds spacing between whale and second image */
   object-fit: contain;
   opacity: 0.9;
+}
+
+.upload-placeholder {
+  width: 350px;
+  height: auto;
+  object-fit: contain;
+  opacity: 0.7; /* Whale is semi-transparent */
+  transition: opacity 0.3s ease-in-out;
+}
+
+.uploaded-image {
+  width: 450px; /* Larger than the whale */
+  height: auto;
+  object-fit: contain;
+  opacity: 1; /* Fully visible */
+  transform: scale(1.2); /* Makes the uploaded image slightly larger */
+  transition: transform 0.3s ease-in-out;
 }

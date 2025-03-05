@@ -28,9 +28,9 @@ export default function ImageViewer({ image, onImageUpload }) {
         <input type="file" id="image-upload" accept="image/*" onChange={handleImageUpload} hidden />
         <div className="upload-area">
           <img
-            src={image || "https://png.pngtree.com/png-clipart/20221117/ourmid/pngtree-cute-cartoon-whale-png-image_6461281.png"}  // cartoon whale
-            alt="Cartoon Whale"
-            className="upload-placeholder"
+            src={image || "https://png.pngtree.com/png-clipart/20221117/ourmid/pngtree-cute-cartoon-whale-png-image_6461281.png"}
+            alt="Upload Preview"
+            className={image ? "uploaded-image" : "upload-placeholder"}
           />
 
           {/* Second Image Right Below the Whale */}

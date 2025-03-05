@@ -1,23 +1,30 @@
-"use client"
-import React from 'react'
-import { useState } from "react"
-import "./Sidebar.css"
+"use client";
+import React, { useState, useEffect } from "react";
+import "./Sidebar.css";
 
-export default function Sidebar({ onImageUpload }) {
-  const [focalLength, setFocalLength] = useState("")
-  const [altitude, setAltitude] = useState("")
-  const [widthSegments, setWidthSegments] = useState("")
-  const [mirrorSide, setMirrorSide] = useState("None")
-  const [crosshairSize, setCrosshairSize] = useState(50)
-  const [crosshairOpacity, setCrosshairOpacity] = useState(100)
-  const [crosshairColor, setCrosshairColor] = useState("#e7403e")
+export default function Sidebar({ metadata, onImageUpload }) {
+  const [focalLength, setFocalLength] = useState("");
+  const [altitude, setAltitude] = useState("");
+  const [widthSegments, setWidthSegments] = useState("");
+  const [mirrorSide, setMirrorSide] = useState("None");
+  const [crosshairSize, setCrosshairSize] = useState(50);
+  const [crosshairOpacity, setCrosshairOpacity] = useState(100);
+  const [crosshairColor, setCrosshairColor] = useState("#e7403e");
+
+  // Update input fields when metadata is available
+  useEffect(() => {
+    if (metadata) {
+      setFocalLength(metadata.focalLength || "");
+      setAltitude(metadata.altitude || "");
+    }
+  }, [metadata]);
 
   const handleImageUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
       onImageUpload(file);
     }
-  }
+  };
 
   return (
     <div className="sidebar">
@@ -36,12 +43,12 @@ export default function Sidebar({ onImageUpload }) {
 
       <div className="input-group">
         <label>Focal Length (mm)</label>
-        <input type="number" value={focalLength} onChange={(e) => setFocalLength(e.target.value)} placeholder="x mm" />
+        <input type="number" value={focalLength} onChange={(e) => setFocalLength(e.target.value)} />
       </div>
 
       <div className="input-group">
         <label>Altitude (m)</label>
-        <input type="number" value={altitude} onChange={(e) => setAltitude(e.target.value)} placeholder="y m" />
+        <input type="number" value={altitude} onChange={(e) => setAltitude(e.target.value)} />
       </div>
 
       <div className="input-group">
@@ -93,5 +100,5 @@ export default function Sidebar({ onImageUpload }) {
       <button className="submit-button">Submit</button>
       <button className="export-button">Export 📤</button>
     </div>
-  )
+  );
 }
