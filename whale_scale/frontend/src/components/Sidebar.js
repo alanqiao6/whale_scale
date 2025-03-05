@@ -69,7 +69,11 @@ export default function Sidebar({ metadata, onImageUpload }) {
   return (
     <div className="sidebar">
       <div className="upload-section">
-        <label className="upload-button" htmlFor="image-upload" aria-label="Upload an image">
+        <label className="upload-button" htmlFor="image-upload" tabIndex="0" aria-label="Upload an image"   onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            document.getElementById("image-upload").click(); // Trigger file input click
+          }
+        }}>
           📄 Add Image
           <input type="file" id="image-upload" accept="image/*" onChange={handleImageUpload} style={{ display: "none" }} aria-describedby="upload-help" />
         </label>
