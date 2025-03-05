@@ -6,93 +6,29 @@ from django.views.decorators.csrf import csrf_exempt
 import json
 import numpy as np
 import types
-from scipy.linalg import pascal
-from scipy.sparse import diags
-from itertools import cycle, islice
 from django.core.files.storage import default_storage
 import os
 import pandas as pd
 
+from MMI_CODEX.collatrix.pyexifhelper_exiftool.helper import ExifToolHelper
+
+from MMI_CODEX.morphometrix.calculate_widths import calculate_widths
+from MMI_CODEX.morphometrix.compute_curve_length import compute_curve_length
+from MMI_CODEX.morphometrix.compute_polygon_area import compute_polygon_area
+from MMI_CODEX.morphometrix.constants import ObjectTypes
+from MMI_CODEX.morphometrix.measurement import Measurement
+
+from MMI_CODEX.xcertainty.parsers.combine_observations import combine_observations
+from MMI_CODEX.xcertainty.parsers.parse_observations import parse_observations
+from MMI_CODEX.xcertainty.samplers.calibration_sampler import calibration_sampler
+from MMI_CODEX.xcertainty.samplers.growth_curve_sampler import growth_curve_sampler
+from MMI_CODEX.xcertainty.samplers.independent_length_sampler import independent_length_sampler
+from MMI_CODEX.xcertainty.samplers.nondecreasing_length_sampler import nondecreasing_length_sampler
+from MMI_CODEX.xcertainty.util.body_condition import body_condition
+from MMI_CODEX.xcertainty.util.extract_summaries import extract_summaries
+
 def index(request):
     return JsonResponse({"message": "Hello World!"})
-
-# Define measurement type constants
-consts = types.SimpleNamespace()
-consts.LENGTH = 1
-consts.AREA = 2
-consts.ANGLE = 3
-consts.WIDTH = 4
-
-# Define object type constants
-consts.LINEITEM = 1
-consts.PATHITEM = 2
-consts.ELLIPSEITEM = 3
-consts.FONTITEM = 4
-consts.POLYGONITEM = 5
-
-# Define side bias constants
-consts.SIDE_A = 0
-consts.SIDE_B = 1
-
-
-# -------------------------
-# Measurement Class
-# -------------------------
-class Measurement:
-    """Represents an individual measurement in the measurement stack."""
-
-    def __init__(self, measurement_type, name):
-        self.measurement_type = measurement_type
-        self.measurement_name = name
-        self.objects_params = []
-        self.measurement_value = None
-
-        # Used by width measurement
-        self.Q = None
-        self.kb = None
-        self.l = None
-        self.P = None
-
-    def get_type(self):
-        return self.measurement_type
-
-    def get_objects(self):
-        return self.objects_params
-
-    def get_name(self):
-        return self.measurement_name
-
-    def append_object(self, obj):
-        self.objects_params.append(obj)
-
-    def rem_object(self):
-        if self.objects_params:
-            self.objects_params.pop()
-
-    def has_objects(self):
-        return len(self.objects_params) > 0
-    
-
-def bezier(t,P,k,arc = False):
-    """
-    Matrix representation of Bezier curve following
-    https://pomax.github.io/bezierinfo/#arclength
-    """
-    signs = np.array([i for j,i in zip(range(k+1),islice(cycle([1, -1]),0,None))]) #create array alternating 0,1s for diagonals
-    A = pascal(k+1, kind='lower') #generate Pascal triangle matrix
-    S = diags(signs, [i-k for i in range(k+1)][::-1], shape=(k+1, k+1)).toarray() #create signs matrix
-    M = A*S #multiply pascals by signs to get Bernoulli polynomial matrix
-    coeff = A[-1,:]
-    C = M*coeff[:,None] #broadcast
-    T = np.array( [t**i for i in range(k+1)] ).T
-
-    B = T.dot( C.dot(P) )
-
-    if arc:
-        return np.linalg.norm(B, axis = 1)
-    else:
-        return B
-
 
 # -------------------------
 # MorphoMetriX API
@@ -112,22 +48,16 @@ class MorphoMetrix(View):
         if len(control_points) < 2:
             return JsonResponse({"error": "At least two control points required"}, status=400)
 
-        # Bézier curve computation
-        nt = 100
-        t = np.linspace(0.0, 1.0, nt)
-        kb = len(control_points) - 1
-        P = np.vstack(control_points)
-        B = bezier(t, P, k=kb)
-        Q = kb * np.diff(P, axis=0)
+        B, length, Q, kb, P = compute_curve_length(control_points)
 
-        measurement.measurement_value = np.sum(np.linalg.norm(Q, axis=1))
+        measurement.measurement_value = length
         measurement.Q = Q
         measurement.kb = kb
         measurement.P = P
         measurement.objects_params.clear()
 
         curve_points = [{"x": float(x), "y": float(y)} for x, y in B]
-        return JsonResponse({"curve_points": curve_points, "length": measurement.measurement_value})
+        return JsonResponse({"curve_points": curve_points, "length": length})
 
     def calculate_length(self, request):
         """Compute total length of selected measurement."""
@@ -159,18 +89,27 @@ class MorphoMetrix(View):
         data = json.loads(request.body)
         measurement = Measurement(**data.get("measurement"))
 
-        qpolygon = [obj["parms"] for obj in measurement.objects_params if obj["type"] == consts.POLYGONITEM]
+        qpolygon = [obj["parms"] for obj in measurement.objects_params if obj["type"] == ObjectTypes.POLYGONITEM]
 
         if not qpolygon:
             return JsonResponse({"error": "No polygon found"}, status=400)
 
-        qpolygon = qpolygon[0]
-
-        S1 = sum((qpolygon[i]["x"] * qpolygon[i + 1]["y"]) - (qpolygon[i]["y"] * qpolygon[i + 1]["x"]) for i in range(len(qpolygon) - 1))
-        conct = (qpolygon[-1]["x"] * qpolygon[0]["y"]) - (qpolygon[-1]["y"] * qpolygon[0]["x"])
-        measurement.measurement_value = 0.5 * abs(S1 + conct)
+        area = compute_polygon_area(qpolygon[0])
+        measurement.measurement_value = area
 
         return JsonResponse({"area": measurement.measurement_value})
+    
+    def calculate_widths(self, data):
+        """Compute width measurements."""
+        measurement_stack = [Measurement(**m) for m in data.get("measurement_stack", [])]
+        bias = data.get("bias", None)
+
+        widths = calculate_widths(measurement_stack, bias)
+        if not widths:
+            return {"success": False, "message": "No valid width measurements found"}
+
+        return {"success": True, "widths": widths}
+    
 
 # -------------------------
 # CollatriX Endpoints
@@ -318,54 +257,87 @@ class CollatriX(View):
 # -------------------------
 # Xcertainty Endpoints
 # -------------------------
+@method_decorator(csrf_exempt, name='dispatch')
 class Xcertainty(View):
-    """API endpoints for uncertainty estimation and Bayesian modeling."""
-
-    @csrf_exempt
-    def estimate_length_uncertainty(self, request):
-        """
-        Estimate uncertainty in length measurement using Bayesian inference.
-        Input:
-            - measurements: list of floats
-            - priors: dict (Prior distributions)
-        Output:
-            - uncertainty: dict (Posterior estimates)
-        """
+    """API endpoints for Bayesian photogrammetric analysis using Xcertainty."""
+    
+    def parse_observations(self, request):
+        """Parse wide-format photogrammetric data into structured observations."""
         data = json.loads(request.body)
-        measurements = data.get("measurements")
-        priors = data.get("priors")
-
-        uncertainty = {}  # Placeholder
-        return JsonResponse({"uncertainty": uncertainty})
-
-    @csrf_exempt
-    def fit_growth_curve(self, request):
-        """
-        Fit a growth curve model to whale measurement data.
-        Input:
-            - measurements: dict (Subject-wise measurement data)
-            - priors: dict (Prior distributions)
-        Output:
-            - model_results: dict (Posterior growth curve estimates)
-        """
+        df = pd.DataFrame(data.get("observations", []))
+        
+        try:
+            parsed_data = parse_observations(
+                df, subject_col=data["subject_col"], meas_col=data["meas_col"], 
+                tlen_col=data.get("tlen_col"), image_col=data["image_col"],
+                barometer_col=data.get("barometer_col"), laser_col=data.get("laser_col"),
+                flen_col=data["flen_col"], iwidth_col=data["iwidth_col"], 
+                swidth_col=data["swidth_col"], uas_col=data["uas_col"], 
+                timepoint_col=data.get("timepoint_col"), alt_conversion_col=data.get("alt_conversion_col")
+            )
+            return JsonResponse(parsed_data, safe=False)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    
+    def combine_observations(self, request):
+        """Combine multiple parsed observation datasets."""
         data = json.loads(request.body)
-        measurements = data.get("measurements")
-        priors = data.get("priors")
-
-        model_results = {}  # Placeholder
-        return JsonResponse({"model_results": model_results})
-
-    @csrf_exempt
-    def calibrate_measurements(self, request):
-        """
-        Perform calibration on measurement data to estimate systematic biases.
-        Input:
-            - calibration_data: dict (Known-length objects with measurements)
-        Output:
-            - calibration_results: dict (Bias-corrected estimates)
-        """
+        try:
+            combined_data = combine_observations(*data["datasets"])
+            return JsonResponse(combined_data, safe=False)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    
+    def run_sampler(self, request, sampler_type):
+        """Run the specified MCMC sampler on parsed data."""
         data = json.loads(request.body)
-        calibration_data = data.get("calibration_data")
-
-        calibration_results = {}  # Placeholder
-        return JsonResponse({"calibration_results": calibration_results})
+        try:
+            parsed_data = data["parsed_data"]
+            priors = data["priors"]
+            sampler = None
+            
+            if sampler_type == "independent_length":
+                sampler = independent_length_sampler(parsed_data, priors)
+            elif sampler_type == "nondecreasing_length":
+                sampler = nondecreasing_length_sampler(parsed_data, priors)
+            elif sampler_type == "growth_curve":
+                sampler = growth_curve_sampler(parsed_data, priors, data["subject_info"])
+            elif sampler_type == "calibration":
+                sampler = calibration_sampler(parsed_data, priors)
+            else:
+                return JsonResponse({"error": "Invalid sampler type"}, status=400)
+            
+            result = sampler(niter=data["niter"], thin=data.get("thin", 1), summary_burn=data.get("summary_burn", 0.5))
+            return JsonResponse(result, safe=False)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    
+    def extract_summaries(self, request):
+        """Extract summaries from Xcertainty MCMC results."""
+        data = json.loads(request.body)
+        try:
+            summaries = extract_summaries(data["model_output"])
+            return JsonResponse(summaries.to_dict(orient="records"), safe=False)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    
+    def calculate_body_condition(self, request):
+        """Calculate body condition metrics using photogrammetric data."""
+        data = json.loads(request.body)
+        try:
+            measurements = pd.DataFrame(data.get("measurements", []))
+            length_name = data["length_name"]
+            width_names = data["width_names"]
+            width_increments = data["width_increments"]
+            
+            result = body_condition(
+                data=measurements,
+                output=data["output"],
+                length_name=length_name,
+                width_names=width_names,
+                width_increments=width_increments,
+                summary_burn=data.get("summary_burn", 0.5)
+            )
+            return JsonResponse(result, safe=False)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
