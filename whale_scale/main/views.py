@@ -13,6 +13,7 @@ import pandas as pd
 from MMI_CODEX.collatrix.pyexifhelper_exiftool.helper import ExifToolHelper
 
 from MMI_CODEX.morphometrix.calculate_widths import calculate_widths
+from MMI_CODEX.morphometrix.compute_angle_between_lines import compute_angle_between_lines
 from MMI_CODEX.morphometrix.compute_curve_length import compute_curve_length
 from MMI_CODEX.morphometrix.compute_polygon_area import compute_polygon_area
 from MMI_CODEX.morphometrix.constants import ObjectTypes
@@ -26,6 +27,12 @@ from MMI_CODEX.xcertainty.samplers.independent_length_sampler import independent
 from MMI_CODEX.xcertainty.samplers.nondecreasing_length_sampler import nondecreasing_length_sampler
 from MMI_CODEX.xcertainty.util.body_condition import body_condition
 from MMI_CODEX.xcertainty.util.extract_summaries import extract_summaries
+
+from pathlib import Path
+
+current_dir = Path(__file__).resolve().parent
+exiftool_path = current_dir / '..' / 'MMI_CODEX' / 'collatrix' / 'exiftool.exe'
+exiftool_path = exiftool_path.resolve()
 
 def index(request):
     return JsonResponse({"message": "Hello World!"})
@@ -43,6 +50,8 @@ class MorphoMetrix(View):
             return self.calculate_curve(request)
         elif function_name == "calculate_length":
             return self.calculate_length(request)
+        elif function_name == "calculate_angle":
+            return self.calculate_angle(request)
         elif function_name == "calculate_area":
             return self.calculate_area(request)
         else:
@@ -85,15 +94,25 @@ class MorphoMetrix(View):
 
     def calculate_angle(self, request):
         """Compute the angle between two line segments."""
-        data = json.loads(request.body)
-        measurement = Measurement(**data.get("measurement"))
 
-        lines = measurement.get_objects()
-        if len(lines) < 2:
-            return JsonResponse({"error": "At least two line segments required"}, status=400)
+        try:
+            data = json.loads(request.body)
+            measurement = Measurement(**data.get("measurement"))
+            lines = measurement.get_objects()
 
-        measurement.measurement_value = lines[0]["parms"].angleTo(lines[1]["parms"])
-        return JsonResponse({"angle": measurement.measurement_value})
+            if len(lines) < 2:
+                return JsonResponse({"error": "At least two line segments are required."}, status=400)
+
+            line1 = lines[0]["parms"]
+            line2 = lines[1]["parms"]
+
+            measurement.measurement_value = compute_angle_between_lines(line1, line2)
+
+            return JsonResponse({"angle": measurement.measurement_value})
+
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            return JsonResponse({"error": f"Invalid input data: {str(e)}"}, status=400)
+
 
     def calculate_area(self, request):
         """Compute area using the Shoelace formula."""
@@ -131,7 +150,7 @@ class CollatriX(View):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.exiftool = ExifToolHelper()
+        self.exiftool = ExifToolHelper(executable=str(exiftool_path))
 
     def post(self, request, function_name):
         """
@@ -160,7 +179,7 @@ class CollatriX(View):
 
         try:
             with self.exiftool as et:
-                metadata = et.get_metadata(image_path)
+                metadata = et.get_metadata(image_path)[0]
 
             response_data = {
                 "timestamp": metadata.get("EXIF:DateTimeOriginal", "Unknown"),
