@@ -1,3 +1,8 @@
+'''
+The following is a Python file adapted from the following calibration_sampler.R file in the MMI-CODEX
+https://github.com/MMI-CODEX/Xcertainty/blob/main/R/calibration_sampler.R
+'''
+
 import pymc as pm
 import numpy as np
 from ..util.data_validation import validate_training_objects

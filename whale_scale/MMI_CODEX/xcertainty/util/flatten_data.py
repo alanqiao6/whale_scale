@@ -1,3 +1,8 @@
+'''
+The following is a Python file adapted from the following flatten_data.R file in the MMI-CODEX
+https://github.com/MMI-CODEX/Xcertainty/blob/main/R/flatten_data.R
+'''
+
 import pandas as pd
 import numpy as np
 from .data_validation import validate_image_info, validate_pixel_counts, validate_prediction_objects, validate_training_objects

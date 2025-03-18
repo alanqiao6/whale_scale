@@ -1,3 +1,8 @@
+'''
+The following is a Python file adapted from the following nondecreasing_length_sampler.R file in the MMI-CODEX
+https://github.com/MMI-CODEX/Xcertainty/blob/main/R/nondecreasing_length_sampler.R
+'''
+
 import numpy as np
 from ..formatters.format_altimeter_output import format_altimeter_output
 from ..formatters.format_image_output import format_image_output

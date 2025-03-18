@@ -1,3 +1,8 @@
+'''
+The following is a Python file adapted from the following format_object_output.R file in the MMI-CODEX
+https://github.com/MMI-CODEX/Xcertainty/blob/main/R/format_object_output.R
+'''
+
 import pandas as pd
 from scipy.stats import mstats
 

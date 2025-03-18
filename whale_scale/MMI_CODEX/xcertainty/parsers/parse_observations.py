@@ -1,3 +1,8 @@
+'''
+The following is a Python file adapted from the following parse_observations.R file in the MMI-CODEX
+https://github.com/MMI-CODEX/Xcertainty/blob/main/R/parse_observations.R
+'''
+
 import pandas as pd
 from ..util.data_validation import validate_image_info, validate_pixel_counts, validate_prediction_objects, validate_training_objects
 

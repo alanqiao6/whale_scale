@@ -1,3 +1,8 @@
+'''
+The following is a Python file adapted from the following body_condition.R file in the MMI-CODEX
+https://github.com/MMI-CODEX/Xcertainty/blob/main/R/body_condition.R
+'''
+
 import numpy as np
 import pandas as pd
 from scipy.stats import mstats

@@ -1,3 +1,8 @@
+'''
+The following is a Python file adapted from the following growth_curve_sampler.R file in the MMI-CODEX
+https://github.com/MMI-CODEX/Xcertainty/blob/main/R/growth_curve_sampler.R
+'''
+
 import numpy as np
 import pandas as pd
 from ..formatters.format_altimeter_output import format_altimeter_output

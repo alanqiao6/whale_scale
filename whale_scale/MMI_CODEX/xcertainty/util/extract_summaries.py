@@ -1,3 +1,8 @@
+'''
+The following is a Python file adapted from the following extract_summaries.R file in the MMI-CODEX
+https://github.com/MMI-CODEX/Xcertainty/blob/main/R/extract_summaries.R
+'''
+
 import pandas as pd
 
 def extract_summaries(model_output):
