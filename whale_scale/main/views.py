@@ -14,6 +14,8 @@ from MMI_CODEX.collatrix.body_condition.calculate_body_area_index import calcula
 from MMI_CODEX.collatrix.body_condition.calculate_body_volume import calculate_body_volume
 from MMI_CODEX.collatrix.lidar_wrangle.wrangle_lemhex_lidar import wrangle_lemhex_lidar
 from MMI_CODEX.collatrix.lidar_wrangle.wrangle_lightware_lidar import wrangle_lightware_lidar
+from MMI_CODEX.collatrix.lidar_wrangle.extract_time_from_filename import extract_time_from_filename
+from MMI_CODEX.collatrix.lidar_wrangle.generate_video_id import generate_video_id
 from MMI_CODEX.collatrix.pyexifhelper_exiftool.helper import ExifToolHelper
 
 from MMI_CODEX.morphometrix.calculate_widths import calculate_widths
@@ -166,8 +168,12 @@ class CollatriX(View):
             return self.calculate_body_condition(request)
         elif function_name == "lidar-wrangle":
             return self.lidar_wrangle(request)
-        elif function_name == "collate-morphometrix":
-            return self.collate_morphometrix_csv(request)
+        elif function_name == "lidar-video":
+            return self.lidar_video(request)
+        elif function_name == "lidar-match":
+            return self.lidar_match(request)
+        elif function_name == "lidar-image":
+            return self.lidar_image(request)
         else:
             return JsonResponse({"error": "Invalid function name"}, status=400)
 
@@ -267,21 +273,453 @@ class CollatriX(View):
             for file_path in file_paths:
                 os.remove(file_path)
 
-    def collate_morphometrix_csv(self, request):
+    def lidar_video(self, request):
         """
-        Combines multiple MorphoMetriX CSV outputs into one dataset.
+        Extract metadata from videos and match with LiDAR data.
         """
+        files = request.FILES.getlist('video_files')
+        gps_data = json.loads(request.body).get("gps_data")
+        lidar_data = json.loads(request.body).get("lidar_data")
+        time_window = float(json.loads(request.body).get("time_window", 5))
+
+        if not files or not gps_data or not lidar_data:
+            return JsonResponse({"error": "Video files, GPS data, and LiDAR data are required"}, status=400)
+
+        video_paths = [default_storage.save(file.name, file) for file in files]
+
+        try:
+            et = self.exiftool
+            df_video = self._wrangle_video_metadata(video_paths, et)
+            df_gps = pd.DataFrame(gps_data)
+            df_lidar = pd.DataFrame(lidar_data)
+
+            # Merge GPS and video data
+            df_gps['GPS_DT'] = pd.to_datetime(df_gps['GPS_DT'])
+            df_video['START'] = pd.to_datetime(df_video['START'])
+
+            # Merge to assign offset
+            df_vid_x = df_video.merge(
+                df_gps[['FlightID', 'GPS_DT']],
+                on='FlightID',
+                how='left'
+            )
+
+            # Calculate offset
+            df_vid_x['offset'] = df_vid_x['GPS_DT'] - df_vid_x['START']
+
+            # Correct time by adding offset
+            df_vid_x['CorrStart'] = df_vid_x['START'] + df_vid_x['offset']
+            df_vid_x['CorrEnd'] = df_vid_x['MT.DT'] + df_vid_x['offset']
+
+            # Handle missing flights
+            missing_flights = df_vid_x[df_vid_x['CorrStart'].isna()]['FlightID'].tolist()
+            if missing_flights:
+                message = f"These flights were skipped because they were not in the GPS time csv: {missing_flights}"
+                print(message)
+
+            # Filter out invalid rows
+            df_vid_x = df_vid_x.dropna(subset=['CorrStart'])
+
+            # Explode dataframe to one row per second
+            df_vid_x['CorrDT'] = df_vid_x.apply(
+                lambda row: pd.date_range(start=row['CorrStart'], end=row['CorrEnd'], freq="S"),
+                axis=1
+            )
+            df_exploded = df_vid_x.explode('CorrDT')
+
+            # Compute video time relative to the start
+            df_exploded['VideoTime'] = df_exploded['CorrDT'] - df_exploded['CorrStart']
+
+            # Merge with LiDAR data using time window
+            df_lidar['CorrDT'] = pd.to_datetime(df_lidar['CorrDT'])
+
+            if time_window > 0:
+                # Sort values for merge_asof
+                df_exploded = df_exploded.sort_values('CorrDT')
+                df_lidar = df_lidar.sort_values('CorrDT')
+
+                df_lidarmerge = pd.merge_asof(
+                    df_exploded,
+                    df_lidar[['CorrDT', 'Laser_Alt']],
+                    on="CorrDT",
+                    tolerance=pd.Timedelta(seconds=time_window),
+                    direction="nearest"
+                )
+            else:
+                df_lidarmerge = df_exploded.merge(
+                    df_lidar[['CorrDT', 'Laser_Alt']],
+                    how='left',
+                    on='CorrDT'
+                )
+
+            # Clean up final output
+            result = df_lidarmerge[['VideoID', 'FlightID', 'VideoTime', 'Laser_Alt']].dropna()
+
+            return JsonResponse(result.to_dict(orient="records"), safe=False)
+
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+        finally:
+            for path in video_paths:
+                os.remove(path)
+
+    def _wrangle_video_metadata(self, video_paths, et):
+        """
+        Internal method for extracting video metadata using ExifTool.
+        """
+        df_video = pd.DataFrame()
+        tagnames = []
+
+        # Extract metadata using ExifTool
+        for d in et.get_metadata(video_paths):
+            tempdict = {k: v for k, v in d.items()}
+            tagnames.extend(tempdict.keys())
+            tempdf = pd.DataFrame(data=tempdict, index=[0])
+            df_video = pd.concat([df_video, tempdf]).reset_index(drop=True)
+
+        # Clean up dataframe
+        tagnames = list(set(tagnames))
+
+        name_tag = next((x for x in tagnames if 'File:FileName' in x), None)
+        duration_tag = next((x for x in tagnames if 'TrackDuration' in x or 'Duration' in x), None)
+        date_tag = next((x for x in tagnames if 'CreateDate' in x or 'ModifyDate' in x), None)
+
+        if not name_tag or not duration_tag or not date_tag:
+            raise ValueError("Required EXIF tags not found in video metadata.")
+
+        df_video = df_video.rename(columns={
+            name_tag: 'MOV',
+            duration_tag: 'DUR_S',
+            date_tag: 'MT'
+        })
+
+        # Clean up data
+        df_video['VideoID'] = df_video['MOV'].str.replace('.MOV', '')
+
+        # Convert duration to timedelta
+        df_video['DUR.TD'] = pd.to_timedelta(df_video['DUR_S'], unit='s')
+
+        # Convert modify time to datetime
+        df_video['MT.DT'] = pd.to_datetime(df_video['MT'], format="%Y:%m:%d %H:%M:%S", errors="coerce")
+
+        # Calculate video start time
+        df_video['START'] = df_video['MT.DT'] - df_video['DUR.TD']
+
+        # Handle flight ID parsing
+        flight_ixs = json.loads(self.request.body).get("flight_ixs", [])
+        delimiter = json.loads(self.request.body).get("delimiter", "_")
+
+        if flight_ixs:
+            df_video['FlightID'] = [
+                delimiter.join(x.split(delimiter)[i] for i in flight_ixs)
+                for x in df_video['MOV']
+            ]
+
+        return df_video
+
+
+    def lidar_image(self, request):
+        """
+        Extract metadata from images and match with LiDAR data.
+        """
+        files = request.FILES.getlist('image_files')
+        gps_data = json.loads(request.body).get("gps_data")
+        lidar_data = json.loads(request.body).get("lidar_data")
+        time_window = float(json.loads(request.body).get("time_window", 5))
+
+        if not files or not gps_data or not lidar_data:
+            return JsonResponse({"error": "Image files, GPS data, and LiDAR data are required"}, status=400)
+
+        image_paths = [default_storage.save(file.name, file) for file in files]
+
+        try:
+            et = self.exiftool
+            df_images = self._extract_image_metadata(image_paths, et)
+            df_gps = pd.DataFrame(gps_data)
+            df_lidar = pd.DataFrame(lidar_data)
+
+            # Merge GPS and image data
+            df_gps['GPS_DT'] = pd.to_datetime(df_gps['GPS_DT'])
+            df_images['ImageDT'] = pd.to_datetime(df_images['ImageDT'])
+
+            # Merge to assign offset
+            df_img_x = df_images.merge(
+                df_gps[['FlightID', 'GPS_DT']],
+                on='FlightID',
+                how='left'
+            )
+            df_img_x['offset'] = df_img_x['GPS_DT'] - df_img_x['ImageDT']
+
+            # Correct time by adding offset
+            df_img_x['CorrDT'] = df_img_x['ImageDT'] + df_img_x['offset']
+
+            # Merge with LiDAR data using a time window
+            df_lidar['CorrDT'] = pd.to_datetime(df_lidar['CorrDT'])
+
+            if time_window > 0:
+                # Sort values for merge_asof
+                df_img_x = df_img_x.sort_values('CorrDT')
+                df_lidar = df_lidar.sort_values('CorrDT')
+
+                df_lidarmerge = pd.merge_asof(
+                    df_img_x,
+                    df_lidar[['CorrDT', 'Laser_Alt']],
+                    on="CorrDT",
+                    tolerance=pd.Timedelta(seconds=time_window),
+                    direction="nearest"
+                )
+            else:
+                df_lidarmerge = df_img_x.merge(
+                    df_lidar[['CorrDT', 'Laser_Alt']],
+                    how='left',
+                    on='CorrDT'
+                )
+
+            # Narrow down final output
+            result = df_lidarmerge[['SourceFile', 'Image', 'Laser_Alt']].dropna()
+
+            return JsonResponse(result.to_dict(orient="records"), safe=False)
+
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+        finally:
+            for path in image_paths:
+                os.remove(path)
+
+    def _extract_image_metadata(self, image_paths, et):
+        """
+        Internal method for extracting image metadata using ExifTool.
+        """
+        df_images = pd.DataFrame()
+        tagnames = []
+
+        for d in et.get_metadata(image_paths):
+            tempdict = {k: v for k, v in d.items()}
+            tagnames.extend(tempdict.keys())
+            tempdf = pd.DataFrame(data=tempdict, index=[0])
+            df_images = pd.concat([df_images, tempdf]).reset_index(drop=True)
+
+        # Clean up dataframe
+        tagnames = list(set(tagnames))
+        
+        name_tag = next((x for x in tagnames if 'File:FileName' in x), None)
+        date_tag = next((x for x in tagnames if 'EXIF:CreateDate' in x), None)
+
+        if not name_tag or not date_tag:
+            raise ValueError("Required EXIF tags not found in image metadata.")
+
+        df_images = df_images.rename(columns={
+            name_tag: 'Image',
+            date_tag: 'ImageDT'
+        })
+
+        # Convert date strings to datetime objects
+        df_images['ImageDT'] = pd.to_datetime(df_images['ImageDT'], format="%Y:%m:%d %H:%M:%S", errors="coerce")
+
+        # Add flight ID using prefix (if needed)
+        flight_ixs = json.loads(self.request.body).get("flight_ixs", [])
+
+        if flight_ixs:
+            delimiter = json.loads(self.request.body).get("delimiter", "_")
+            df_images['FlightID'] = [
+                delimiter.join(x.split(delimiter)[i] for i in flight_ixs)
+                for x in df_images['Image']
+            ]
+
+        return df_images
+
+
+    def lidar_match(self, request):
+        """
+        Match image data with LiDAR data using timestamps and video IDs.
+        """
+        data = json.loads(request.body)
+        image_data = data.get("images", [])
+        lidar_data = data.get("lidar", [])
+        time_window = float(data.get("time_window", 5))
+        delimiter = data.get("delimiter", "_")
+        video_ixs = data.get("video_ixs", [])
+
+        if not image_data or not lidar_data:
+            return JsonResponse({"error": "Image and LiDAR data are required"}, status=400)
+
+        try:
+            # Load data into dataframes
+            df_images = pd.DataFrame(image_data)
+            df_lidar = pd.DataFrame(lidar_data)
+
+            # Step 1: Extract time from image names if not already provided
+            if "VideoTime" not in df_images:
+                df_images["VideoTime"] = df_images["Image"].apply(
+                    lambda x: extract_time_from_filename(x, delimiter, video_ixs)
+                )
+
+            df_images["VideoTime"] = pd.to_datetime(df_images["VideoTime"], format="%H:%M:%S").dt.time
+
+            # Step 2: Generate VideoID from file names if missing
+            if "VideoID" not in df_images:
+                df_images["VideoID"] = df_images["Image"].apply(
+                    lambda x: generate_video_id(x, delimiter, video_ixs)
+                )
+
+            # Step 3: Process LiDAR data
+            df_lidar["VideoTime"] = pd.to_datetime(
+                df_lidar["VideoTime"], format="%H:%M:%S", errors="coerce"
+            ).dt.time
+
+            df_lidar = df_lidar.dropna(subset=["Laser_Alt"])  # Remove invalid LiDAR data
+
+            if time_window > 0:
+                # Convert time to seconds for merge_asof
+                df_images["ImgTime_s"] = df_images["VideoTime"].apply(
+                    lambda t: t.hour * 3600 + t.minute * 60 + t.second
+                )
+                df_lidar["LidarTime_s"] = df_lidar["VideoTime"].apply(
+                    lambda t: t.hour * 3600 + t.minute * 60 + t.second
+                )
+
+                # Create timestamp for merge_asof
+                df_images["MergeTime"] = pd.to_datetime(df_images["VideoTime"], format="%H:%M:%S")
+                df_lidar["MergeTime"] = pd.to_datetime(df_lidar["VideoTime"], format="%H:%M:%S")
+
+                # Sort for merge_asof
+                df_images = df_images.sort_values(by="MergeTime")
+                df_lidar = df_lidar.sort_values(by="MergeTime")
+
+                # Merge with time window tolerance
+                df_lidarmerge = pd.merge_asof(
+                    df_images,
+                    df_lidar[["VideoID", "VideoTime", "LidarTime_s", "MergeTime", "Laser_Alt"]],
+                    on="MergeTime",
+                    by="VideoID",
+                    tolerance=pd.Timedelta(seconds=time_window),
+                    direction="nearest",
+                    suffixes=("_image", "_lidar")
+                )
+
+                # Calculate time difference in seconds
+                df_lidarmerge["timediff_sec"] = (
+                    df_lidarmerge["ImgTime_s"] - df_lidarmerge["LidarTime_s"]
+                )
+
+                df_lidarmerge = df_lidarmerge.drop(
+                    columns=["ImgTime_s", "LidarTime_s", "MergeTime"]
+                )
+            else:
+                # Direct merge without time tolerance
+                df_lidarmerge = df_images.merge(
+                    df_lidar[["VideoID", "VideoTime", "Laser_Alt"]],
+                    how="left",
+                    on=["VideoID", "VideoTime"]
+                )
+
+            # Clean final output
+            result = df_lidarmerge[["Image", "VideoID", "VideoTime", "Laser_Alt"]].dropna()
+
+            return JsonResponse(result.to_dict(orient="records"), safe=False)
+
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+    def collate_morphometrix(self, request):
+        """
+        Collates and processes multiple MorphoMetriX CSV files into a single dataset.
+        """
+        data = json.loads(request.body)
+        prefix = data.get("prefix", "output")
+        use_folder_as_animal_id = data.get("use_folder_as_animal_id", False)
+        safe_file_path = data.get("safe_file_path", None)
+        output_option = data.get("output_option", "Both in one file")
+
         if 'csv_files' not in request.FILES:
-            return JsonResponse({"error": "CSV files required"}, status=400)
+            return JsonResponse({"error": "CSV files are required"}, status=400)
 
         csv_files = request.FILES.getlist('csv_files')
         file_paths = [default_storage.save(f.name, f) for f in csv_files]
 
         try:
-            data_frames = [pd.read_csv(file) for file in file_paths]
-            combined_df = pd.concat(data_frames, ignore_index=True)
+            csvs = []
+            not_mmx = []
 
-            return JsonResponse(combined_df.to_dict(orient="records"), safe=False)
+            # Step 1: Load CSV files and validate them
+            for file_path in file_paths:
+                df = pd.read_csv(file_path)
+                if 'Value_unit' in df.columns:
+                    csvs.append(df)
+                else:
+                    not_mmx.append(file_path)
+
+            if not csvs:
+                return JsonResponse({"error": "No valid MorphoMetriX CSV files found"}, status=400)
+
+            # Step 2: Combine and clean up data
+            df_all = pd.concat(csvs, ignore_index=True)
+
+            # Fix object name format
+            df_all['Object'] = df_all['Object'].astype(str)
+            df_all['Object'] = df_all['Object'].apply(
+                lambda x: x.replace(".0", ".00") if ".00" not in x else x
+            )
+            df_all['Object'] = df_all['Object'].apply(
+                lambda x: "{0}_w{1}".format(
+                    x.split("_w")[0], str(x.split("w")[1]).rjust(5, "0")
+                ) if "_w" in x else x
+            )
+
+            # Step 3: Replace Image ID with folder name if needed
+            if use_folder_as_animal_id:
+                df_all["Image_ID"] = df_all["Image_Path"].apply(lambda x: Path(x).parts[-2])
+
+            # Step 4: Handle duplicates
+            duplicate_measurements = df_all[df_all.duplicated(subset=['Object'], keep=False)]
+            if not duplicate_measurements.empty:
+                return JsonResponse(
+                    {"error": "Duplicate measurements found", "duplicates": duplicate_measurements.to_dict(orient="records")},
+                    status=400
+                )
+
+            # Step 5: Split into metadata, meters, and pixels
+            df_meta = df_all[df_all["Value_unit"] == "Metadata"]
+            df_meters = df_all[df_all["Value_unit"].isin(["Meters", "Square Meters", "Degrees"])]
+            df_pixels = df_all[df_all["Value_unit"].isin(["Pixels", "Degrees"])]
+
+            # Step 6: Process safety file if provided
+            if safe_file_path:
+                safe_data = pd.read_csv(safe_file_path)
+                df_meta = df_meta.merge(safe_data, on="Image", how="left")
+
+                # Scale measurements using formula
+                df_meters["Value_m"] = (
+                    (df_meta["Altitude"] / df_meta["Focal_Length"]) *
+                    df_meta["Pixel_Dimension"] * df_meters["Value"].astype(float)
+                )
+
+                # Finalize meters output
+                df_meters["metadata_source"] = "safety_file"
+                df_pixels["metadata_source"] = "safety_file"
+            else:
+                df_meters["metadata_source"] = "mmx_input"
+                df_pixels["metadata_source"] = "mmx_input"
+
+            # Step 7: Merge results into combined output
+            df_combined = df_meters.merge(df_pixels, on=["Image", "csv"], suffixes=("_m", "_px"))
+
+            # Step 8: Return output based on user option
+            response_data = {}
+            if output_option == "Both in one file":
+                response_data["combined"] = df_combined.to_dict(orient="records")
+            elif output_option == "Both in separate files":
+                response_data["meters"] = df_meters.to_dict(orient="records")
+                response_data["pixels"] = df_pixels.to_dict(orient="records")
+            elif output_option == "Just meters":
+                response_data["meters"] = df_meters.to_dict(orient="records")
+            elif output_option == "Just pixels":
+                response_data["pixels"] = df_pixels.to_dict(orient="records")
+
+            # Step 9: Return as JSON instead of writing to a file
+            return JsonResponse(response_data, status=200)
 
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
@@ -289,6 +727,7 @@ class CollatriX(View):
         finally:
             for file_path in file_paths:
                 os.remove(file_path)
+
 
 
 # -------------------------
