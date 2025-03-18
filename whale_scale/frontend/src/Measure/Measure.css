@@ -1,0 +1,25 @@
+.measure {
+    background-color: white;
+    color: black;
+    width: 80vw; /* Fills the remaining width */
+    height: 75vh; /* Ensure it takes up the full height */
+    top: 0;
+    left: 20vw;
+    position: fixed;
+  }
+  
+.toggle {
+    background-color: rgb(25, 106, 227);
+    color: white;
+    border-radius: 5px;
+    margin-left: 5px;
+}
+
+.whale-image{
+  width: 50%;
+  height: auto;
+  display: block;    /* Makes the image behave like a block element */
+  margin-left: auto; /* Centers the image horizontally */
+  margin-right: auto; /* Centers the image horizontally */
+}
+  

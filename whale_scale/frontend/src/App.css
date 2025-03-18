@@ -36,3 +36,14 @@
     transform: rotate(360deg);
   }
 }
+
+.content {
+  margin-left: 22vw; /* Push content to the right of the sidebar */
+}
+
+.toggle {
+  background-color: rgb(25, 106, 227);
+  color: white;
+  border-radius: 5px;
+  margin-left: 5px;
+}
