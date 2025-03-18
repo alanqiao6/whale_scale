@@ -12,6 +12,8 @@ import pandas as pd
 
 from MMI_CODEX.collatrix.body_condition.calculate_body_area_index import calculate_body_area_index
 from MMI_CODEX.collatrix.body_condition.calculate_body_volume import calculate_body_volume
+from MMI_CODEX.collatrix.lidar_wrangle.wrangle_lemhex_lidar import wrangle_lemhex_lidar
+from MMI_CODEX.collatrix.lidar_wrangle.wrangle_lightware_lidar import wrangle_lightware_lidar
 from MMI_CODEX.collatrix.pyexifhelper_exiftool.helper import ExifToolHelper
 
 from MMI_CODEX.morphometrix.calculate_widths import calculate_widths
@@ -162,6 +164,8 @@ class CollatriX(View):
             return self.extract_metadata(request)
         elif function_name == "calculate-body-condition":
             return self.calculate_body_condition(request)
+        elif function_name == "lidar-wrangle":
+            return self.lidar_wrangle(request)
         elif function_name == "collate-morphometrix":
             return self.collate_morphometrix_csv(request)
         else:
@@ -224,6 +228,44 @@ class CollatriX(View):
             return JsonResponse({"error": "No valid calculation method provided"}, status=400)
 
         return JsonResponse(result.to_dict(orient="records"), safe=False)
+    
+    def lidar_wrangle(self, request):
+        """
+        Wrangles LiDAR data from either LightWare CSV or LemHex GPX files.
+        """
+        lidar_type = request.POST.get('lidar_type')
+        gimbal_type = request.POST.get('gimbal_type')  # for LightWare only
+
+        if 'files' not in request.FILES:
+            return JsonResponse({"error": "LiDAR files required"}, status=400)
+
+        files = request.FILES.getlist('files')
+        file_paths = [default_storage.save(file.name, file) for file in files]
+
+        try:
+            if lidar_type == "LightWare":
+                if not gimbal_type:
+                    return JsonResponse({"error": "Gimbal type is required for LightWare"}, status=400)
+
+                # Call the helper function for LightWare
+                laser_all = wrangle_lightware_lidar(file_paths, gimbal_type)
+
+            elif lidar_type == "LemHex":
+                # Call the helper function for LemHex
+                laser_all = wrangle_lemhex_lidar(file_paths)
+
+            else:
+                return JsonResponse({"error": "Invalid LiDAR type"}, status=400)
+
+            # Return as JSON (instead of CSV)
+            return JsonResponse(laser_all.to_dict(orient='records'), safe=False)
+
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+        finally:
+            for file_path in file_paths:
+                os.remove(file_path)
 
     def collate_morphometrix_csv(self, request):
         """
