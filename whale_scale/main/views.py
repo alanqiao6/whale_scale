@@ -10,6 +10,8 @@ from django.core.files.storage import default_storage
 import os
 import pandas as pd
 
+from MMI_CODEX.collatrix.body_condition.calculate_body_area_index import calculate_body_area_index
+from MMI_CODEX.collatrix.body_condition.calculate_body_volume import calculate_body_volume
 from MMI_CODEX.collatrix.pyexifhelper_exiftool.helper import ExifToolHelper
 
 from MMI_CODEX.morphometrix.calculate_widths import calculate_widths
@@ -158,8 +160,6 @@ class CollatriX(View):
         """
         if function_name == "extract-metadata":
             return self.extract_metadata(request)
-        elif function_name == "merge-altimeter":
-            return self.merge_altimeter_data(request)
         elif function_name == "calculate-body-condition":
             return self.calculate_body_condition(request)
         elif function_name == "collate-morphometrix":
@@ -196,69 +196,34 @@ class CollatriX(View):
         finally:
             os.remove(image_path)
 
-    def merge_altimeter_data(self, request):
-        """
-        Merges uploaded altimeter CSV data with image metadata.
-        """
-        if 'metadata' not in request.FILES or 'altimeter' not in request.FILES:
-            return JsonResponse({"error": "Both metadata and altimeter CSVs are required"}, status=400)
-
-        metadata_csv = request.FILES['metadata']
-        altimeter_csv = request.FILES['altimeter']
-
-        metadata_path = default_storage.save(metadata_csv.name, metadata_csv)
-        altimeter_path = default_storage.save(altimeter_csv.name, altimeter_csv)
-
-        try:
-            df_images = pd.read_csv(metadata_path)
-            df_altimeter = pd.read_csv(altimeter_path)
-
-            # Convert timestamps to datetime format
-            df_images["timestamp"] = pd.to_datetime(df_images["timestamp"], errors="coerce")
-            df_altimeter["timestamp"] = pd.to_datetime(df_altimeter["timestamp"], errors="coerce")
-
-            # Merge using the closest timestamp
-            merged_df = pd.merge_asof(df_images.sort_values("timestamp"),
-                                      df_altimeter.sort_values("timestamp"),
-                                      on="timestamp", direction="nearest")
-
-            return JsonResponse(merged_df.to_dict(orient="records"), safe=False)
-
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-
-        finally:
-            os.remove(metadata_path)
-            os.remove(altimeter_path)
-
     def calculate_body_condition(self, request):
         """
-        Calculates cetacean body condition metrics based on uploaded measurement CSV.
+        Calculates cetacean body condition metrics based on uploaded measurements.
         """
-        if 'measurements' not in request.FILES:
-            return JsonResponse({"error": "Measurement CSV file required"}, status=400)
+        data = json.loads(request.body)
+        df = pd.DataFrame(data["measurements"])
 
-        measurements_csv = request.FILES['measurements']
-        measurements_path = default_storage.save(measurements_csv.name, measurements_csv)
+        bv_method = data.get("bv_method")
+        bai_method = data.get("bai_method")
+        tl_name = data.get("tl_name")
+        interval = float(data.get("interval", 5))
+        lower = float(data.get("lower", 0))
+        upper = float(data.get("upper", 100))
 
-        try:
-            measurements_df = pd.read_csv(measurements_path)
+        # Handle "Both" options and merge results
+        df_vol = calculate_body_volume(df, tl_name, interval, lower, upper, bv_method)
+        df_bai = calculate_body_area_index(df, tl_name, interval, lower, upper, bai_method)
 
-            # Example metric: Body Mass Index-like formula
-            if "length" in measurements_df and "girth" in measurements_df:
-                measurements_df["body_condition_index"] = (
-                    measurements_df["length"] / (measurements_df["girth"] ** 2)
-                )
-            else:
-                return JsonResponse({"error": "CSV must contain 'length' and 'girth' columns"}, status=400)
+        if df_vol is not None and df_bai is not None:
+            result = pd.merge(df_vol, df_bai, on=["Image_ID", "Image"], how="outer")
+        elif df_vol is not None:
+            result = df_vol
+        elif df_bai is not None:
+            result = df_bai
+        else:
+            return JsonResponse({"error": "No valid calculation method provided"}, status=400)
 
-            return JsonResponse(measurements_df.to_dict(orient="records"), safe=False)
-
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-
-        finally:
-            os.remove(measurements_path)
+        return JsonResponse(result.to_dict(orient="records"), safe=False)
 
     def collate_morphometrix_csv(self, request):
         """
