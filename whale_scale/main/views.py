@@ -162,9 +162,7 @@ class CollatriX(View):
         """
         Routes requests to the appropriate function based on the URL path.
         """
-        if function_name == "extract-metadata":
-            return self.extract_metadata(request)
-        elif function_name == "calculate-body-condition":
+        if function_name == "calculate-body-condition":
             return self.calculate_body_condition(request)
         elif function_name == "lidar-wrangle":
             return self.lidar_wrangle(request)
@@ -174,9 +172,12 @@ class CollatriX(View):
             return self.lidar_match(request)
         elif function_name == "lidar-image":
             return self.lidar_image(request)
+        elif function_name == "collate-morphometrix":
+            return self.collate_morphometrix(request)
         else:
             return JsonResponse({"error": "Invalid function name"}, status=400)
 
+    ### THIS HAS BEEN REPLACED BY LIDAR_IMAGE. ###
     def extract_metadata(self, request):
         """
         Extracts metadata from an uploaded image.
@@ -418,7 +419,6 @@ class CollatriX(View):
 
         return df_video
 
-
     def lidar_image(self, request):
         """
         Extract metadata from images and match with LiDAR data.
@@ -529,7 +529,6 @@ class CollatriX(View):
             ]
 
         return df_images
-
 
     def lidar_match(self, request):
         """
