@@ -7,3 +7,9 @@ urlpatterns = [
     path('collatrix/<str:function_name>/', CollatriX.as_view(), name='collatrix_function'),
     path('xcertainty/<str:function_name>/', Xcertainty.as_view(), name='xcertainty_function'),
 ]
+
+
+from .views import UserCredentialList
+urlpatterns = [
+    path('api/user_credentials/', UserCredentialList.as_view(), name='user-credentials-list'),
+]
