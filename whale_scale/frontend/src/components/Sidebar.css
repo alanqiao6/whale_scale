@@ -1,0 +1,84 @@
+.sidebar {
+  width: 250px;
+  background-color: var(--primary-blue);
+  padding: 20px;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.upload-button {
+  background-color: white;
+  color: var(--text-color);
+  padding: 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: center;
+  display: block;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.input-group input,
+.input-group select {
+  padding: 8px;
+  border: none;
+  border-radius: 4px;
+  background-color: white;
+}
+
+.input-group input[type="range"] {
+  width: 100%;
+}
+
+.color-picker {
+  width: 100%;
+  height: 40px;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+}
+
+.button-group {
+  display: flex;
+  flex-direction: column; /* Stack buttons vertically */
+  align-items: center; /* Center align buttons */
+  gap: 10px; /* Adds spacing between buttons */
+}
+
+.submit-button,
+.export-button {
+  width: 100%; /* Make buttons full width */
+  padding: 10px;
+  border: none;
+  border-radius: 4px;
+  background-color: white;
+  color: var(--text-color);
+  cursor: pointer;
+  font-weight: bold;
+  margin-top: 0; /* Remove previous margin */
+}
+
+
+@media (max-width: 768px) {
+  .sidebar {
+    width: 100%;
+    order: 2;
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
