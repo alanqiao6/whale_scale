@@ -832,3 +832,18 @@ class Xcertainty(View):
             return JsonResponse(result, safe=False)
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
+        
+
+
+#ciaran added in for api endpoint
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .models import UserCredential
+from .serializers import UserCredentialSerializer
+
+class UserCredentialList(APIView):
+    def get(self, request):
+        user_credentials = UserCredential.objects.all()
+        serializer = UserCredentialSerializer(user_credentials, many=True)
+        return Response(serializer.data)
