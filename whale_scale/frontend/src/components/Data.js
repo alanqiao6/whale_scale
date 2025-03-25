@@ -24,7 +24,7 @@ export default function Data() {
           <ul>
             {userCredentials.map((user, index) => (
               <li key={index}>
-                Username: {user.username}
+                Info: {user.username} {user.data}
               </li>
             ))}
           </ul>
