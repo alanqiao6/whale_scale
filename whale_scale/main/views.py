@@ -626,37 +626,34 @@ class CollatriX(View):
         """
         Collates and processes multiple MorphoMetriX CSV files into a single dataset.
         """
-        data = json.loads(request.body)
-        prefix = data.get("prefix", "output")
-        use_folder_as_animal_id = data.get("use_folder_as_animal_id", False)
-        safe_file_path = data.get("safe_file_path", None)
-        output_option = data.get("output_option", "Both in one file")
-
-        if 'csv_files' not in request.FILES:
-            return JsonResponse({"error": "CSV files are required"}, status=400)
-
-        csv_files = request.FILES.getlist('csv_files')
-        file_paths = [default_storage.save(f.name, f) for f in csv_files]
-
         try:
+            prefix = request.POST.get("prefix", "output")
+            use_folder_as_animal_id = request.POST.get("use_folder_as_animal_id", "false") == "true"
+            output_option = request.POST.get("output_option", "Both in one file")
+
+            csv_files = request.FILES.getlist('csv_files')
+            if not csv_files:
+                return JsonResponse({"error": "CSV files are required"}, status=400)
+
             csvs = []
             not_mmx = []
+            duplicate_csvs = []
+            decoded_csvs = []
 
-            # Step 1: Load CSV files and validate them
-            for file_path in file_paths:
-                df = pd.read_csv(file_path)
+            for file in csv_files:
+                df = pd.read_csv(file)
                 if 'Value_unit' in df.columns:
-                    csvs.append(df)
+                    df['csv'] = file.name
+                    decoded_csvs.append(df)
+                    csvs.append(file.name)
                 else:
-                    not_mmx.append(file_path)
+                    not_mmx.append(file.name)
 
-            if not csvs:
-                return JsonResponse({"error": "No valid MorphoMetriX CSV files found"}, status=400)
+            if not decoded_csvs:
+                return JsonResponse({"error": "No valid CSV files provided"}, status=400)
 
-            # Step 2: Combine and clean up data
-            df_all = pd.concat(csvs, ignore_index=True)
+            df_all = pd.concat(decoded_csvs, ignore_index=True)
 
-            # Fix object name format
             df_all['Object'] = df_all['Object'].astype(str)
             df_all['Object'] = df_all['Object'].apply(
                 lambda x: x.replace(".0", ".00") if ".00" not in x else x
@@ -667,65 +664,98 @@ class CollatriX(View):
                 ) if "_w" in x else x
             )
 
-            # Step 3: Replace Image ID with folder name if needed
             if use_folder_as_animal_id:
                 df_all["Image_ID"] = df_all["Image_Path"].apply(lambda x: Path(x).parts[-2])
 
-            # Step 4: Handle duplicates
-            duplicate_measurements = df_all[df_all.duplicated(subset=['Object'], keep=False)]
-            if not duplicate_measurements.empty:
-                return JsonResponse(
-                    {"error": "Duplicate measurements found", "duplicates": duplicate_measurements.to_dict(orient="records")},
-                    status=400
-                )
+            dup_check = df_all[df_all['Value_unit'] == 'Meters']
+            if dup_check.duplicated(subset=['Image', 'Object', 'csv'], keep=False).any():
+                duplicate_csvs = dup_check[dup_check.duplicated(subset=['Image', 'Object', 'csv'], keep=False)]
+                if not duplicate_csvs.empty:
+                    return JsonResponse(
+                        {
+                            "error": "Duplicate measurements found",
+                            "duplicates": duplicate_csvs.to_dict(orient="records")
+                        },
+                        status=400
+                    )
 
-            # Step 5: Split into metadata, meters, and pixels
+            # Step 8: Split into metadata, meters, and pixels
             df_meta = df_all[df_all["Value_unit"] == "Metadata"]
             df_meters = df_all[df_all["Value_unit"].isin(["Meters", "Square Meters", "Degrees"])]
             df_pixels = df_all[df_all["Value_unit"].isin(["Pixels", "Degrees"])]
 
-            # Step 6: Process safety file if provided
-            if safe_file_path:
-                safe_data = pd.read_csv(safe_file_path)
-                df_meta = df_meta.merge(safe_data, on="Image", how="left")
+            safe_file = request.FILES.get('safe_file_path')
+            safe_df = None
+            if safe_file:
+                safe_df = pd.read_csv(safe_file)
+                
+                df_meta['Image'] = df_meta['Image'].astype(str)
+                safe_df['Image'] = safe_df['Image'].astype(str)
+                
+                df_meters['Altitude'] = df_meters['Image'].map(safe_df.set_index('Image')['Altitude'])
+                df_meters['Focal_Length'] = df_meters['Image'].map(safe_df.set_index('Image')['Focal_Length'])
+                df_meters['Pixel_Dimension'] = df_meters['Image'].map(safe_df.set_index('Image')['Pixel_Dimension'])
 
-                # Scale measurements using formula
                 df_meters["Value_m"] = (
-                    (df_meta["Altitude"] / df_meta["Focal_Length"]) *
-                    df_meta["Pixel_Dimension"] * df_meters["Value"].astype(float)
+                    df_meters["Altitude"] / df_meters["Focal_Length"] *
+                    df_meters["Pixel_Dimension"] * df_meters["Value"].astype(float)
                 )
 
-                # Finalize meters output
                 df_meters["metadata_source"] = "safety_file"
                 df_pixels["metadata_source"] = "safety_file"
             else:
                 df_meters["metadata_source"] = "mmx_input"
                 df_pixels["metadata_source"] = "mmx_input"
 
-            # Step 7: Merge results into combined output
-            df_combined = df_meters.merge(df_pixels, on=["Image", "csv"], suffixes=("_m", "_px"))
+            if not df_meta.empty:
+                df_meta_pivot = df_meta.pivot(index=["Image", "csv"], columns="Object", values="Value").reset_index()
+            else:
+                df_meta_pivot = None
 
-            # Step 8: Return output based on user option
+            if not df_meters.empty:
+                df_mx = df_meters.pivot(index=["Image", "csv"], columns="Object", values="Value_m").reset_index()
+            else:
+                df_mx = None
+
+            if not df_pixels.empty:
+                df_px = df_pixels.pivot(index=["Image", "csv"], columns="Object", values="Value").reset_index()
+            else:
+                df_px = None
+
+            # Step 11: Combine Meters and Pixels (if required)
+            if df_mx is not None and df_px is not None:
+                df_combined = df_mx.merge(df_px, on=["Image", "csv"], suffixes=("_m", "_px"))
+            else:
+                df_combined = df_mx if df_mx is not None else df_px
+
+
+            # Step 11: Return output based on user option
             response_data = {}
             if output_option == "Both in one file":
                 response_data["combined"] = df_combined.to_dict(orient="records")
             elif output_option == "Both in separate files":
-                response_data["meters"] = df_meters.to_dict(orient="records")
-                response_data["pixels"] = df_pixels.to_dict(orient="records")
-            elif output_option == "Just meters":
-                response_data["meters"] = df_meters.to_dict(orient="records")
-            elif output_option == "Just pixels":
-                response_data["pixels"] = df_pixels.to_dict(orient="records")
+                if df_mx is not None:
+                    response_data["meters"] = df_mx.to_dict(orient="records")
+                if df_px is not None:
+                    response_data["pixels"] = df_px.to_dict(orient="records")
+            elif output_option == "Just meters" and df_mx is not None:
+                response_data["meters"] = df_mx.to_dict(orient="records")
+            elif output_option == "Just pixels" and df_px is not None:
+                response_data["pixels"] = df_px.to_dict(orient="records")
 
-            # Step 9: Return as JSON instead of writing to a file
+            processing_notes = f"""
+            Prefix: {prefix}
+            Use Folder as Animal ID: {'Yes' if use_folder_as_animal_id else 'No'}
+            Safety File Used: {'Yes' if safe_file else 'No'}
+            Number of Files Collated: {len(csvs)}
+            """
+            response_data["notes"] = processing_notes.strip()
+
             return JsonResponse(response_data, status=200)
 
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
 
-        finally:
-            for file_path in file_paths:
-                os.remove(file_path)
 
 
 
