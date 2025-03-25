@@ -847,3 +847,92 @@ class UserCredentialList(APIView):
         user_credentials = UserCredential.objects.all()
         serializer = UserCredentialSerializer(user_credentials, many=True)
         return Response(serializer.data)
+    
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.contrib.auth.hashers import make_password, check_password
+from .models import UserCredential
+import logging
+
+logger = logging.getLogger(__name__)
+
+class LoginView(APIView):
+    def post(self, request):
+        username = request.data.get('username')
+        password = request.data.get('password')
+        
+        print(f"Login attempt - Username: {username}")  # Debug print
+        
+        if not username or not password:
+            return Response(
+                {"detail": "Username and password are required"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if the user exists in the UserCredential model
+        user_credential = UserCredential.objects.filter(username=username).first()
+        
+        if user_credential:
+            print(f"User found: {username}")  # Debug print
+            print(f"Stored password hash: {user_credential.password}")  # Debug print
+            
+            # Try checking the password
+            try:
+                # Method 1: Direct check_password
+                is_correct = check_password(password, user_credential.password)
+                print(f"check_password result: {is_correct}")  # Debug print
+                
+                if is_correct:
+                    return Response({
+                        "message": "Login successful", 
+                        "username": user_credential.username
+                    }, status=status.HTTP_200_OK)
+                
+                return Response({
+                    "detail": "Invalid password"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            except Exception as e:
+                print(f"Error during password checking: {e}")  # Debug print
+                return Response({
+                    "detail": f"Error checking password: {str(e)}"
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # If user does not exist, return error message (do not create a new user here)
+        return Response({
+            "detail": "Invalid username or password"
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CreateAccountView(APIView):
+    def post(self, request):
+        username = request.data.get('username')
+        password = request.data.get('password')
+        
+        # Check if username and password are provided
+        if not username or not password:
+            return Response(
+                {"detail": "Username and password are required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if the username already exists
+        if UserCredential.objects.filter(username=username).exists():
+            return Response(
+                {"detail": "Username already taken"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Hash the password
+        hashed_password = make_password(password)
+        
+        # Create the new user and save it to the database
+        new_user = UserCredential(username=username, password=hashed_password)
+        new_user.save()
+        
+        # Return a successful response
+        return Response({
+            "message": "Account created and login successful",
+            "username": new_user.username
+        }, status=status.HTTP_201_CREATED)
