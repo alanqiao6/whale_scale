@@ -679,7 +679,6 @@ class CollatriX(View):
                         status=400
                     )
 
-            # Step 8: Split into metadata, meters, and pixels
             df_meta = df_all[df_all["Value_unit"] == "Metadata"]
             df_meters = df_all[df_all["Value_unit"].isin(["Meters", "Square Meters", "Degrees"])]
             df_pixels = df_all[df_all["Value_unit"].isin(["Pixels", "Degrees"])]
@@ -688,7 +687,7 @@ class CollatriX(View):
             safe_df = None
             if safe_file:
                 safe_df = pd.read_csv(safe_file)
-                
+
                 df_meta['Image'] = df_meta['Image'].astype(str)
                 safe_df['Image'] = safe_df['Image'].astype(str)
                 
@@ -722,14 +721,12 @@ class CollatriX(View):
             else:
                 df_px = None
 
-            # Step 11: Combine Meters and Pixels (if required)
             if df_mx is not None and df_px is not None:
                 df_combined = df_mx.merge(df_px, on=["Image", "csv"], suffixes=("_m", "_px"))
             else:
                 df_combined = df_mx if df_mx is not None else df_px
 
 
-            # Step 11: Return output based on user option
             response_data = {}
             if output_option == "Both in one file":
                 response_data["combined"] = df_combined.to_dict(orient="records")
