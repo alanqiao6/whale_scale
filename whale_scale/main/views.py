@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views import View
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
@@ -162,18 +162,16 @@ class CollatriX(View):
         """
         Routes requests to the appropriate function based on the URL path.
         """
-        if function_name == "extract-metadata":
-            return self.extract_metadata(request)
-        elif function_name == "calculate-body-condition":
+        if function_name == "calculate-body-condition":
             return self.calculate_body_condition(request)
         elif function_name == "lidar-wrangle":
             return self.lidar_wrangle(request)
-        elif function_name == "lidar-video":
-            return self.lidar_video(request)
-        elif function_name == "lidar-match":
-            return self.lidar_match(request)
         elif function_name == "lidar-image":
             return self.lidar_image(request)
+        elif function_name == "collate-morphometrix":
+            return self.collate_morphometrix(request)
+        elif function_name == "extract-metadata":
+            return self.extract_metadata(request)
         else:
             return JsonResponse({"error": "Invalid function name"}, status=400)
 
@@ -190,12 +188,38 @@ class CollatriX(View):
         try:
             with self.exiftool as et:
                 metadata = et.get_metadata(image_path)[0]
-
             response_data = {
                 "timestamp": metadata.get("EXIF:DateTimeOriginal", "Unknown"),
-                "altitude": metadata.get("EXIF:GPSAltitude", None),
-                "camera_model": metadata.get("EXIF:Model", "Unknown"),
                 "file_name": metadata.get("File:FileName", os.path.basename(image_path)),
+                "file_size_bytes": metadata.get("File:FileSize", None),
+                "image_dimensions": f"{metadata.get('File:ImageWidth', '?')} x {metadata.get('File:ImageHeight', '?')}",
+                "megapixels": metadata.get("Composite:Megapixels", None),
+                "camera_make": metadata.get("EXIF:Make", "Unknown"),
+                "camera_model": metadata.get("EXIF:Model", "Unknown"),
+                "lens_info": metadata.get("EXIF:LensInfo", "Unknown"),
+                "serial_number": metadata.get("EXIF:SerialNumber", "Unknown"),
+                "shutter_speed_sec": metadata.get("EXIF:ShutterSpeedValue", None),
+                "aperture_f_number": metadata.get("EXIF:ApertureValue", None),
+                "iso": metadata.get("EXIF:ISO", None),
+                "focal_length_mm": metadata.get("EXIF:FocalLength", None),
+                "focal_length_35mm_equiv": metadata.get("EXIF:FocalLengthIn35mmFormat", None),
+                "exposure_compensation": metadata.get("EXIF:ExposureCompensation", None),
+                "white_balance": "Auto" if metadata.get("EXIF:WhiteBalance") == 0 else "Manual",
+                "digital_zoom_ratio": metadata.get("EXIF:DigitalZoomRatio", None),
+                "gps_latitude": metadata.get("Composite:GPSLatitude", None),
+                "gps_longitude": metadata.get("Composite:GPSLongitude", None),
+                "gps_altitude_m": metadata.get("Composite:GPSAltitude", None),
+                "gimbal_pitch_deg": metadata.get("XMP:GimbalPitchDegree", None),
+                "gimbal_yaw_deg": metadata.get("XMP:GimbalYawDegree", None),
+                "gimbal_roll_deg": metadata.get("XMP:GimbalRollDegree", None),
+                "drone_pitch_deg": metadata.get("XMP:FlightPitchDegree", None),
+                "drone_yaw_deg": metadata.get("XMP:FlightYawDegree", None),
+                "drone_roll_deg": metadata.get("XMP:FlightRollDegree", None),
+                "sensor_temperature_c": metadata.get("XMP:SensorTemperature", None),
+                "sensor_fps": metadata.get("XMP:SensorFPS", None),
+                "field_of_view_deg": metadata.get("Composite:FOV", None),
+                "hyperfocal_distance_m": metadata.get("Composite:HyperfocalDistance", None),
+                "light_value_ev": metadata.get("Composite:LightValue", None),
             }
 
             return JsonResponse(response_data)
@@ -220,7 +244,6 @@ class CollatriX(View):
         lower = float(data.get("lower", 0))
         upper = float(data.get("upper", 100))
 
-        # Handle "Both" options and merge results
         df_vol = calculate_body_volume(df, tl_name, interval, lower, upper, bv_method)
         df_bai = calculate_body_area_index(df, tl_name, interval, lower, upper, bai_method)
 
@@ -240,7 +263,7 @@ class CollatriX(View):
         Wrangles LiDAR data from either LightWare CSV or LemHex GPX files.
         """
         lidar_type = request.POST.get('lidar_type')
-        gimbal_type = request.POST.get('gimbal_type')  # for LightWare only
+        gimbal_type = request.POST.get('gimbal_type')
 
         if 'files' not in request.FILES:
             return JsonResponse({"error": "LiDAR files required"}, status=400)
@@ -253,17 +276,14 @@ class CollatriX(View):
                 if not gimbal_type:
                     return JsonResponse({"error": "Gimbal type is required for LightWare"}, status=400)
 
-                # Call the helper function for LightWare
                 laser_all = wrangle_lightware_lidar(file_paths, gimbal_type)
 
             elif lidar_type == "LemHex":
-                # Call the helper function for LemHex
                 laser_all = wrangle_lemhex_lidar(file_paths)
 
             else:
                 return JsonResponse({"error": "Invalid LiDAR type"}, status=400)
 
-            # Return as JSON (instead of CSV)
             return JsonResponse(laser_all.to_dict(orient='records'), safe=False)
 
         except Exception as e:
@@ -418,32 +438,34 @@ class CollatriX(View):
 
         return df_video
 
-
     def lidar_image(self, request):
         """
         Extract metadata from images and match with LiDAR data.
         """
-        files = request.FILES.getlist('image_files')
-        gps_data = json.loads(request.body).get("gps_data")
-        lidar_data = json.loads(request.body).get("lidar_data")
-        time_window = float(json.loads(request.body).get("time_window", 5))
-
-        if not files or not gps_data or not lidar_data:
-            return JsonResponse({"error": "Image files, GPS data, and LiDAR data are required"}, status=400)
-
-        image_paths = [default_storage.save(file.name, file) for file in files]
-
         try:
-            et = self.exiftool
-            df_images = self._extract_image_metadata(image_paths, et)
+            gps_data = json.loads(request.POST.get("gps_data", "[]"))
+            lidar_data = json.loads(request.POST.get("lidar_data", "[]"))
+            time_window = float(request.POST.get("time_window", 5))
+
+            files = request.FILES.getlist('image_files')
+
+            if not files or not gps_data or not lidar_data:
+                return JsonResponse({"error": "Image files, GPS data, and LiDAR data are required"}, status=400)
+            
+
+            image_paths = [default_storage.save(file.name, file) for file in files]
+        
+            flight_ixs = json.loads(request.POST.get("flight_ixs", "[]"))
+            delimiter = request.POST.get("delimiter", "_")
+
+            df_images = self._extract_image_metadata(image_paths, self.exiftool, flight_ixs, delimiter)
+
             df_gps = pd.DataFrame(gps_data)
             df_lidar = pd.DataFrame(lidar_data)
 
-            # Merge GPS and image data
             df_gps['GPS_DT'] = pd.to_datetime(df_gps['GPS_DT'])
             df_images['ImageDT'] = pd.to_datetime(df_images['ImageDT'])
 
-            # Merge to assign offset
             df_img_x = df_images.merge(
                 df_gps[['FlightID', 'GPS_DT']],
                 on='FlightID',
@@ -451,14 +473,11 @@ class CollatriX(View):
             )
             df_img_x['offset'] = df_img_x['GPS_DT'] - df_img_x['ImageDT']
 
-            # Correct time by adding offset
             df_img_x['CorrDT'] = df_img_x['ImageDT'] + df_img_x['offset']
 
-            # Merge with LiDAR data using a time window
             df_lidar['CorrDT'] = pd.to_datetime(df_lidar['CorrDT'])
 
             if time_window > 0:
-                # Sort values for merge_asof
                 df_img_x = df_img_x.sort_values('CorrDT')
                 df_lidar = df_lidar.sort_values('CorrDT')
 
@@ -476,60 +495,64 @@ class CollatriX(View):
                     on='CorrDT'
                 )
 
-            # Narrow down final output
-            result = df_lidarmerge[['SourceFile', 'Image', 'Laser_Alt']].dropna()
+            result = df_lidarmerge[['SourceFile', 'Image', 'Laser_Alt']]
+            result = result.replace({np.nan: None})
 
             return JsonResponse(result.to_dict(orient="records"), safe=False)
 
         except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-
+            print(f"EXCEPTION: {str(e)}")
+            return JsonResponse({
+                "error": str(e),
+            }, status=500)
         finally:
             for path in image_paths:
-                os.remove(path)
+                try:
+                    os.remove(path)
+                    print(f"Removed {path}")
+                except Exception as cleanup_error:
+                    print(f"Failed to remove {path}: {cleanup_error}")
 
-    def _extract_image_metadata(self, image_paths, et):
+    def _extract_image_metadata(self, image_paths, et, flight_ixs=None, delimiter="_"):
         """
         Internal method for extracting image metadata using ExifTool.
         """
         df_images = pd.DataFrame()
         tagnames = []
 
-        for d in et.get_metadata(image_paths):
-            tempdict = {k: v for k, v in d.items()}
-            tagnames.extend(tempdict.keys())
-            tempdf = pd.DataFrame(data=tempdict, index=[0])
-            df_images = pd.concat([df_images, tempdf]).reset_index(drop=True)
+        try:
 
-        # Clean up dataframe
-        tagnames = list(set(tagnames))
-        
-        name_tag = next((x for x in tagnames if 'File:FileName' in x), None)
-        date_tag = next((x for x in tagnames if 'EXIF:CreateDate' in x), None)
+            for d in et.get_metadata(image_paths):
+                tempdict = {k: v for k, v in d.items()}
+                tagnames.extend(tempdict.keys())
+                tempdf = pd.DataFrame(data=tempdict, index=[0])
+                df_images = pd.concat([df_images, tempdf]).reset_index(drop=True)
+            tagnames = list(set(tagnames))
 
-        if not name_tag or not date_tag:
-            raise ValueError("Required EXIF tags not found in image metadata.")
+            
+            name_tag = next((x for x in tagnames if 'File:FileName' in x), None)
+            date_tag = next(
+                (x for x in tagnames if 'EXIF:CreateDate' in x or 'EXIF:DateTimeOriginal' in x), 
+                None
+            )
+            if not name_tag or not date_tag:
+                raise ValueError("Required EXIF tags not found in image metadata.")
+            df_images = df_images.rename(columns={
+                name_tag: 'Image',
+                date_tag: 'ImageDT'
+            })
 
-        df_images = df_images.rename(columns={
-            name_tag: 'Image',
-            date_tag: 'ImageDT'
-        })
+            df_images['ImageDT'] = pd.to_datetime(df_images['ImageDT'], format='%Y:%m:%d %H:%M:%S', errors="coerce")
 
-        # Convert date strings to datetime objects
-        df_images['ImageDT'] = pd.to_datetime(df_images['ImageDT'], format="%Y:%m:%d %H:%M:%S", errors="coerce")
+            if flight_ixs:
+                df_images['FlightID'] = [
+                    delimiter.join(x.split(delimiter)[i] for i in flight_ixs)
+                    for x in df_images['Image']
+                ]
 
-        # Add flight ID using prefix (if needed)
-        flight_ixs = json.loads(self.request.body).get("flight_ixs", [])
-
-        if flight_ixs:
-            delimiter = json.loads(self.request.body).get("delimiter", "_")
-            df_images['FlightID'] = [
-                delimiter.join(x.split(delimiter)[i] for i in flight_ixs)
-                for x in df_images['Image']
-            ]
-
-        return df_images
-
+            return df_images
+        finally:
+            et.terminate()
 
     def lidar_match(self, request):
         """
@@ -627,37 +650,34 @@ class CollatriX(View):
         """
         Collates and processes multiple MorphoMetriX CSV files into a single dataset.
         """
-        data = json.loads(request.body)
-        prefix = data.get("prefix", "output")
-        use_folder_as_animal_id = data.get("use_folder_as_animal_id", False)
-        safe_file_path = data.get("safe_file_path", None)
-        output_option = data.get("output_option", "Both in one file")
-
-        if 'csv_files' not in request.FILES:
-            return JsonResponse({"error": "CSV files are required"}, status=400)
-
-        csv_files = request.FILES.getlist('csv_files')
-        file_paths = [default_storage.save(f.name, f) for f in csv_files]
-
         try:
+            prefix = request.POST.get("prefix", "output")
+            use_folder_as_animal_id = request.POST.get("use_folder_as_animal_id", "false") == "true"
+            output_option = request.POST.get("output_option", "Both in one file")
+
+            csv_files = request.FILES.getlist('csv_files')
+            if not csv_files:
+                return JsonResponse({"error": "CSV files are required"}, status=400)
+
             csvs = []
             not_mmx = []
+            duplicate_csvs = []
+            decoded_csvs = []
 
-            # Step 1: Load CSV files and validate them
-            for file_path in file_paths:
-                df = pd.read_csv(file_path)
+            for file in csv_files:
+                df = pd.read_csv(file)
                 if 'Value_unit' in df.columns:
-                    csvs.append(df)
+                    df['csv'] = file.name
+                    decoded_csvs.append(df)
+                    csvs.append(file.name)
                 else:
-                    not_mmx.append(file_path)
+                    not_mmx.append(file.name)
 
-            if not csvs:
-                return JsonResponse({"error": "No valid MorphoMetriX CSV files found"}, status=400)
+            if not decoded_csvs:
+                return JsonResponse({"error": "No valid CSV files provided"}, status=400)
 
-            # Step 2: Combine and clean up data
-            df_all = pd.concat(csvs, ignore_index=True)
+            df_all = pd.concat(decoded_csvs, ignore_index=True)
 
-            # Fix object name format
             df_all['Object'] = df_all['Object'].astype(str)
             df_all['Object'] = df_all['Object'].apply(
                 lambda x: x.replace(".0", ".00") if ".00" not in x else x
@@ -668,65 +688,95 @@ class CollatriX(View):
                 ) if "_w" in x else x
             )
 
-            # Step 3: Replace Image ID with folder name if needed
             if use_folder_as_animal_id:
                 df_all["Image_ID"] = df_all["Image_Path"].apply(lambda x: Path(x).parts[-2])
 
-            # Step 4: Handle duplicates
-            duplicate_measurements = df_all[df_all.duplicated(subset=['Object'], keep=False)]
-            if not duplicate_measurements.empty:
-                return JsonResponse(
-                    {"error": "Duplicate measurements found", "duplicates": duplicate_measurements.to_dict(orient="records")},
-                    status=400
-                )
+            dup_check = df_all[df_all['Value_unit'] == 'Meters']
+            if dup_check.duplicated(subset=['Image', 'Object', 'csv'], keep=False).any():
+                duplicate_csvs = dup_check[dup_check.duplicated(subset=['Image', 'Object', 'csv'], keep=False)]
+                if not duplicate_csvs.empty:
+                    return JsonResponse(
+                        {
+                            "error": "Duplicate measurements found",
+                            "duplicates": duplicate_csvs.to_dict(orient="records")
+                        },
+                        status=400
+                    )
 
-            # Step 5: Split into metadata, meters, and pixels
             df_meta = df_all[df_all["Value_unit"] == "Metadata"]
             df_meters = df_all[df_all["Value_unit"].isin(["Meters", "Square Meters", "Degrees"])]
             df_pixels = df_all[df_all["Value_unit"].isin(["Pixels", "Degrees"])]
 
-            # Step 6: Process safety file if provided
-            if safe_file_path:
-                safe_data = pd.read_csv(safe_file_path)
-                df_meta = df_meta.merge(safe_data, on="Image", how="left")
+            safe_file = request.FILES.get('safe_file_path')
+            safe_df = None
+            if safe_file:
+                safe_df = pd.read_csv(safe_file)
 
-                # Scale measurements using formula
+                df_meta['Image'] = df_meta['Image'].astype(str)
+                safe_df['Image'] = safe_df['Image'].astype(str)
+                
+                df_meters['Altitude'] = df_meters['Image'].map(safe_df.set_index('Image')['Altitude'])
+                df_meters['Focal_Length'] = df_meters['Image'].map(safe_df.set_index('Image')['Focal_Length'])
+                df_meters['Pixel_Dimension'] = df_meters['Image'].map(safe_df.set_index('Image')['Pixel_Dimension'])
+
                 df_meters["Value_m"] = (
-                    (df_meta["Altitude"] / df_meta["Focal_Length"]) *
-                    df_meta["Pixel_Dimension"] * df_meters["Value"].astype(float)
+                    df_meters["Altitude"] / df_meters["Focal_Length"] *
+                    df_meters["Pixel_Dimension"] * df_meters["Value"].astype(float)
                 )
 
-                # Finalize meters output
                 df_meters["metadata_source"] = "safety_file"
                 df_pixels["metadata_source"] = "safety_file"
             else:
                 df_meters["metadata_source"] = "mmx_input"
                 df_pixels["metadata_source"] = "mmx_input"
 
-            # Step 7: Merge results into combined output
-            df_combined = df_meters.merge(df_pixels, on=["Image", "csv"], suffixes=("_m", "_px"))
+            if not df_meta.empty:
+                df_meta_pivot = df_meta.pivot(index=["Image", "csv"], columns="Object", values="Value").reset_index()
+            else:
+                df_meta_pivot = None
 
-            # Step 8: Return output based on user option
+            if not df_meters.empty:
+                df_mx = df_meters.pivot(index=["Image", "csv"], columns="Object", values="Value_m").reset_index()
+            else:
+                df_mx = None
+
+            if not df_pixels.empty:
+                df_px = df_pixels.pivot(index=["Image", "csv"], columns="Object", values="Value").reset_index()
+            else:
+                df_px = None
+
+            if df_mx is not None and df_px is not None:
+                df_combined = df_mx.merge(df_px, on=["Image", "csv"], suffixes=("_m", "_px"))
+            else:
+                df_combined = df_mx if df_mx is not None else df_px
+
+
             response_data = {}
             if output_option == "Both in one file":
                 response_data["combined"] = df_combined.to_dict(orient="records")
             elif output_option == "Both in separate files":
-                response_data["meters"] = df_meters.to_dict(orient="records")
-                response_data["pixels"] = df_pixels.to_dict(orient="records")
-            elif output_option == "Just meters":
-                response_data["meters"] = df_meters.to_dict(orient="records")
-            elif output_option == "Just pixels":
-                response_data["pixels"] = df_pixels.to_dict(orient="records")
+                if df_mx is not None:
+                    response_data["meters"] = df_mx.to_dict(orient="records")
+                if df_px is not None:
+                    response_data["pixels"] = df_px.to_dict(orient="records")
+            elif output_option == "Just meters" and df_mx is not None:
+                response_data["meters"] = df_mx.to_dict(orient="records")
+            elif output_option == "Just pixels" and df_px is not None:
+                response_data["pixels"] = df_px.to_dict(orient="records")
 
-            # Step 9: Return as JSON instead of writing to a file
+            processing_notes = f"""
+            Prefix: {prefix}
+            Use Folder as Animal ID: {'Yes' if use_folder_as_animal_id else 'No'}
+            Safety File Used: {'Yes' if safe_file else 'No'}
+            Number of Files Collated: {len(csvs)}
+            """
+            response_data["notes"] = processing_notes.strip()
+
             return JsonResponse(response_data, status=200)
 
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
 
-        finally:
-            for file_path in file_paths:
-                os.remove(file_path)
 
 
 

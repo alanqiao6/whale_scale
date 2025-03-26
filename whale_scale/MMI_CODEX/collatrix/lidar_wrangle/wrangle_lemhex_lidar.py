@@ -27,7 +27,6 @@ def wrangle_lemhex_lidar(file_list):
     laser_all = pd.DataFrame(laser_data, columns=['CorrDT', 'Laser_Alt', 'lat', 'lon'])
     laser_all['Laser_Alt'] = laser_all['Laser_Alt'].replace(130.00, np.nan)
 
-    # Multiple samples per second → Take mean
     laser_all = laser_all.groupby('CorrDT').agg({
         'lat': 'first',
         'lon': 'first',
