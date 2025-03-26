@@ -170,10 +170,11 @@ class CollatriX(View):
             return self.lidar_image(request)
         elif function_name == "collate-morphometrix":
             return self.collate_morphometrix(request)
+        elif function_name == "extract-metadata":
+            return self.extract_metadata(request)
         else:
             return JsonResponse({"error": "Invalid function name"}, status=400)
 
-    ### THIS HAS BEEN REPLACED BY LIDAR_IMAGE. ###
     def extract_metadata(self, request):
         """
         Extracts metadata from an uploaded image.
@@ -187,12 +188,38 @@ class CollatriX(View):
         try:
             with self.exiftool as et:
                 metadata = et.get_metadata(image_path)[0]
-
             response_data = {
                 "timestamp": metadata.get("EXIF:DateTimeOriginal", "Unknown"),
-                "altitude": metadata.get("EXIF:GPSAltitude", None),
-                "camera_model": metadata.get("EXIF:Model", "Unknown"),
                 "file_name": metadata.get("File:FileName", os.path.basename(image_path)),
+                "file_size_bytes": metadata.get("File:FileSize", None),
+                "image_dimensions": f"{metadata.get('File:ImageWidth', '?')} x {metadata.get('File:ImageHeight', '?')}",
+                "megapixels": metadata.get("Composite:Megapixels", None),
+                "camera_make": metadata.get("EXIF:Make", "Unknown"),
+                "camera_model": metadata.get("EXIF:Model", "Unknown"),
+                "lens_info": metadata.get("EXIF:LensInfo", "Unknown"),
+                "serial_number": metadata.get("EXIF:SerialNumber", "Unknown"),
+                "shutter_speed_sec": metadata.get("EXIF:ShutterSpeedValue", None),
+                "aperture_f_number": metadata.get("EXIF:ApertureValue", None),
+                "iso": metadata.get("EXIF:ISO", None),
+                "focal_length_mm": metadata.get("EXIF:FocalLength", None),
+                "focal_length_35mm_equiv": metadata.get("EXIF:FocalLengthIn35mmFormat", None),
+                "exposure_compensation": metadata.get("EXIF:ExposureCompensation", None),
+                "white_balance": "Auto" if metadata.get("EXIF:WhiteBalance") == 0 else "Manual",
+                "digital_zoom_ratio": metadata.get("EXIF:DigitalZoomRatio", None),
+                "gps_latitude": metadata.get("Composite:GPSLatitude", None),
+                "gps_longitude": metadata.get("Composite:GPSLongitude", None),
+                "gps_altitude_m": metadata.get("Composite:GPSAltitude", None),
+                "gimbal_pitch_deg": metadata.get("XMP:GimbalPitchDegree", None),
+                "gimbal_yaw_deg": metadata.get("XMP:GimbalYawDegree", None),
+                "gimbal_roll_deg": metadata.get("XMP:GimbalRollDegree", None),
+                "drone_pitch_deg": metadata.get("XMP:FlightPitchDegree", None),
+                "drone_yaw_deg": metadata.get("XMP:FlightYawDegree", None),
+                "drone_roll_deg": metadata.get("XMP:FlightRollDegree", None),
+                "sensor_temperature_c": metadata.get("XMP:SensorTemperature", None),
+                "sensor_fps": metadata.get("XMP:SensorFPS", None),
+                "field_of_view_deg": metadata.get("Composite:FOV", None),
+                "hyperfocal_distance_m": metadata.get("Composite:HyperfocalDistance", None),
+                "light_value_ev": metadata.get("Composite:LightValue", None),
             }
 
             return JsonResponse(response_data)
