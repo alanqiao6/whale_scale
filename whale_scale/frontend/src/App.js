@@ -1,49 +1,46 @@
-import logo from './logo.svg';
-import './App.css';
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import Navbar from './Navbar/Navbar';
-import Data from './Data/Data';
-import Xcertainty from './Xcertainty/Xcertainty';
-import Measure from './Measure/Measure';
+"use client";
+import React, { useState } from "react";
+import Sidebar from "./components/Sidebar";
+import TopBar from "./components/TopBar";
+import ImageViewer from "./components/ImageViewer";
+import Data from "./components/Data";
+import * as exifr from "exifr"; // Import EXIF reader
+import "./App.css";
 
-function App() {
-    const [message, setMessage] = useState("");
-    const [isMeasureVisible, setIsMeasureVisible] = useState(true); 
+export default function App() {
+  const [activeTab, setActiveTab] = useState("measure");
+  const [image, setImage] = useState(null);
+  const [metadata, setMetadata] = useState({ focalLength: "", altitude: "" });
 
-    useEffect(() => {
-    axios.get('/home/')
-        .then(response => {
-            setMessage(response.data.message || "No message received");
-        })
-        .catch(error => console.error(error));
-    }, []);
+  const handleImageUpload = async (file) => {
+    if (file) {
+      const imageUrl = URL.createObjectURL(file);
+      setImage(imageUrl);
 
-    const toggleToMeasure = () => {
-        setIsMeasureVisible(true);
-    };
+      // Extract metadata using exifr
+      try {
+        const exifData = await exifr.parse(file);
+        console.log("Extracted Metadata:", exifData);
 
-    const toggleToXcertainty = () => {
-        setIsMeasureVisible(false); 
-    };
-    return (
-        <div className="app-container">
-            <Navbar /> {/* Learned how to create different components here: https://www.youtube.com/watch?v=0sSYmRImgRY */}
-            <Data message = {message} /> 
-            <div className="toggle-buttons">
-                <button className="toggle" onClick={toggleToMeasure}>Show Measure</button>
-                <button className="toggle" onClick={toggleToXcertainty}>Show Xcertainty</button>
-            </div>
+        setMetadata({
+          focalLength: exifData?.FocalLength || "",
+          altitude: exifData?.GPSAltitude || "",
+        });
 
-            {isMeasureVisible ? 
-                <Measure toggleToXcertainty={toggleToXcertainty} /> : 
-                <Xcertainty toggleToMeasure={toggleToMeasure} />}
-            {/*<div className="content">
-                <h1>{message}</h1> 
-                <p>temporary content</p>
-            </div> */}
-        </div>
-    )
+      } catch (error) {
+        console.error("Error extracting metadata:", error);
+      }
+    }
+  };
+
+  return (
+    <div className="app-container">
+      <Sidebar metadata={metadata} onImageUpload={handleImageUpload} />
+      <div className="main-content">
+        <TopBar activeTab={activeTab} setActiveTab={setActiveTab} />
+        <ImageViewer image={image} onImageUpload={handleImageUpload} />
+        <Data />
+      </div>
+    </div>
+  );
 }
-
-export default App;
