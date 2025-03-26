@@ -1,15 +1,44 @@
 .data-section {
-  background-color: var(--background-gray);
+  background-color: var(--background-gray, #f0f0f0);
   padding: 20px;
-  min-height: 200px;
+  border-radius: 8px;
+  margin-top: 20px;
 }
 
 .data-section h2 {
-  margin: 0;
-  color: var(--text-color);
+  margin-top: 0;
+  color: var(--text-color, #333);
 }
 
 .data-content {
-  margin-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.form-data,
+.measurement-data,
+.real-measurements {
+  background-color: white;
+  padding: 15px;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.data-content h3 {
+  margin-top: 0;
+  color: var(--primary-blue, #0e8ae3);
+  border-bottom: 1px solid #eee;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+
+.data-content p {
+  margin: 8px 0;
+}
+
+.data-content p strong {
+  color: var(--text-color, #333);
+  font-weight: 600;
 }
 
