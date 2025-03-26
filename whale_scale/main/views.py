@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views import View
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
@@ -166,10 +166,6 @@ class CollatriX(View):
             return self.calculate_body_condition(request)
         elif function_name == "lidar-wrangle":
             return self.lidar_wrangle(request)
-        elif function_name == "lidar-video":
-            return self.lidar_video(request)
-        elif function_name == "lidar-match":
-            return self.lidar_match(request)
         elif function_name == "lidar-image":
             return self.lidar_image(request)
         elif function_name == "collate-morphometrix":
@@ -221,7 +217,6 @@ class CollatriX(View):
         lower = float(data.get("lower", 0))
         upper = float(data.get("upper", 100))
 
-        # Handle "Both" options and merge results
         df_vol = calculate_body_volume(df, tl_name, interval, lower, upper, bv_method)
         df_bai = calculate_body_area_index(df, tl_name, interval, lower, upper, bai_method)
 
@@ -241,7 +236,7 @@ class CollatriX(View):
         Wrangles LiDAR data from either LightWare CSV or LemHex GPX files.
         """
         lidar_type = request.POST.get('lidar_type')
-        gimbal_type = request.POST.get('gimbal_type')  # for LightWare only
+        gimbal_type = request.POST.get('gimbal_type')
 
         if 'files' not in request.FILES:
             return JsonResponse({"error": "LiDAR files required"}, status=400)
@@ -254,17 +249,14 @@ class CollatriX(View):
                 if not gimbal_type:
                     return JsonResponse({"error": "Gimbal type is required for LightWare"}, status=400)
 
-                # Call the helper function for LightWare
                 laser_all = wrangle_lightware_lidar(file_paths, gimbal_type)
 
             elif lidar_type == "LemHex":
-                # Call the helper function for LemHex
                 laser_all = wrangle_lemhex_lidar(file_paths)
 
             else:
                 return JsonResponse({"error": "Invalid LiDAR type"}, status=400)
 
-            # Return as JSON (instead of CSV)
             return JsonResponse(laser_all.to_dict(orient='records'), safe=False)
 
         except Exception as e:
@@ -423,27 +415,30 @@ class CollatriX(View):
         """
         Extract metadata from images and match with LiDAR data.
         """
-        files = request.FILES.getlist('image_files')
-        gps_data = json.loads(request.body).get("gps_data")
-        lidar_data = json.loads(request.body).get("lidar_data")
-        time_window = float(json.loads(request.body).get("time_window", 5))
-
-        if not files or not gps_data or not lidar_data:
-            return JsonResponse({"error": "Image files, GPS data, and LiDAR data are required"}, status=400)
-
-        image_paths = [default_storage.save(file.name, file) for file in files]
-
         try:
-            et = self.exiftool
-            df_images = self._extract_image_metadata(image_paths, et)
+            gps_data = json.loads(request.POST.get("gps_data", "[]"))
+            lidar_data = json.loads(request.POST.get("lidar_data", "[]"))
+            time_window = float(request.POST.get("time_window", 5))
+
+            files = request.FILES.getlist('image_files')
+
+            if not files or not gps_data or not lidar_data:
+                return JsonResponse({"error": "Image files, GPS data, and LiDAR data are required"}, status=400)
+            
+
+            image_paths = [default_storage.save(file.name, file) for file in files]
+        
+            flight_ixs = json.loads(request.POST.get("flight_ixs", "[]"))
+            delimiter = request.POST.get("delimiter", "_")
+
+            df_images = self._extract_image_metadata(image_paths, self.exiftool, flight_ixs, delimiter)
+
             df_gps = pd.DataFrame(gps_data)
             df_lidar = pd.DataFrame(lidar_data)
 
-            # Merge GPS and image data
             df_gps['GPS_DT'] = pd.to_datetime(df_gps['GPS_DT'])
             df_images['ImageDT'] = pd.to_datetime(df_images['ImageDT'])
 
-            # Merge to assign offset
             df_img_x = df_images.merge(
                 df_gps[['FlightID', 'GPS_DT']],
                 on='FlightID',
@@ -451,14 +446,11 @@ class CollatriX(View):
             )
             df_img_x['offset'] = df_img_x['GPS_DT'] - df_img_x['ImageDT']
 
-            # Correct time by adding offset
             df_img_x['CorrDT'] = df_img_x['ImageDT'] + df_img_x['offset']
 
-            # Merge with LiDAR data using a time window
             df_lidar['CorrDT'] = pd.to_datetime(df_lidar['CorrDT'])
 
             if time_window > 0:
-                # Sort values for merge_asof
                 df_img_x = df_img_x.sort_values('CorrDT')
                 df_lidar = df_lidar.sort_values('CorrDT')
 
@@ -476,59 +468,64 @@ class CollatriX(View):
                     on='CorrDT'
                 )
 
-            # Narrow down final output
-            result = df_lidarmerge[['SourceFile', 'Image', 'Laser_Alt']].dropna()
+            result = df_lidarmerge[['SourceFile', 'Image', 'Laser_Alt']]
+            result = result.replace({np.nan: None})
 
             return JsonResponse(result.to_dict(orient="records"), safe=False)
 
         except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-
+            print(f"EXCEPTION: {str(e)}")
+            return JsonResponse({
+                "error": str(e),
+            }, status=500)
         finally:
             for path in image_paths:
-                os.remove(path)
+                try:
+                    os.remove(path)
+                    print(f"Removed {path}")
+                except Exception as cleanup_error:
+                    print(f"Failed to remove {path}: {cleanup_error}")
 
-    def _extract_image_metadata(self, image_paths, et):
+    def _extract_image_metadata(self, image_paths, et, flight_ixs=None, delimiter="_"):
         """
         Internal method for extracting image metadata using ExifTool.
         """
         df_images = pd.DataFrame()
         tagnames = []
 
-        for d in et.get_metadata(image_paths):
-            tempdict = {k: v for k, v in d.items()}
-            tagnames.extend(tempdict.keys())
-            tempdf = pd.DataFrame(data=tempdict, index=[0])
-            df_images = pd.concat([df_images, tempdf]).reset_index(drop=True)
+        try:
 
-        # Clean up dataframe
-        tagnames = list(set(tagnames))
-        
-        name_tag = next((x for x in tagnames if 'File:FileName' in x), None)
-        date_tag = next((x for x in tagnames if 'EXIF:CreateDate' in x), None)
+            for d in et.get_metadata(image_paths):
+                tempdict = {k: v for k, v in d.items()}
+                tagnames.extend(tempdict.keys())
+                tempdf = pd.DataFrame(data=tempdict, index=[0])
+                df_images = pd.concat([df_images, tempdf]).reset_index(drop=True)
+            tagnames = list(set(tagnames))
 
-        if not name_tag or not date_tag:
-            raise ValueError("Required EXIF tags not found in image metadata.")
+            
+            name_tag = next((x for x in tagnames if 'File:FileName' in x), None)
+            date_tag = next(
+                (x for x in tagnames if 'EXIF:CreateDate' in x or 'EXIF:DateTimeOriginal' in x), 
+                None
+            )
+            if not name_tag or not date_tag:
+                raise ValueError("Required EXIF tags not found in image metadata.")
+            df_images = df_images.rename(columns={
+                name_tag: 'Image',
+                date_tag: 'ImageDT'
+            })
 
-        df_images = df_images.rename(columns={
-            name_tag: 'Image',
-            date_tag: 'ImageDT'
-        })
+            df_images['ImageDT'] = pd.to_datetime(df_images['ImageDT'], format='%Y:%m:%d %H:%M:%S', errors="coerce")
 
-        # Convert date strings to datetime objects
-        df_images['ImageDT'] = pd.to_datetime(df_images['ImageDT'], format="%Y:%m:%d %H:%M:%S", errors="coerce")
+            if flight_ixs:
+                df_images['FlightID'] = [
+                    delimiter.join(x.split(delimiter)[i] for i in flight_ixs)
+                    for x in df_images['Image']
+                ]
 
-        # Add flight ID using prefix (if needed)
-        flight_ixs = json.loads(self.request.body).get("flight_ixs", [])
-
-        if flight_ixs:
-            delimiter = json.loads(self.request.body).get("delimiter", "_")
-            df_images['FlightID'] = [
-                delimiter.join(x.split(delimiter)[i] for i in flight_ixs)
-                for x in df_images['Image']
-            ]
-
-        return df_images
+            return df_images
+        finally:
+            et.terminate()
 
     def lidar_match(self, request):
         """
