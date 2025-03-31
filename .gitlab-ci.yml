@@ -16,7 +16,7 @@ deploy:
         cd /home/vcm/APP_WHALESCALE &&
         git checkout main &&
         git pull origin main &&
-        docker-compose down &&
-        docker-compose build &&
-        docker-compose up -d
+        /usr/bin/docker-compose down &&
+        /usr/bin/docker-compose build &&
+        /usr/bin/docker-compose up -d
       EOF
