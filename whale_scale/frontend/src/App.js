@@ -117,6 +117,7 @@ export default function App() {
           activeTool={activeTool}
           setActiveTool={setActiveTool}
           onMeasurementUpdate={handleMeasurementUpdate}
+          onImageUpload={handleImageUpload}
         />
         <Data formData={formData} measurementData={measurementData} />
       </div>
