@@ -1,0 +1,18 @@
+stages:
+  - deploy
+
+deploy:
+  stage: deploy
+  only:
+    refs:
+      - prod
+  script:
+    - echo "$SSH_PRIVATE_KEY" > id_rsa
+    - chmod 600 id_rsa
+    - ssh -o StrictHostKeyChecking=no -i id_rsa $VCM_USER@$VCM_IP << 'EOF'
+        cd ~/APP_WHALESCALE &&
+        git pull &&
+        docker-compose down &&
+        docker-compose build &&
+        docker-compose up -d
+      EOF
