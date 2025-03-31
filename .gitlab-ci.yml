@@ -5,7 +5,7 @@ deploy:
   stage: deploy
   only:
     refs:
-      - prod
+      - main
   script:
     - echo "$SSH_PRIVATE_KEY" > id_rsa
     - chmod 600 id_rsa
