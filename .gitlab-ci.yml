@@ -13,7 +13,8 @@ deploy:
     - echo "$SSH_PRIVATE_KEY" > id_rsa
     - chmod 600 id_rsa
     - ssh -o StrictHostKeyChecking=no -i id_rsa $VCM_USER@$VCM_IP \
-        "bash -l -c 'cd /home/vcm/APP_WHALESCALE && \
+        "bash -l -c 'export PATH=\$PATH:/usr/bin && \
+         cd /home/vcm/APP_WHALESCALE && \
          git checkout main && \
          git pull origin main && \
          docker compose down && \
