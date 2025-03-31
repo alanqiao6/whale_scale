@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import Login from './Login'; // Import the Login component
+import Login from './Login';
 import './TopBar.css';
 
 export default function TopBar({ activeTab, setActiveTab }) {
@@ -32,7 +32,13 @@ export default function TopBar({ activeTab, setActiveTab }) {
         
         {/* Display username if logged in */}
         {isLoggedIn ? (
-          <div className="user-info">{username}</div>
+          <div 
+            className="user-info" 
+            onClick={() => setShowLogin(true)} // Reuse the login popup
+            style={{ cursor: 'pointer' }}
+          >
+            {username}
+          </div>
         ) : (
           <button className="tool-button" onClick={() => setShowLogin(true)}>
             Login
@@ -40,12 +46,14 @@ export default function TopBar({ activeTab, setActiveTab }) {
         )}
       </div>
 
-      {/* Login Popup */}
+      {/* Login/User Menu Popup */}
       {showLogin && (
-        <Login 
+        <Login
           setIsLoggedIn={setIsLoggedIn}
           setShowLogin={setShowLogin}
           setUsername={setUsername}
+          isLoggedIn={isLoggedIn}
+          currentUsername={username}
         />
       )}
     </div>

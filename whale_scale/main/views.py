@@ -36,6 +36,7 @@ from MMI_CODEX.xcertainty.util.extract_summaries import extract_summaries
 
 from pathlib import Path
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth import logout
 
 current_dir = Path(__file__).resolve().parent
 exiftool_path = current_dir / '..' / 'MMI_CODEX' / 'collatrix' / 'exiftool.exe'
@@ -943,3 +944,20 @@ def protected_view(request):
     # Only accessible to logged-in users
     # Django automatically checks session validity
     return render(request, 'your_template.html')
+
+@csrf_exempt
+def logout_view(request):
+    if request.method == 'OPTIONS':
+        response = JsonResponse({})
+        response["Access-Control-Allow-Origin"] = "http://localhost:3000"
+        response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        response["Access-Control-Allow-Headers"] = "Content-Type"
+        response["Access-Control-Allow-Credentials"] = "true"
+        return response
+        
+    if request.method == 'POST':
+        logout(request)
+        response = JsonResponse({"message": "Logged out successfully"})
+        response["Access-Control-Allow-Origin"] = "http://localhost:3000"
+        response["Access-Control-Allow-Credentials"] = "true"
+        return response
