@@ -15,40 +15,37 @@ export default function ImageViewer({
   const [points, setPoints] = useState([])
   const [mainLine, setMainLine] = useState(null)
   const [segmentLines, setSegmentLines] = useState([])
+  const [imgObj, setImgObj] = useState(null)
 
-  // Reset state when switching tools
   useEffect(() => {
-    if (activeTool !== "ruler") {
-      setPoints([])
-      setMainLine(null)
-      setSegmentLines([])
-    }
-  }, [activeTool])
+    if (!image) return
 
-  // Main draw effect: redraw image and overlay anytime anything changes
-  useEffect(() => {
-    const draw = () => {
+    const img = new Image()
+    img.crossOrigin = "anonymous"
+    img.onload = () => {
       const canvas = canvasRef.current
-      if (!canvas || !image) return
-
+      if (!canvas) return
       const ctx = canvas.getContext("2d")
-      const img = new Image()
-      img.crossOrigin = "anonymous"
 
-      img.onload = () => {
-        canvas.width = img.width
-        canvas.height = img.height
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-        drawOverlay(ctx)
-      }
+      canvas.width = img.width
+      canvas.height = img.height
 
-      img.src = image
+      ctx.drawImage(img, 0, 0)
+      setImgObj(img)
     }
+    img.src = image
+  }, [image])
 
-    draw()
-  }, [image, points, mainLine, segmentLines])
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || !imgObj) return
+    const ctx = canvas.getContext("2d")
 
-  // When 2 points are selected, calculate main line and segments
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.drawImage(imgObj, 0, 0)
+    drawOverlay(ctx)
+  }, [points, mainLine, segmentLines, imgObj])
+
   useEffect(() => {
     if (points.length === 2) {
       const line = {
@@ -70,9 +67,8 @@ export default function ImageViewer({
           segments: widthSegments,
         })
       }
-      
 
-      setActiveTool(null) // deactivate tool after measuring
+      setActiveTool(null)
     }
   }, [points])
 
@@ -81,10 +77,12 @@ export default function ImageViewer({
 
     const canvas = canvasRef.current
     const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    const x = (e.clientX - rect.left) * scaleX
+    const y = (e.clientY - rect.top) * scaleY
 
-    if (points.length >= 2) {
+    if (points.length === 2) {
       setPoints([{ x, y }])
       setMainLine(null)
       setSegmentLines([])
@@ -120,7 +118,6 @@ export default function ImageViewer({
   }
 
   const drawOverlay = (ctx) => {
-    // Draw red points
     points.forEach((point) => {
       ctx.beginPath()
       ctx.arc(point.x, point.y, 8, 0, 2 * Math.PI)
@@ -131,7 +128,6 @@ export default function ImageViewer({
       ctx.stroke()
     })
 
-    // Draw main line
     if (mainLine) {
       ctx.beginPath()
       ctx.moveTo(mainLine.x1, mainLine.y1)
@@ -141,7 +137,6 @@ export default function ImageViewer({
       ctx.stroke()
     }
 
-    // Draw green segment lines
     segmentLines.forEach((line) => {
       ctx.beginPath()
       ctx.moveTo(line.x1, line.y1)
