@@ -1,3 +1,5 @@
+image: python:3.11
+
 stages:
   - deploy
 
@@ -7,6 +9,7 @@ deploy:
     refs:
       - main
   script:
+    - apt update && apt install -y openssh-client
     - echo "$SSH_PRIVATE_KEY" > id_rsa
     - chmod 600 id_rsa
     - ssh -o StrictHostKeyChecking=no -i id_rsa $VCM_USER@$VCM_IP << 'EOF'
