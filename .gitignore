@@ -2,3 +2,4 @@
 **/__pycache__/
 whale_scale/main/__pycache__/
 whale_scale/whale_scale/__pycache__/
+.env
