@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Login from './Login';
 import './TopBar.css';
@@ -7,6 +7,15 @@ export default function TopBar({ activeTab, setActiveTab }) {
   const [showLogin, setShowLogin] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [username, setUsername] = useState('');
+
+  // Check for saved login state on component mount
+  useEffect(() => {
+    const storedUsername = localStorage.getItem('username');
+    if (storedUsername) {
+      setUsername(storedUsername);
+      setIsLoggedIn(true);
+    }
+  }, []);
 
   return (
     <div className="top-bar">
@@ -29,7 +38,7 @@ export default function TopBar({ activeTab, setActiveTab }) {
         <button className="tool-button">✏️</button>
         <button className="tool-button">📏</button>
         <button className="tool-button">❓</button>
-        
+
         {/* Display username if logged in */}
         {isLoggedIn ? (
           <div 

@@ -5,9 +5,9 @@ export default function Login({ setIsLoggedIn, setShowLogin, setUsername, isLogg
   const [usernameInput, setUsernameInput] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [isCreatingAccount, setIsCreatingAccount] = useState(false); // Track if user is creating a new account
+  const [isCreatingAccount, setIsCreatingAccount] = useState(false);
 
-  // If already logged in, show the user menu instead of login form
+  // If already logged in, show user menu
   if (isLoggedIn) {
     return (
       <div className="login-popup">
@@ -32,6 +32,7 @@ export default function Login({ setIsLoggedIn, setShowLogin, setUsername, isLogg
                 setIsLoggedIn(false);
                 setUsername('');
                 setShowLogin(false);
+                localStorage.removeItem('username'); // Remove login data from storage
               }
             } catch (error) {
               console.error('Logout failed:', error);
@@ -47,24 +48,20 @@ export default function Login({ setIsLoggedIn, setShowLogin, setUsername, isLogg
     e.preventDefault();
     
     try {
-      // Send request to backend to check if user credentials are correct
       const response = await axios.post('http://localhost:8000/api/login', { 
         username: usernameInput, 
         password 
       });
       
-      // Check if the login was successful based on the message returned
       if (response.data.message === "Login successful") {
-        // If login is successful
         setIsLoggedIn(true);
         setUsername(response.data.username);
         setShowLogin(false);
+        localStorage.setItem('username', response.data.username); // Store login data
       } else {
-        // If credentials are incorrect
         setErrorMessage('Error: Invalid username or password');
       }
     } catch (error) {
-      // Handle error if something went wrong (e.g., server error)
       setErrorMessage(error.response?.data?.detail || 'Error: Something went wrong, please try again later.');
       console.error(error);
     }
@@ -74,17 +71,16 @@ export default function Login({ setIsLoggedIn, setShowLogin, setUsername, isLogg
     e.preventDefault();
     
     try {
-      // Send request to backend to create a new account
       const response = await axios.post('http://localhost:8000/api/create-account', { 
         username: usernameInput, 
         password 
       });
       
-      // Check if account creation was successful
       if (response.data.message === "Account created and login successful") {
         setIsLoggedIn(true);
         setUsername(response.data.username);
         setShowLogin(false);
+        localStorage.setItem('username', response.data.username);
       } else {
         setErrorMessage('Error: Could not create account');
       }
