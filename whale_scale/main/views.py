@@ -9,6 +9,10 @@ import types
 from django.core.files.storage import default_storage
 import os
 import pandas as pd
+import traceback
+import platform
+import logging
+
 
 from MMI_CODEX.collatrix.body_condition.calculate_body_area_index import calculate_body_area_index
 from MMI_CODEX.collatrix.body_condition.calculate_body_volume import calculate_body_volume
@@ -37,8 +41,12 @@ from MMI_CODEX.xcertainty.util.extract_summaries import extract_summaries
 from pathlib import Path
 
 current_dir = Path(__file__).resolve().parent
-exiftool_path = current_dir / '..' / 'MMI_CODEX' / 'collatrix' / 'exiftool.exe'
-exiftool_path = exiftool_path.resolve()
+
+if platform.system() == "Windows":
+    exiftool_path = (current_dir / ".." / "MMI_CODEX" / "collatrix" / "exiftool.exe").resolve()
+else:
+    exiftool_path = "exiftool"
+
 
 def index(request):
     return JsonResponse({"message": "Hello World!"})
@@ -88,6 +96,8 @@ class MorphoMetrix(View):
     def calculate_length(self, request):
         """Compute total length of selected measurement."""
         data = json.loads(request.body)
+        logger = logging.getLogger(__name__)
+        logger.info("Received measurement: %s", data)
         measurement_data = data.get("measurement", {})
         measurement = Measurement(
             measurement_type=measurement_data.get("measurement_type"),
@@ -225,6 +235,7 @@ class CollatriX(View):
             return JsonResponse(response_data)
 
         except Exception as e:
+            traceback.print_exc()
             return JsonResponse({"error": str(e)}, status=500)
 
         finally:

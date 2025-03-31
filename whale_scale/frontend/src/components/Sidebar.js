@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import "./Sidebar.css";
 
-export default function Sidebar({ metadata, onImageUpload }) {
+export default function Sidebar({ metadata, onImageUpload, onSubmit }) {
   const [focalLength, setFocalLength] = useState("");
   const [altitude, setAltitude] = useState("");
   const [widthSegments, setWidthSegments] = useState("");
@@ -28,17 +28,15 @@ export default function Sidebar({ metadata, onImageUpload }) {
     }
   };
 
-  // Function to submit form data
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-
-    // Validate required fields
+  const handleSubmit = (event) => {
+    event.preventDefault()
+  
     if (!focalLength || !altitude) {
-      setMessage("Please fill in all required fields.");
-      return;
+      setMessage("Please fill in all required fields.")
+      return
     }
-
-    const formData = {
+  
+    const data = {
       focalLength,
       altitude,
       widthSegments,
@@ -46,25 +44,12 @@ export default function Sidebar({ metadata, onImageUpload }) {
       crosshairSize,
       crosshairOpacity,
       crosshairColor,
-      imageMetadata: metadata, // Include extracted metadata from images
-    };
-
-    try {
-      const response = await fetch("http://your-backend-url.com/submit-form", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await response.json();
-      setMessage(data.message || "Form submitted successfully!");
-    } catch (error) {
-      console.error("Error submitting form:", error);
-      setMessage("Error submitting form. Please try again.");
+      imageMetadata: metadata,
     }
-  };
+  
+    onSubmit(data) // ✅ calls App.js version
+  }
+  
 
   return (
     <div className="sidebar">
@@ -151,7 +136,24 @@ export default function Sidebar({ metadata, onImageUpload }) {
 
       {/* ✅ Moved buttons OUTSIDE of <form> to restore original placement */}
       <div className="button-group">
-        <button className="submit-button" onClick={handleSubmit} aria-label="Submit the form">Submit</button>
+      <button
+  className="submit-button"
+  onClick={() =>
+    onSubmit({
+      focalLength,
+      altitude,
+      widthSegments,
+      mirrorSide,
+      crosshairSize,
+      crosshairOpacity,
+      crosshairColor,
+    })
+  }
+  aria-label="Submit the form"
+>
+  Submit
+</button>
+
         <button className="export-button" aria-label="Export data">Export 📤</button>
       </div>
 

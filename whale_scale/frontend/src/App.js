@@ -32,28 +32,23 @@ export default function App() {
           altitude: exifData?.GPSAltitude || "",
         })
 
-        // Also try to extract metadata using the backend
+        // Also try to extract metadata using backend
         const formData = new FormData()
         formData.append("image", file)
 
-        try {
-          const response = await fetch("/api/collatrix/extract-metadata/", {
-            method: "POST",
-            body: formData,
-          })
+        const response = await fetch("/collatrix/extract-metadata/", {
+          method: "POST",
+          body: formData,
+        })
 
-          if (response.ok) {
-            const backendMetadata = await response.json()
-            console.log("Backend Metadata:", backendMetadata)
+        if (response.ok) {
+          const backendMetadata = await response.json()
+          console.log("Backend Metadata:", backendMetadata)
 
-            // Update metadata with backend values if available
-            setMetadata((prev) => ({
-              focalLength: prev.focalLength || backendMetadata.focalLength || "",
-              altitude: prev.altitude || backendMetadata.altitude || "",
-            }))
-          }
-        } catch (error) {
-          console.error("Error fetching metadata from backend:", error)
+          setMetadata((prev) => ({
+            focalLength: prev.focalLength || backendMetadata.focalLength || "",
+            altitude: prev.altitude || backendMetadata.altitude || "",
+          }))
         }
       } catch (error) {
         console.error("Error extracting metadata:", error)
@@ -61,49 +56,64 @@ export default function App() {
     }
   }
 
-  const handleSubmit = async (data) => {
-    setFormData(data)
-    setWidthSegments(Number.parseInt(data.widthSegments) || 10)
-
-    const formDataToSend = new FormData()
-
-    if (imageFile) {
-      formDataToSend.append("image", imageFile)
-    }
-
-    Object.keys(data).forEach((key) => {
-      formDataToSend.append(key, data[key])
-    })
-
-    // If we have measurement data, add it to the form
-    if (measurementData) {
-      formDataToSend.append("measurement_data", JSON.stringify(measurementData))
-    }
-
-    try {
-      const response = await fetch("/api/morphometrix/submit/", {
-        method: "POST",
-        body: formDataToSend,
-      })
-
-      if (response.ok) {
-        const result = await response.json()
-        console.log("Submission successful:", result)
-      } else {
-        console.error("Submission failed:", response.statusText)
-      }
-    } catch (error) {
-      console.error("Error submitting form:", error)
-    }
-  }
-
   const handleMeasurementUpdate = (data) => {
     setMeasurementData(data)
   }
 
+  const handleSubmit = async (dataFromSidebar) => {
+    setFormData(dataFromSidebar)
+    setWidthSegments(Number.parseInt(dataFromSidebar.widthSegments) || 10)
+
+    // Submit measurement to backend
+    if (!measurementData || measurementData.points.length < 2) {
+      console.error("Not enough points to submit a measurement.")
+      return
+    }
+
+    try {
+      const response = await fetch("/morphometrix/calculate_length/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          measurement: {
+            measurement_type: "line",
+            measurement_name: "User Line",
+            objects_params: [
+              {
+                type: 1,
+                parms: {
+                  x1: measurementData.points[0].x,
+                  y1: measurementData.points[0].y,
+                  x2: measurementData.points[1].x,
+                  y2: measurementData.points[1].y,
+                  length: measurementData.length,
+                },
+              },
+            ],
+          },
+        }),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log("Line measurement result:", result)
+      } else {
+        console.error("Measurement submission failed:", response.statusText)
+      }
+    } catch (error) {
+      console.error("Error submitting measurement:", error)
+    }
+  }
+
   return (
     <div className="app-container">
-      <Sidebar metadata={metadata} onImageUpload={handleImageUpload} onSubmit={handleSubmit} />
+      <Sidebar
+        metadata={metadata}
+        onImageUpload={handleImageUpload}
+        onSubmit={handleSubmit}
+      />
       <div className="main-content">
         <TopBar
           activeTab={activeTab}
@@ -124,4 +134,3 @@ export default function App() {
     </div>
   )
 }
-
