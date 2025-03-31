@@ -35,6 +35,7 @@ from MMI_CODEX.xcertainty.util.body_condition import body_condition
 from MMI_CODEX.xcertainty.util.extract_summaries import extract_summaries
 
 from pathlib import Path
+from django.contrib.auth.decorators import login_required
 
 current_dir = Path(__file__).resolve().parent
 exiftool_path = current_dir / '..' / 'MMI_CODEX' / 'collatrix' / 'exiftool.exe'
@@ -936,3 +937,9 @@ class CreateAccountView(APIView):
             "message": "Account created and login successful",
             "username": new_user.username
         }, status=status.HTTP_201_CREATED)
+
+@login_required
+def protected_view(request):
+    # Only accessible to logged-in users
+    # Django automatically checks session validity
+    return render(request, 'your_template.html')
