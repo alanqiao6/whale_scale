@@ -1,0 +1,37 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: whale_scale
+      POSTGRES_USER: whale_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./whale_scale
+    command: >
+      sh -c "
+      python manage.py migrate &&
+      echo 'from django.contrib.auth import get_user_model; User = get_user_model(); User.objects.create_superuser(\"whale_admin\", \"admin@example.com\", \"${DJANGO_SUPERUSER_PASSWORD}\") if not User.objects.filter(username=\"whale_admin\").exists() else None' | python manage.py shell &&
+      gunicorn whale_scale.wsgi:application --bind 0.0.0.0:8000"
+    volumes:
+      - ./whale_scale:/app
+    env_file:
+      - .env
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./whale_scale/frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
