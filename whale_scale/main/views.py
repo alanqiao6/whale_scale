@@ -37,6 +37,8 @@ from MMI_CODEX.xcertainty.util.extract_summaries import extract_summaries
 from pathlib import Path
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
+from django.contrib.auth.models import User
+from django.contrib.auth import login, authenticate
 
 current_dir = Path(__file__).resolve().parent
 exiftool_path = current_dir / '..' / 'MMI_CODEX' / 'collatrix' / 'exiftool.exe'
@@ -907,37 +909,73 @@ class LoginView(APIView):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 
-class CreateAccountView(APIView):
-    def post(self, request):
-        username = request.data.get('username')
-        password = request.data.get('password')
-        
-        # Check if username and password are provided
-        if not username or not password:
-            return Response(
-                {"detail": "Username and password are required"},
-                status=status.HTTP_400_BAD_REQUEST
+@csrf_exempt
+def create_account(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            username = data.get('username')
+            password = data.get('password')
+            
+            # Check if user exists
+            if User.objects.filter(username=username).exists():
+                return JsonResponse({
+                    "message": "Username already taken"
+                }, status=400)
+            
+            # Create user
+            user = User.objects.create_user(
+                username=username,
+                password=password
             )
+            user.save()
+            
+            # Log them in
+            login(request, user)
+            
+            return JsonResponse({
+                "message": "Account created successfully",
+                "username": user.username
+            }, status=201)
+                
+        except Exception as e:
+            print(f"Account creation error: {str(e)}")
+            return JsonResponse({
+                "message": str(e)
+            }, status=400)
 
-        # Check if the username already exists
-        if UserCredential.objects.filter(username=username).exists():
-            return Response(
-                {"detail": "Username already taken"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Hash the password
-        hashed_password = make_password(password)
-        
-        # Create the new user and save it to the database
-        new_user = UserCredential(username=username, password=hashed_password)
-        new_user.save()
-        
-        # Return a successful response
-        return Response({
-            "message": "Account created and login successful",
-            "username": new_user.username
-        }, status=status.HTTP_201_CREATED)
+@csrf_exempt
+def login_view(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            username = data.get('username')
+            password = data.get('password')
+            
+            print(f"Login attempt - Username: {username}")
+            
+            # Check if user exists
+            if not User.objects.filter(username=username).exists():
+                return JsonResponse({
+                    "detail": "Invalid username or password"
+                }, status=400)
+            
+            user = authenticate(request, username=username, password=password)
+            if user is not None:
+                login(request, user)
+                return JsonResponse({
+                    "message": "Login successful",
+                    "username": user.username
+                })
+            else:
+                return JsonResponse({
+                    "detail": "Invalid username or password"
+                }, status=400)
+                
+        except Exception as e:
+            return JsonResponse({
+                "detail": str(e)
+            }, status=400)
 
 @login_required
 def protected_view(request):

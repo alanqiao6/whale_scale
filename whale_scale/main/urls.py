@@ -1,6 +1,16 @@
 from django.contrib import admin
 from django.urls import path
-from .views import index, CollatriX, MorphoMetrix, Xcertainty, UserCredentialList, LoginView, CreateAccountView, logout_view
+from .views import (
+    index, 
+    CollatriX, 
+    MorphoMetrix, 
+    Xcertainty, 
+    UserCredentialList, 
+    LoginView,
+    logout_view,
+    login_view,
+    create_account
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),  # Add this line for the admin page
@@ -9,7 +19,7 @@ urlpatterns = [
     path('collatrix/<str:function_name>/', CollatriX.as_view(), name='collatrix_function'),
     path('xcertainty/<str:function_name>/', Xcertainty.as_view(), name='xcertainty_function'),
     path('api/user_credentials/', UserCredentialList.as_view(), name='user-credentials-list'),
-    path('api/login', LoginView.as_view(), name='login'),
-    path('api/create-account', CreateAccountView.as_view(), name='create-account'),  # Add this line for account creation
+    path('api/login', login_view, name='login'),
+    path('api/create-account', create_account, name='create-account'),
     path('api/logout', logout_view, name='logout'),
 ]
