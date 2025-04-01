@@ -10,6 +10,7 @@ export default function ImageViewer({
   setActiveTool,
   onMeasurementUpdate,
   onImageUpload,
+  onBackendResult,
 }) {
   const canvasRef = useRef(null)
   const [points, setPoints] = useState([])
@@ -18,6 +19,8 @@ export default function ImageViewer({
   const [imgObj, setImgObj] = useState(null)
   const [crosshairs, setCrosshairs] = useState([])
   const [draggingIndex, setDraggingIndex] = useState(null)
+  const [backendMessage, setBackendMessage] = useState("")
+
 
   useEffect(() => {
     if (!image) return
@@ -191,6 +194,48 @@ export default function ImageViewer({
     setCrosshairs(initialCrosshairs)
   }
 
+  const formatMeasurementPayload = () => {
+    return {
+      measurement_stack: [
+        {
+          measurement_type: "CURVE",
+          name: "curve_from_crosshairs",
+          objects_params: crosshairs.map((pair) => ({
+            type: "POINTITEM",
+            parms: {
+              x: (pair.left.x + pair.right.x) / 2,
+              y: (pair.left.y + pair.right.y) / 2,
+            },
+          })),
+        },
+      ],
+    }
+  }
+  
+
+  const handleFinalize = async () => {
+    try {
+      const payload = formatMeasurementPayload()
+      const response = await fetch("/morphometrix/calculate_curve/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const result = await response.json()
+      if (response.ok) {
+        setBackendMessage(`✅ Curve length: ${result.length.toFixed(2)}`)
+        onBackendResult(result)
+      } else {
+        setBackendMessage(`❗ Error: ${result.error}`)
+      }
+    } catch (error) {
+      setBackendMessage("❗ Failed to connect to backend")
+    }
+  }
+
   const drawOverlay = (ctx) => {
     points.forEach((point) => {
       ctx.beginPath()
@@ -244,28 +289,48 @@ export default function ImageViewer({
             onMouseDown={handleMouseDown}
             className={`image-canvas ${activeTool === "ruler" ? "ruler-active" : ""}`}
           />
+  
           {crosshairs.length > 0 && (
-            <button
-              className="finalize-button"
-              onClick={() => {
-                console.log("✅ Final crosshair data:", crosshairs)
-              }}
-              style={{
-                position: "absolute",
-                bottom: 20,
-                left: "50%",
-                transform: "translateX(-50%)",
-                zIndex: 20,
-                padding: "10px 20px",
-                background: "#0077cc",
-                color: "white",
-                border: "none",
-                borderRadius: "6px",
-                cursor: "pointer"
-              }}
-            >
-              ✅ Finalize
-            </button>
+            <>
+              <button
+                className="finalize-button"
+                onClick={handleFinalize}
+                style={{
+                  position: "absolute",
+                  bottom: 20,
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  zIndex: 20,
+                  padding: "10px 20px",
+                  background: "#0077cc",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer"
+                }}
+              >
+                ✅ Finalize
+              </button>
+  
+              {backendMessage && (
+                <p
+                  style={{
+                    position: "absolute",
+                    bottom: 60,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    zIndex: 20,
+                    background: "rgba(0,0,0,0.6)",
+                    color: "white",
+                    padding: "8px 16px",
+                    borderRadius: "4px",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {backendMessage}
+                </p>
+              )}
+            </>
           )}
         </>
       ) : (
@@ -303,7 +368,7 @@ export default function ImageViewer({
           </div>
         </label>
       )}
-
+  
       {activeTool === "ruler" && (
         <div className="drawing-instructions">
           {points.length === 0 ? "Click to place the first point" : "Click to place the second point"}
@@ -311,4 +376,5 @@ export default function ImageViewer({
       )}
     </div>
   )
+  
 }

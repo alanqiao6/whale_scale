@@ -16,6 +16,9 @@ export default function App() {
   const [formData, setFormData] = useState(null)
   const [widthSegments, setWidthSegments] = useState(10)
   const [measurementData, setMeasurementData] = useState(null)
+  const [backendResult, setBackendResult] = useState(null)
+  const [backendMessage, setBackendMessage] = useState("")
+
 
   const handleImageUpload = async (file) => {
     if (file) {
@@ -107,6 +110,12 @@ export default function App() {
     }
   }
 
+  const handleBackendResult = (result) => {
+    setBackendResult(result)
+    setBackendMessage(`✅ Curve length: ${result.length.toFixed(2)} pixels`)
+  }
+  
+
   return (
     <div className="app-container">
       <Sidebar
@@ -128,7 +137,14 @@ export default function App() {
           setActiveTool={setActiveTool}
           onMeasurementUpdate={handleMeasurementUpdate}
           onImageUpload={handleImageUpload}
+          onBackendResult={handleBackendResult}
         />
+        {backendMessage && (
+        <p style={{ textAlign: "center", color: "white", fontWeight: "bold", marginTop: "10px" }}>
+          {backendMessage}
+        </p>
+        )}
+        
         <Data formData={formData} measurementData={measurementData} />
       </div>
     </div>
