@@ -1,8 +1,8 @@
 import "./Data.css"
 import React from "react"
 
-export default function Data({ formData, measurementData }) {
-  if (!formData && !measurementData) {
+export default function Data({ formData, rulerData, manualCurveData }) {
+  if (!formData && !rulerData && !manualCurveData) {
     return (
       <div className="data-section">
         <h2>Data</h2>
@@ -33,52 +33,29 @@ export default function Data({ formData, measurementData }) {
           </div>
         )}
 
-        {measurementData && (
+        {rulerData && (
           <div className="measurement-data">
-            <h3>Measurements</h3>
-            {measurementData.type && (
-              <p>
-                <strong>Type:</strong> {measurementData.type}
-              </p>
-            )}
-            {measurementData.length && (
-              <p>
-                <strong>Pixel Length:</strong> {measurementData.length.toFixed(2)} px
-              </p>
-            )}
-            {measurementData.segments && (
-              <p>
-                <strong>Segments:</strong> {measurementData.segments}
-              </p>
-            )}
+            <h3>📏 Ruler Measurements</h3>
+            <p><strong>Type:</strong> {rulerData.type}</p>
+            <p><strong>Curve Length:</strong> {rulerData.curveLength.toFixed(2)} px</p>
+            <p><strong>Segments:</strong> {rulerData.segments}</p>
 
-            {measurementData.curveLength && (
-              <p>
-                <strong>Curve Length:</strong> {measurementData.curveLength.toFixed(2)} px
-              </p>
-            )}
+            <h4>Width Segment Lengths</h4>
+            <ul>
+              {rulerData.widthSegments.map((seg) => (
+                <li key={seg.index}>
+                  Segment {seg.index}: {seg.length} px
+                </li>
+              ))}
+            </ul>
 
-            {measurementData.widthSegments && (
-              <div className="segment-widths">
-                <h3>Width Segment Lengths</h3>
-                <ul>
-                  {measurementData.widthSegments.map((seg) => (
-                    <li key={seg.index}>
-                      Segment {seg.index}: {seg.length} px
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* If we have real-world measurements (calculated from focal length and altitude) */}
-            {formData && formData.focalLength && formData.altitude && measurementData.length && (
+            {formData?.focalLength && formData?.altitude && (
               <div className="real-measurements">
                 <h3>Real-world Measurements</h3>
                 <p>
                   <strong>Estimated Length:</strong>{" "}
                   {calculateRealLength(
-                    measurementData.length,
+                    rulerData.curveLength,
                     Number.parseFloat(formData.focalLength),
                     Number.parseFloat(formData.altitude),
                   ).toFixed(2)}{" "}
@@ -88,6 +65,15 @@ export default function Data({ formData, measurementData }) {
             )}
           </div>
         )}
+
+        {manualCurveData && (
+          <div className="measurement-data">
+            <h3>✏️ Manual Curve</h3>
+            <p><strong>Curve Length:</strong> {manualCurveData.curveLength.toFixed(2)} px</p>
+            <p><strong>Points:</strong> {manualCurveData.curvePoints.length}</p>
+          </div>
+        )}
+
       </div>
     </div>
   )

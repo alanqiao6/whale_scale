@@ -27,9 +27,14 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
         <button className="tool-button" title="Comment">
           🗨️
         </button>
-        <button className="tool-button" title="Draw">
-          ✏️
-        </button>
+        <button
+        className={`tool-button ${activeTool === "pencil" ? "active" : ""}`}
+        onClick={() => setActiveTool(activeTool === "pencil" ? null : "pencil")}
+        title="Draw"
+      >
+        ✏️
+      </button>
+
         <button className="tool-button" title="Help">
           ❓
         </button>

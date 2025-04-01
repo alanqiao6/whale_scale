@@ -15,7 +15,8 @@ export default function App() {
   const [metadata, setMetadata] = useState({ focalLength: "", altitude: "" })
   const [formData, setFormData] = useState(null)
   const [widthSegments, setWidthSegments] = useState(10)
-  const [measurementData, setMeasurementData] = useState(null)
+  const [rulerData, setRulerData] = useState(null)
+  const [manualCurveData, setManualCurveData] = useState(null)  
   const [backendResult, setBackendResult] = useState(null)
   const [backendMessage, setBackendMessage] = useState("")
 
@@ -58,6 +59,9 @@ export default function App() {
       }
     }
   }
+
+  const [measurementData, setMeasurementData] = useState(null)
+
 
   const handleMeasurementUpdate = (data) => {
     setMeasurementData(data)
@@ -111,18 +115,26 @@ export default function App() {
   }
 
   const handleBackendResult = (result) => {
-    const curveLength = result.curveLength ?? 0
-  
     setBackendResult(result)
-    setBackendMessage(`✅ Curve length: ${curveLength.toFixed(2)} pixels`)
-    
-    setMeasurementData({
-      type: "curve",
-      length: curveLength,
-      segments: result.widthSegments?.length ?? 0,
-      widthSegments: result.widthSegments ?? [],
-    })
+  
+    if (result.type === "manual_curve") {
+      setManualCurveData({
+        type: "manual_curve",
+        curveLength: result.length,
+        curvePoints: result.curvePoints,
+      })
+    } else if (result.type === "ruler") {
+      setRulerData({
+        type: "ruler",
+        curveLength: result.curveLength,
+        widthSegments: result.widthSegments ?? [],
+        segments: result.widthSegments?.length ?? 0,
+      })
+    }
   }
+  
+  
+  
   
   
 
@@ -155,7 +167,7 @@ export default function App() {
         </p>
         )}
 
-        <Data formData={formData} measurementData={measurementData} />
+        <Data formData={formData} rulerData={rulerData} manualCurveData={manualCurveData} />
       </div>
     </div>
   )

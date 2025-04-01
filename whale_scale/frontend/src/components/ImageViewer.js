@@ -20,6 +20,7 @@ export default function ImageViewer({
   const [crosshairs, setCrosshairs] = useState([])
   const [draggingIndex, setDraggingIndex] = useState(null)
   const [backendMessage, setBackendMessage] = useState("")
+  const [manualCurvePoints, setManualCurvePoints] = useState([])
 
   useEffect(() => {
     if (!image) return
@@ -48,7 +49,7 @@ export default function ImageViewer({
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.drawImage(imgObj, 0, 0)
     drawOverlay(ctx)
-  }, [points, mainLine, segmentLines, crosshairs, imgObj])
+  }, [points, mainLine, segmentLines, crosshairs, imgObj, manualCurvePoints])
 
   useEffect(() => {
     if (points.length === 2) {
@@ -96,7 +97,7 @@ export default function ImageViewer({
         updated[segIndex][side] = {
           x: x1 + t * dx,
           y: y1 + t * dy,
-        }        
+        }
         return updated
       })
     }
@@ -121,6 +122,11 @@ export default function ImageViewer({
     const scaleY = canvas.height / rect.height
     const x = (e.clientX - rect.left) * scaleX
     const y = (e.clientY - rect.top) * scaleY
+
+    if (activeTool === "pencil") {
+      setManualCurvePoints((prev) => [...prev, { x, y }])
+      return
+    }
 
     for (let i = 0; i < crosshairs.length; i++) {
       for (let side of ["left", "right"]) {
@@ -194,44 +200,40 @@ export default function ImageViewer({
     })
     setCrosshairs(initialCrosshairs)
   }
-
-  const formatMeasurementPayload = () => {
-    return {
-      measurement_stack: [
-        {
-          measurement_type: "CURVE",
-          name: "curve_from_crosshairs",
-          objects_params: crosshairs.map((pair) => ({
-            type: "POINTITEM",
-            parms: {
-              x: (pair.left.x + pair.right.x) / 2,
-              y: (pair.left.y + pair.right.y) / 2,
-            },
-          })),
-        },
-      ],
-    }
-  }
-
-  const handleFinalize = async () => {
+  
+  const handleFinalizeRuler = async () => {
     try {
-      const payload = formatMeasurementPayload()
-
+      const payload = {
+        measurement_stack: [
+          {
+            measurement_type: "CURVE",
+            name: "curve_from_crosshairs",
+            objects_params: crosshairs.map((pair) => ({
+              type: "POINTITEM",
+              parms: {
+                x: (pair.left.x + pair.right.x) / 2,
+                y: (pair.left.y + pair.right.y) / 2,
+              },
+            })),
+          },
+        ],
+      }
+  
       const curveRes = await fetch("/morphometrix/calculate_curve/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
-
+  
       const curveResult = await curveRes.json()
       if (!curveRes.ok) {
-        setBackendMessage(`❗ Curve error: ${curveResult.error}`)
+        setBackendMessage(`❗ Ruler Curve error: ${curveResult.error}`)
         return
       }
-
+  
       const curveLength = curveResult.length
       const curvePoints = curveResult.curve_points || []
-
+  
       const widths = crosshairs.map((pair, i) => {
         const dx = pair.right.x - pair.left.x
         const dy = pair.right.y - pair.left.y
@@ -244,26 +246,64 @@ export default function ImageViewer({
             y1: pair.left.y,
             x2: pair.right.x,
             y2: pair.right.y,
-          }
+          },
         }
       })
-
-      setBackendMessage(`✅ Curve: ${curveLength.toFixed(2)} px`)
-
-      try {
-        onBackendResult({
-          curveLength,
-          curvePoints,
-          widthSegments: widths, // array of { index, length, coords }
-        })
-      } catch (err) {
-        console.error("❗ Error in onBackendResult:", err)
-        setBackendMessage("❗ Error processing backend result")
-      }
-      
-
+  
+      setBackendMessage(`✅ Ruler Curve: ${curveLength.toFixed(2)} px`)
+  
+      onBackendResult({
+        type: "ruler",
+        curveLength,
+        curvePoints,
+        widthSegments: widths,
+      })
     } catch (err) {
-      setBackendMessage("❗ Error connecting to backend")
+      setBackendMessage("❗ Error connecting to backend for ruler")
+    }
+  }
+  
+
+  const handleFinalizeManualCurve = async () => {
+    if (manualCurvePoints.length < 2) return
+
+    const payload = {
+      measurement_stack: [
+        {
+          measurement_type: "CURVE",
+          name: "manual_curve",
+          objects_params: manualCurvePoints.map((p) => ({
+            type: "POINTITEM",
+            parms: { x: p.x, y: p.y },
+          })),
+        },
+      ],
+    }
+
+    try {
+      const response = await fetch("/morphometrix/calculate_curve/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      const result = await response.json()
+      if (!response.ok) {
+        setBackendMessage(`❗ Manual Curve error: ${result.error}`)
+        return
+      }
+
+      setBackendMessage(`✅ Manual Curve: ${result.length.toFixed(2)} px`)
+
+      onBackendResult({
+        type: "manual_curve",
+        length: result.length,
+        curvePoints: manualCurvePoints,
+      })
+      setManualCurvePoints([])
+      setActiveTool(null)
+    } catch (err) {
+      setBackendMessage("❗ Error connecting to backend for manual curve")
     }
   }
 
@@ -308,6 +348,24 @@ export default function ImageViewer({
         ctx.stroke()
       })
     })
+
+    if (manualCurvePoints.length > 0) {
+      ctx.beginPath()
+      ctx.moveTo(manualCurvePoints[0].x, manualCurvePoints[0].y)
+      for (let i = 1; i < manualCurvePoints.length; i++) {
+        ctx.lineTo(manualCurvePoints[i].x, manualCurvePoints[i].y)
+      }
+      ctx.strokeStyle = "orange"
+      ctx.lineWidth = 20
+      ctx.stroke()
+
+      manualCurvePoints.forEach((p) => {
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, 24, 0, 2 * Math.PI)
+        ctx.fillStyle = "orange"
+        ctx.fill()
+      })
+    }
   }
 
   return (
@@ -321,47 +379,67 @@ export default function ImageViewer({
             className={`image-canvas ${activeTool === "ruler" ? "ruler-active" : ""}`}
           />
 
-          {crosshairs.length > 0 && (
-            <>
-              <button
-                className="finalize-button"
-                onClick={handleFinalize}
-                style={{
-                  position: "absolute",
-                  bottom: 20,
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  zIndex: 20,
-                  padding: "10px 20px",
-                  background: "#0077cc",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor: "pointer"
-                }}
-              >
-                ✅ Finalize
-              </button>
+          {manualCurvePoints.length > 0 && activeTool === "pencil" && (
+            <button
+              className="finalize-button"
+              onClick={handleFinalizeManualCurve}
+              style={{
+                position: "absolute",
+                bottom: 20,
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 20,
+                padding: "10px 20px",
+                background: "orange",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+              }}
+            >
+              ✏️ Finalize Curve
+            </button>
+          )}
 
-              {backendMessage && (
-                <p
-                  style={{
-                    position: "absolute",
-                    bottom: 60,
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    zIndex: 20,
-                    background: "rgba(0,0,0,0.6)",
-                    color: "white",
-                    padding: "8px 16px",
-                    borderRadius: "4px",
-                    fontWeight: "bold",
-                  }}
-                >
-                  {backendMessage}
-                </p>
-              )}
-            </>
+          {crosshairs.length > 0 && activeTool === null && (
+            <button
+              className="finalize-button"
+              onClick={handleFinalizeRuler}
+              style={{
+                position: "absolute",
+                bottom: 70,
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 20,
+                padding: "10px 20px",
+                background: "#0077cc",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+              }}
+            >
+              ✅ Finalize Ruler
+            </button>
+          )}
+
+          {backendMessage && (
+            <p
+              style={{
+                position: "absolute",
+                bottom: 120,
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 20,
+                background: "rgba(0,0,0,0.6)",
+                color: "white",
+                padding: "8px 16px",
+                borderRadius: "4px",
+                fontWeight: "bold",
+              }}
+            >
+              {backendMessage}
+            </p>
           )}
         </>
       ) : (
