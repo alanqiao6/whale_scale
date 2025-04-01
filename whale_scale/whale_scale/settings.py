@@ -29,6 +29,8 @@ ALLOWED_HOSTS = os.environ.get(f'{ENV.upper()}_ALLOWED_HOSTS', 'localhost').spli
 
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure1234')
 
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+STATIC_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Application definition
 
