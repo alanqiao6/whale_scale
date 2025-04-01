@@ -23,7 +23,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 ENV = os.environ.get('ENVIRONMENT', 'dev')  # 'prod' or 'dev'
 
-DEBUG = os.environ.get(f'{ENV.upper()}_DEBUG', '0') == '1'
+DEBUG = os.environ.get(f'{ENV.upper()}_DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = os.environ.get(f'{ENV.upper()}_ALLOWED_HOSTS', 'localhost').split(',')
 
