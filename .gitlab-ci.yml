@@ -33,6 +33,8 @@ deploy-prod:
   only:
     refs:
       - main
+  variables:
+    ENVIRONMENT: prod
   script:
     - echo "$SSH_PRIVATE_KEY_PROD" > id_rsa
     - chmod 600 id_rsa
