@@ -17,13 +17,14 @@ before_script:
 build:
   stage: build
   script:
-    - echo "Building for branch: $CI_COMMIT_REF_NAME"
-    - if [ "$CI_COMMIT_REF_NAME" = "main" ]; then
+    - >
+      echo "Building for branch: $CI_COMMIT_REF_NAME" &&
+      if [ "$CI_COMMIT_REF_NAME" = "main" ]; then
         docker compose -f docker-compose.prod.yml build;
       elif [ "$CI_COMMIT_REF_NAME" = "dev" ]; then
         docker compose -f docker-compose.dev.yml build;
       else
-        echo "Not a deployable branch. Skipping.";
+        echo "Not a deployable branch. Skipping." &&
         exit 0;
       fi
 
