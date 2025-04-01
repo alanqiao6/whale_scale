@@ -31,15 +31,17 @@ export default function Sidebar({ metadata, onImageUpload, onSubmit }) {
   const handleSubmit = (event) => {
     event.preventDefault()
   
-    if (!focalLength || !altitude) {
-      setMessage("Please fill in all required fields.")
+    const parsedWidth = Number.parseInt(widthSegments)
+  
+    if (!focalLength || !altitude || isNaN(parsedWidth) || parsedWidth < 2) {
+      setMessage("❗ Please fill in all required fields (width segments must be ≥ 2).")
       return
     }
   
     const data = {
       focalLength,
       altitude,
-      widthSegments,
+      widthSegments: parsedWidth,
       mirrorSide,
       crosshairSize,
       crosshairOpacity,
@@ -47,8 +49,10 @@ export default function Sidebar({ metadata, onImageUpload, onSubmit }) {
       imageMetadata: metadata,
     }
   
-    onSubmit(data) // ✅ calls App.js version
+    onSubmit(data)
+    setMessage("") // Clear old messages if valid
   }
+  
   
 
   return (
@@ -138,21 +142,12 @@ export default function Sidebar({ metadata, onImageUpload, onSubmit }) {
       <div className="button-group">
       <button
   className="submit-button"
-  onClick={() =>
-    onSubmit({
-      focalLength,
-      altitude,
-      widthSegments,
-      mirrorSide,
-      crosshairSize,
-      crosshairOpacity,
-      crosshairColor,
-    })
-  }
+  onClick={handleSubmit}
   aria-label="Submit the form"
 >
   Submit
 </button>
+
 
         <button className="export-button" aria-label="Export data">Export 📤</button>
       </div>
