@@ -14,9 +14,9 @@ deploy-prod:
   variables:
     ENVIRONMENT: prod
   script:
-    - echo "$SSH_PRIVATE_KEY_PROD" > id_rsa
-    - chmod 600 id_rsa
-    - ssh -o StrictHostKeyChecking=no -i id_rsa $VCM_USER_PROD@$VCM_IP_PROD << 'EOF'
+    - echo "$SSH_PRIVATE_KEY_PROD" > gitlab_vcm
+    - chmod 600 gitlab_vcm
+    - ssh -o StrictHostKeyChecking=no -i gitlab_vcm $VCM_USER_PROD@$VCM_IP_PROD << 'EOF'
         cd /home/vcm/APP_WHALESCALE
         git checkout main
         git pull origin main
@@ -32,9 +32,9 @@ deploy-dev:
   variables:
     ENVIRONMENT: dev
   script:
-    - echo "$SSH_PRIVATE_KEY_DEV" > id_rsa
-    - chmod 600 id_rsa
-    - ssh -o StrictHostKeyChecking=no -i id_rsa $VCM_USER_DEV@$VCM_IP_DEV << 'EOF'
+    - echo "$SSH_PRIVATE_KEY_DEV" > gitlab_vcm
+    - chmod 600 gitlab_vcm
+    - ssh -o StrictHostKeyChecking=no -i gitlab_vcm $VCM_USER_DEV@$VCM_IP_DEV << 'EOF'
         cd /home/vcm/APP_WHALESCALE
         git checkout dev
         git pull origin dev
