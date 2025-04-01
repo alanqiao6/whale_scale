@@ -11,6 +11,8 @@ services:
     build:
       context: ./whale_scale
       dockerfile: Dockerfile.dev
+    ports:
+      - "8000:8000"
     environment:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
       POSTGRES_DB: ${POSTGRES_DB}
