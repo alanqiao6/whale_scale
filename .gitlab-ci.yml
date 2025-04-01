@@ -1,0 +1,43 @@
+image: docker:24.0.5
+
+stages:
+  - deploy
+
+before_script:
+  - apk add --no-cache openssh-client
+
+deploy-prod:
+  stage: deploy
+  only:
+    refs:
+      - main
+  variables:
+    ENVIRONMENT: prod
+  script:
+    - echo "$SSH_PRIVATE_KEY_PROD" > gitlab_vcm
+    - chmod 600 gitlab_vcm
+    - ssh -o StrictHostKeyChecking=no -i gitlab_vcm $VCM_USER_PROD@$VCM_IP_PROD << 'EOF'
+        cd /home/vcm/APP_WHALESCALE
+        git checkout main
+        git pull origin main
+        docker compose -f docker-compose.prod.yml down
+        docker compose -f docker-compose.prod.yml up -d --build
+      EOF
+
+deploy-dev:
+  stage: deploy
+  only:
+    refs:
+      - dev
+  variables:
+    ENVIRONMENT: dev
+  script:
+    - echo "$SSH_PRIVATE_KEY_DEV" > gitlab_vcm
+    - chmod 600 gitlab_vcm
+    - ssh -o StrictHostKeyChecking=no -i gitlab_vcm $VCM_USER_DEV@$VCM_IP_DEV << 'EOF'
+        cd /home/vcm/APP_WHALESCALE
+        git checkout dev
+        git pull origin dev
+        docker compose -f docker-compose.dev.yml down
+        docker compose -f docker-compose.dev.yml up -d --build
+      EOF
