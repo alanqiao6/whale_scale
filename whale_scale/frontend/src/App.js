@@ -41,9 +41,10 @@ export default function App() {
           console.log("Backend Metadata:", backendMetadata)
   
           setMetadata({
-            focalLength: backendMetadata.focalLength || "",
-            altitude: backendMetadata.altitude || "",
+            focalLength: backendMetadata.focal_length_mm || "",
+            altitude: backendMetadata.gps_altitude_m || "",
           })
+          
         } else {
           console.error("Backend metadata extraction failed:", response.statusText)
         }

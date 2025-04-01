@@ -14,11 +14,13 @@ export default function Sidebar({ metadata, onImageUpload, onSubmit }) {
 
   // Auto-fill metadata fields when metadata updates
   useEffect(() => {
-    if (metadata) {
-      setFocalLength(metadata.focalLength || "");
-      setAltitude(metadata.altitude || "");
+    if (metadata?.focalLength || metadata?.altitude) {
+      console.log("Auto-populating from metadata:", metadata)
+      setFocalLength(metadata.focalLength || "")
+      setAltitude(metadata.altitude || "")
     }
-  }, [metadata]);
+  }, [metadata?.focalLength, metadata?.altitude])
+  
 
   // Function to handle image upload from Sidebar
   const handleImageUpload = (event) => {
