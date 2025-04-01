@@ -1,43 +1,18 @@
 image: docker:24.0.5
 
-services:
-  - docker:dind
-
 stages:
-  - build
   - deploy
-
-variables:
-  DOCKER_HOST: tcp://docker:2375/
-  DOCKER_TLS_CERTDIR: ""
 
 before_script:
   - apk add --no-cache openssh-client
-
-build:
-  stage: build
-  script:
-    - |
-      # Map branch to ENVIRONMENT
-      if [ "$CI_COMMIT_REF_NAME" = "main" ]; then
-        export ENVIRONMENT=prod
-      elif [ "$CI_COMMIT_REF_NAME" = "dev" ]; then
-        export ENVIRONMENT=dev
-      else
-        echo "Unknown branch: $CI_COMMIT_REF_NAME. Skipping build."
-        exit 0
-      fi
-
-      echo "Building for ENVIRONMENT=$ENVIRONMENT"
-
-      # Run the appropriate build
-      docker compose -f docker-compose.$ENVIRONMENT.yml build
 
 deploy-prod:
   stage: deploy
   only:
     refs:
       - main
+  variables:
+    ENVIRONMENT: prod
   script:
     - echo "$SSH_PRIVATE_KEY_PROD" > id_rsa
     - chmod 600 id_rsa
@@ -54,6 +29,8 @@ deploy-dev:
   only:
     refs:
       - dev
+  variables:
+    ENVIRONMENT: dev
   script:
     - echo "$SSH_PRIVATE_KEY_DEV" > id_rsa
     - chmod 600 id_rsa
