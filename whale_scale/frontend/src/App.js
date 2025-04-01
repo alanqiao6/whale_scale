@@ -26,39 +26,33 @@ export default function App() {
       const imageUrl = URL.createObjectURL(file)
       setImage(imageUrl)
       setImageFile(file)
-
+  
       try {
-        const exifData = await exifr.parse(file)
-        console.log("Extracted Metadata:", exifData)
-
-        setMetadata({
-          focalLength: exifData?.FocalLength || "",
-          altitude: exifData?.GPSAltitude || "",
-        })
-
-        // Also try to extract metadata using backend
         const formData = new FormData()
         formData.append("image", file)
-
+  
         const response = await fetch("/collatrix/extract-metadata/", {
           method: "POST",
           body: formData,
         })
-
+  
         if (response.ok) {
           const backendMetadata = await response.json()
           console.log("Backend Metadata:", backendMetadata)
-
-          setMetadata((prev) => ({
-            focalLength: prev.focalLength || backendMetadata.focalLength || "",
-            altitude: prev.altitude || backendMetadata.altitude || "",
-          }))
+  
+          setMetadata({
+            focalLength: backendMetadata.focalLength || "",
+            altitude: backendMetadata.altitude || "",
+          })
+        } else {
+          console.error("Backend metadata extraction failed:", response.statusText)
         }
       } catch (error) {
-        console.error("Error extracting metadata:", error)
+        console.error("Error extracting metadata via backend:", error)
       }
     }
   }
+  
 
   const [measurementData, setMeasurementData] = useState(null)
 
