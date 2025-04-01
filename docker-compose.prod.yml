@@ -64,3 +64,4 @@ services:
 volumes:
   static_volume:
   media_volume:
+  frontend_build:
