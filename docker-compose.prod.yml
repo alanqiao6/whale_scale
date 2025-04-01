@@ -38,9 +38,14 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.prod
       args:
+        - NODE_ENV=production
         - REACT_APP_API_URL=https://whale-scale.colab.duke.edu
+    volumes:
+      - frontend_build:/app/build
     depends_on:
       - backend
+    environment:
+      - NODE_ENV=production
 
   nginx:
     image: nginx:alpine
