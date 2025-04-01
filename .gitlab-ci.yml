@@ -1,15 +1,60 @@
-image: python:3.11
+image: docker:24.0.5
+
+services:
+  - docker:dind
 
 stages:
+  - build
   - deploy
 
-deploy:
+variables:
+  DOCKER_HOST: tcp://docker:2375/
+  DOCKER_TLS_CERTDIR: ""
+
+before_script:
+  - apk add --no-cache openssh-client
+
+build:
+  stage: build
+  script:
+    - echo "Building for branch: $CI_COMMIT_REF_NAME"
+    - if [ "$CI_COMMIT_REF_NAME" = "main" ]; then
+        docker compose -f docker-compose.prod.yml build;
+      elif [ "$CI_COMMIT_REF_NAME" = "dev" ]; then
+        docker compose -f docker-compose.dev.yml build;
+      else
+        echo "Not a deployable branch. Skipping.";
+        exit 0;
+      fi
+
+deploy-prod:
   stage: deploy
   only:
     refs:
       - main
   script:
-    - apt update && apt install -y openssh-client
-    - echo "$SSH_PRIVATE_KEY" > id_rsa
+    - echo "$SSH_PRIVATE_KEY_PROD" > id_rsa
     - chmod 600 id_rsa
-    - ssh -o StrictHostKeyChecking=no -i id_rsa $VCM_USER@$VCM_IP "bash -l -c 'export PATH=\$PATH:/usr/bin && cd /home/vcm/APP_WHALESCALE && git checkout main && git pull origin main && docker compose down && docker compose build && docker compose up -d'"
+    - ssh -o StrictHostKeyChecking=no -i id_rsa $VCM_USER_PROD@$VCM_IP_PROD << 'EOF'
+        cd /home/vcm/APP_WHALESCALE
+        git checkout main
+        git pull origin main
+        docker compose -f docker-compose.prod.yml down
+        docker compose -f docker-compose.prod.yml up -d --build
+      EOF
+
+deploy-dev:
+  stage: deploy
+  only:
+    refs:
+      - dev
+  script:
+    - echo "$SSH_PRIVATE_KEY_DEV" > id_rsa
+    - chmod 600 id_rsa
+    - ssh -o StrictHostKeyChecking=no -i id_rsa $VCM_USER_DEV@$VCM_IP_DEV << 'EOF'
+        cd /home/vcm/APP_WHALESCALE
+        git checkout dev
+        git pull origin dev
+        docker compose -f docker-compose.dev.yml down
+        docker compose -f docker-compose.dev.yml up -d --build
+      EOF
