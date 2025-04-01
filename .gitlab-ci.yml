@@ -51,6 +51,8 @@ deploy-dev:
   only:
     refs:
       - dev
+  variables:
+    ENVIRONMENT: dev
   script:
     - echo "$SSH_PRIVATE_KEY_DEV" > id_rsa
     - chmod 600 id_rsa
