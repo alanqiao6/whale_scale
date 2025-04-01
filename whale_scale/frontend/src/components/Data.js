@@ -36,20 +36,43 @@ export default function Data({ formData, measurementData }) {
         {measurementData && (
           <div className="measurement-data">
             <h3>Measurements</h3>
-            <p>
-              <strong>Type:</strong> {measurementData.type}
-            </p>
-            <p>
-              <strong>Pixel Length:</strong> {measurementData.length.toFixed(2)} px
-            </p>
+            {measurementData.type && (
+              <p>
+                <strong>Type:</strong> {measurementData.type}
+              </p>
+            )}
+            {measurementData.length && (
+              <p>
+                <strong>Pixel Length:</strong> {measurementData.length.toFixed(2)} px
+              </p>
+            )}
             {measurementData.segments && (
               <p>
                 <strong>Segments:</strong> {measurementData.segments}
               </p>
             )}
 
+            {measurementData.curveLength && (
+              <p>
+                <strong>Curve Length:</strong> {measurementData.curveLength.toFixed(2)} px
+              </p>
+            )}
+
+            {measurementData.widthSegments && (
+              <div className="segment-widths">
+                <h3>Width Segment Lengths</h3>
+                <ul>
+                  {measurementData.widthSegments.map((seg) => (
+                    <li key={seg.index}>
+                      Segment {seg.index}: {seg.length} px
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* If we have real-world measurements (calculated from focal length and altitude) */}
-            {formData && formData.focalLength && formData.altitude && (
+            {formData && formData.focalLength && formData.altitude && measurementData.length && (
               <div className="real-measurements">
                 <h3>Real-world Measurements</h3>
                 <p>
@@ -86,4 +109,3 @@ function calculateRealLength(pixelLength, focalLength, altitude) {
   // Calculate real-world length
   return (pixelLength * pixelSize * altitude) / focalLengthMeters
 }
-

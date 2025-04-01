@@ -21,7 +21,6 @@ export default function ImageViewer({
   const [draggingIndex, setDraggingIndex] = useState(null)
   const [backendMessage, setBackendMessage] = useState("")
 
-
   useEffect(() => {
     if (!image) return
 
@@ -185,10 +184,12 @@ export default function ImageViewer({
     const initialCrosshairs = segments.map((seg) => {
       const dx = seg.x2 - seg.x1
       const dy = seg.y2 - seg.y1
+      const length = Math.hypot(dx, dy)
       return {
         left: { x: seg.x1, y: seg.y1 },
         right: { x: seg.x2, y: seg.y2 },
         origin: { x1: seg.x1, y1: seg.y1, dx, dy },
+        length: length.toFixed(2),
       }
     })
     setCrosshairs(initialCrosshairs)
@@ -211,28 +212,58 @@ export default function ImageViewer({
       ],
     }
   }
-  
 
   const handleFinalize = async () => {
     try {
       const payload = formatMeasurementPayload()
-      const response = await fetch("/morphometrix/calculate_curve/", {
+
+      const curveRes = await fetch("/morphometrix/calculate_curve/", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
 
-      const result = await response.json()
-      if (response.ok) {
-        setBackendMessage(`✅ Curve length: ${result.length.toFixed(2)}`)
-        onBackendResult(result)
-      } else {
-        setBackendMessage(`❗ Error: ${result.error}`)
+      const curveResult = await curveRes.json()
+      if (!curveRes.ok) {
+        setBackendMessage(`❗ Curve error: ${curveResult.error}`)
+        return
       }
-    } catch (error) {
-      setBackendMessage("❗ Failed to connect to backend")
+
+      const curveLength = curveResult.length
+      const curvePoints = curveResult.curve_points || []
+
+      const widths = crosshairs.map((pair, i) => {
+        const dx = pair.right.x - pair.left.x
+        const dy = pair.right.y - pair.left.y
+        const length = Math.hypot(dx, dy)
+        return {
+          index: i + 1,
+          length: length.toFixed(2),
+          coords: {
+            x1: pair.left.x,
+            y1: pair.left.y,
+            x2: pair.right.x,
+            y2: pair.right.y,
+          }
+        }
+      })
+
+      setBackendMessage(`✅ Curve: ${curveLength.toFixed(2)} px`)
+
+      try {
+        onBackendResult({
+          curveLength,
+          curvePoints,
+          widthSegments: widths, // array of { index, length, coords }
+        })
+      } catch (err) {
+        console.error("❗ Error in onBackendResult:", err)
+        setBackendMessage("❗ Error processing backend result")
+      }
+      
+
+    } catch (err) {
+      setBackendMessage("❗ Error connecting to backend")
     }
   }
 
@@ -289,7 +320,7 @@ export default function ImageViewer({
             onMouseDown={handleMouseDown}
             className={`image-canvas ${activeTool === "ruler" ? "ruler-active" : ""}`}
           />
-  
+
           {crosshairs.length > 0 && (
             <>
               <button
@@ -311,7 +342,7 @@ export default function ImageViewer({
               >
                 ✅ Finalize
               </button>
-  
+
               {backendMessage && (
                 <p
                   style={{
@@ -368,7 +399,7 @@ export default function ImageViewer({
           </div>
         </label>
       )}
-  
+
       {activeTool === "ruler" && (
         <div className="drawing-instructions">
           {points.length === 0 ? "Click to place the first point" : "Click to place the second point"}
@@ -376,5 +407,4 @@ export default function ImageViewer({
       )}
     </div>
   )
-  
 }

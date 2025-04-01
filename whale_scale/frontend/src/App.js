@@ -111,9 +111,19 @@ export default function App() {
   }
 
   const handleBackendResult = (result) => {
+    const curveLength = result.curveLength ?? 0
+  
     setBackendResult(result)
-    setBackendMessage(`✅ Curve length: ${result.length.toFixed(2)} pixels`)
+    setBackendMessage(`✅ Curve length: ${curveLength.toFixed(2)} pixels`)
+    
+    setMeasurementData({
+      type: "curve",
+      length: curveLength,
+      segments: result.widthSegments?.length ?? 0,
+      widthSegments: result.widthSegments ?? [],
+    })
   }
+  
   
 
   return (
@@ -144,7 +154,7 @@ export default function App() {
           {backendMessage}
         </p>
         )}
-        
+
         <Data formData={formData} measurementData={measurementData} />
       </div>
     </div>
