@@ -16,7 +16,25 @@ deploy-prod:
   script:
     - echo "$SSH_PRIVATE_KEY" > gitlab_vcm
     - chmod 600 gitlab_vcm
-    - ssh -o StrictHostKeyChecking=no -i gitlab_vcm $VCM_USER_PROD@$VCM_IP_PROD "cd /home/vcm/APP_WHALESCALE && git checkout main && git pull origin main && docker-compose -f docker-compose.prod.yml down && docker-compose -f docker-compose.prod.yml up -d --build"
+    - |
+      ssh -o StrictHostKeyChecking=no -i gitlab_vcm $VCM_USER_PROD@$VCM_IP_PROD "
+      cd /home/vcm/APP_WHALESCALE && 
+      git checkout main && 
+      git pull origin main && 
+      export POSTGRES_DB='$POSTGRES_DB' &&
+      export POSTGRES_USER='$POSTGRES_USER' &&
+      export POSTGRES_PASSWORD='$POSTGRES_PASSWORD' &&
+      export DJANGO_SECRET_KEY='$DJANGO_SECRET_KEY' &&
+      export DJANGO_SUPERUSER_PASSWORD='$DJANGO_SUPERUSER_PASSWORD' &&
+      export POSTGRES_HOST='$POSTGRES_HOST' &&
+      export ENVIRONMENT='$ENVIRONMENT' &&
+      export DEV_ALLOWED_HOSTS='$DEV_ALLOWED_HOSTS' &&
+      export DEV_DEBUG='$DEV_DEBUG' &&
+      export PROD_ALLOWED_HOSTS='$PROD_ALLOWED_HOSTS' &&
+      export PROD_DEBUG='$PROD_DEBUG' &&
+      docker-compose -f docker-compose.prod.yml down && 
+      docker-compose -f docker-compose.prod.yml up -d --build
+      "
 
 deploy-dev:
   stage: deploy
@@ -28,4 +46,22 @@ deploy-dev:
   script:
     - echo "$SSH_PRIVATE_KEY" > gitlab_vcm
     - chmod 600 gitlab_vcm
-    - ssh -o StrictHostKeyChecking=no -i gitlab_vcm $VCM_USER_DEV@$VCM_IP_DEV "cd /home/vcm/APP_WHALESCALE && git checkout dev && git pull origin dev && docker-compose -f docker-compose.dev.yml down && docker-compose -f docker-compose.dev.yml up -d --build"
+    - |
+      ssh -o StrictHostKeyChecking=no -i gitlab_vcm $VCM_USER_DEV@$VCM_IP_DEV "
+      cd /home/vcm/APP_WHALESCALE && 
+      git checkout dev && 
+      git pull origin dev && 
+      export POSTGRES_DB='$POSTGRES_DB' &&
+      export POSTGRES_USER='$POSTGRES_USER' &&
+      export POSTGRES_PASSWORD='$POSTGRES_PASSWORD' &&
+      export DJANGO_SECRET_KEY='$DJANGO_SECRET_KEY' &&
+      export DJANGO_SUPERUSER_PASSWORD='$DJANGO_SUPERUSER_PASSWORD' &&
+      export POSTGRES_HOST='$POSTGRES_HOST' &&
+      export ENVIRONMENT='$ENVIRONMENT' &&
+      export DEV_ALLOWED_HOSTS='$DEV_ALLOWED_HOSTS' &&
+      export DEV_DEBUG='$DEV_DEBUG' &&
+      export PROD_ALLOWED_HOSTS='$PROD_ALLOWED_HOSTS' &&
+      export PROD_DEBUG='$PROD_DEBUG' &&
+      docker-compose -f docker-compose.dev.yml down && 
+      docker-compose -f docker-compose.dev.yml up -d --build
+      "
