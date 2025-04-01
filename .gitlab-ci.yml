@@ -17,24 +17,27 @@ before_script:
 build:
   stage: build
   script:
-    - >
-      echo "Building for branch: $CI_COMMIT_REF_NAME" &&
+    - |
+      # Map branch to ENVIRONMENT
       if [ "$CI_COMMIT_REF_NAME" = "main" ]; then
-        docker compose -f docker-compose.prod.yml build;
+        export ENVIRONMENT=prod
       elif [ "$CI_COMMIT_REF_NAME" = "dev" ]; then
-        docker compose -f docker-compose.dev.yml build;
+        export ENVIRONMENT=dev
       else
-        echo "Not a deployable branch. Skipping." &&
-        exit 0;
+        echo "Unknown branch: $CI_COMMIT_REF_NAME. Skipping build."
+        exit 0
       fi
+
+      echo "Building for ENVIRONMENT=$ENVIRONMENT"
+
+      # Run the appropriate build
+      docker compose -f docker-compose.$ENVIRONMENT.yml build
 
 deploy-prod:
   stage: deploy
   only:
     refs:
       - main
-  variables:
-    ENVIRONMENT: prod
   script:
     - echo "$SSH_PRIVATE_KEY_PROD" > id_rsa
     - chmod 600 id_rsa
@@ -51,8 +54,6 @@ deploy-dev:
   only:
     refs:
       - dev
-  variables:
-    ENVIRONMENT: dev
   script:
     - echo "$SSH_PRIVATE_KEY_DEV" > id_rsa
     - chmod 600 id_rsa
