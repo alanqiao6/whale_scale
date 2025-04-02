@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import React, { useState } from "react"
 import Sidebar from "./components/Sidebar"
 import TopBar from "./components/TopBar"
 import ImageViewer from "./components/ImageViewer"
@@ -165,4 +165,3 @@ export default function App() {
     </div>
   )
 }
-

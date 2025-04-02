@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import "./ImageViewer.css"
 
 export default function ImageViewer({
@@ -638,4 +638,3 @@ export default function ImageViewer({
     </div>
   )
 }
-
