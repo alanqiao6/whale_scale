@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import React, { useState } from "react"
 import Sidebar from "./components/Sidebar"
 import TopBar from "./components/TopBar"
 import ImageViewer from "./components/ImageViewer"
@@ -13,7 +13,7 @@ export default function App() {
   const [imageFile, setImageFile] = useState(null)
   const [metadata, setMetadata] = useState({ focalLength: "", altitude: "" })
   const [formData, setFormData] = useState(null)
-  const [widthSegments, setWidthSegments] = useState(10)
+  const [widthSegments, setWidthSegments] = useState(null)
   const [rulerData, setRulerData] = useState(null)
   const [manualCurveData, setManualCurveData] = useState(null)
   const [areaData, setAreaData] = useState(null)
@@ -60,7 +60,7 @@ export default function App() {
 
   const handleSubmit = async (dataFromSidebar) => {
     setFormData(dataFromSidebar)
-    setWidthSegments(Number.parseInt(dataFromSidebar.widthSegments) || 10)
+    setWidthSegments(Number.parseInt(dataFromSidebar.widthSegments))
 
     // Update metadata with form data
     setMetadata({
