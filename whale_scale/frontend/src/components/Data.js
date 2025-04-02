@@ -4,7 +4,7 @@ export default function Data({ formData, rulerData, manualCurveData, areaData })
   if (!formData && !rulerData && !manualCurveData && !areaData) {
     return (
       <div className="data-section">
-        <h2>DATA</h2>
+        <h2>Data</h2>
         <p>No data submitted yet.</p>
       </div>
     )
