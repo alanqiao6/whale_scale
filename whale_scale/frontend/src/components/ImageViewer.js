@@ -380,11 +380,7 @@ export default function ImageViewer({
       ctx.beginPath()
       ctx.moveTo(mainLine.x1, mainLine.y1)
       ctx.lineTo(mainLine.x2, mainLine.y2)
-<<<<<<< HEAD
       ctx.strokeStyle = "#FFFFC5"
-=======
-      ctx.strokeStyle = "white"
->>>>>>> dev
       ctx.lineWidth = 40
       ctx.stroke()
     }
@@ -393,11 +389,7 @@ export default function ImageViewer({
       ctx.beginPath()
       ctx.moveTo(pair.left.x, pair.left.y)
       ctx.lineTo(pair.right.x, pair.right.y)
-<<<<<<< HEAD
       ctx.strokeStyle = "#FFFFC5"
-=======
-      ctx.strokeStyle = "white"
->>>>>>> dev
       ctx.lineWidth = 30
       ctx.stroke()
     })
