@@ -38,10 +38,21 @@
   cursor: pointer;
   padding: 5px;
   border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
 }
 
 .tool-button:hover {
   background-color: #f0f0f0;
+}
+
+.tool-button.active {
+  background-color: var(--primary-blue);
+  color: white;
 }
 
 @media (max-width: 768px) {
@@ -50,3 +61,4 @@
     gap: 10px;
   }
 }
+
