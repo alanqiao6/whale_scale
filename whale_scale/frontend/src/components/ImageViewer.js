@@ -211,35 +211,35 @@ export default function ImageViewer({
   const handleFinalizeRuler = async () => {
     try {
       const payload = {
-        measurement_stack: [
-          {
-            measurement_type: "CURVE",
-            name: "curve_from_crosshairs",
-            objects_params: crosshairs.map((pair) => ({
-              type: "POINTITEM",
-              parms: {
+        measurement: {
+          measurement_type: "curve",
+          measurement_name: "Ruler Curve",
+          objects_params: [{
+            type: 2,
+            parms: {
+              points: crosshairs.map(pair => ({
                 x: (pair.left.x + pair.right.x) / 2,
-                y: (pair.left.y + pair.right.y) / 2,
-              },
-            })),
-          },
-        ],
+                y: (pair.left.y + pair.right.y) / 2
+              }))
+            }
+          }]
+        }
       }
 
-      const curveRes = await fetch("/morphometrix/calculate-curve/", {
+      const response = await fetch("/morphometrix/calculate-curve/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload)
       })
 
-      const curveResult = await curveRes.json()
-      if (!curveRes.ok) {
-        setBackendMessage(`❗ Ruler Curve error: ${curveResult.error}`)
+      const result = await response.json()
+      if (!response.ok) {
+        setBackendMessage(`❗ Ruler Curve error: ${result.error}`)
         return
       }
 
-      const curveLength = curveResult.length
-      const curvePoints = curveResult.curve_points || []
+      const curveLength = result.length
+      const curvePoints = result.curve_points || []
 
       const widths = crosshairs.map((pair, i) => {
         const dx = pair.right.x - pair.left.x
@@ -266,6 +266,7 @@ export default function ImageViewer({
         widthSegments: widths,
       })
     } catch (err) {
+      console.error("Error details:", err)
       setBackendMessage("❗ Error connecting to backend for ruler")
     }
   }
@@ -274,23 +275,23 @@ export default function ImageViewer({
     if (manualCurvePoints.length < 2) return
 
     const payload = {
-      measurement_stack: [
-        {
-          measurement_type: "CURVE",
-          name: "manual_curve",
-          objects_params: manualCurvePoints.map((p) => ({
-            type: "POINTITEM",
-            parms: { x: p.x, y: p.y },
-          })),
-        },
-      ],
+      measurement: {
+        measurement_type: "curve",
+        measurement_name: "Manual Curve",
+        objects_params: [{
+          type: 2,
+          parms: {
+            points: manualCurvePoints
+          }
+        }]
+      }
     }
 
     try {
       const response = await fetch("/morphometrix/calculate-curve/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload)
       })
 
       const result = await response.json()
@@ -309,6 +310,7 @@ export default function ImageViewer({
       setManualCurvePoints([])
       setActiveTool(null)
     } catch (err) {
+      console.error("Error details:", err)
       setBackendMessage("❗ Error connecting to backend for manual curve")
     }
   }
