@@ -213,16 +213,18 @@ export default function ImageViewer({
       const payload = {
         measurement: {
           measurement_type: "curve",
-          measurement_name: "Ruler Curve",
-          objects_params: [{
-            type: 2,
-            parms: {
-              points: crosshairs.map(pair => ({
-                x: (pair.left.x + pair.right.x) / 2,
-                y: (pair.left.y + pair.right.y) / 2
-              }))
+          measurement_name: "curve_from_crosshairs",
+          objects_params: [
+            {
+              type: 2,
+              parms: {
+                points: crosshairs.map(pair => ({
+                  x: (pair.left.x + pair.right.x) / 2,
+                  y: (pair.left.y + pair.right.y) / 2
+                }))
+              }
             }
-          }]
+          ]
         }
       }
 
@@ -276,13 +278,15 @@ export default function ImageViewer({
     const payload = {
       measurement: {
         measurement_type: "curve",
-        measurement_name: "Manual Curve",
-        objects_params: [{
-          type: 2,
-          parms: {
-            points: manualCurvePoints.map(p => ({ x: p.x, y: p.y }))
+        measurement_name: "manual_curve",
+        objects_params: [
+          {
+            type: 2,
+            parms: {
+              points: manualCurvePoints.map(p => ({ x: p.x, y: p.y }))
+            }
           }
-        }]
+        ]
       }
     }
 
@@ -320,27 +324,25 @@ export default function ImageViewer({
     }
 
     try {
-      // Format the polygon points for the backend
       const payload = {
         measurement: {
-          measurement_type: "AREA",
-          name: "Polygon Area",
+          measurement_type: "area",
+          measurement_name: "Polygon Area",
           objects_params: [
             {
-              type: 5, // Using value 1
-              parms: polygonPoints.map((p) => ({ x: p.x, y: p.y })),
-              // Changed from { points: [...] } to directly mapping the points
-            },
-          ],
-        },
+              type: 5,
+              parms: {
+                points: polygonPoints
+              }
+            }
+          ]
+        }
       }
-
-      console.log("Area payload:", JSON.stringify(payload, null, 2))
 
       const response = await fetch("/morphometrix/calculate_area/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload)
       })
 
       const result = await response.json()
