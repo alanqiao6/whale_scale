@@ -33,7 +33,7 @@ deploy-prod:
       export DEV_DEBUG='$DEV_DEBUG' &&
       export PROD_ALLOWED_HOSTS='$PROD_ALLOWED_HOSTS' &&
       export PROD_DEBUG='$PROD_DEBUG' &&
-      docker-compose -f docker-compose.prod.yml down && 
+      docker-compose -f docker-compose.prod.yml down -v && 
       docker-compose -f docker-compose.prod.yml up -d --build
       "
 
@@ -64,6 +64,6 @@ deploy-dev:
       export DEV_DEBUG='$DEV_DEBUG' &&
       export PROD_ALLOWED_HOSTS='$PROD_ALLOWED_HOSTS' &&
       export PROD_DEBUG='$PROD_DEBUG' &&
-      docker-compose -f docker-compose.dev.yml down && 
+      docker-compose -f docker-compose.dev.yml down -v && 
       docker-compose -f docker-compose.dev.yml up -d --build
       "
