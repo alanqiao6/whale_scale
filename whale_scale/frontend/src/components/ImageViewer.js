@@ -226,7 +226,7 @@ export default function ImageViewer({
         ],
       }
 
-      const curveRes = await fetch("/morphometrix/calculate_curve/", {
+      const curveRes = await fetch("/morphometrix/calculate-curve/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -287,7 +287,7 @@ export default function ImageViewer({
     }
 
     try {
-      const response = await fetch("/morphometrix/calculate_curve/", {
+      const response = await fetch("/morphometrix/calculate-curve/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -337,7 +337,7 @@ export default function ImageViewer({
 
       console.log("Area payload:", JSON.stringify(payload, null, 2))
 
-      const response = await fetch("/morphometrix/calculate_area/", {
+      const response = await fetch("/morphometrix/calculate-area/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
