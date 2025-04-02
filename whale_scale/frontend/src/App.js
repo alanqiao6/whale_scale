@@ -41,8 +41,8 @@ export default function App() {
           console.log("Backend Metadata:", backendMetadata)
 
           setMetadata({
-            focalLength: backendMetadata.focal_length_mm || "",
-            altitude: backendMetadata.gps_altitude_m || "",
+            focalLength: dataFromSidebar.focalLength,
+            altitude: dataFromSidebar.altitude,
           })
         } else {
           // If server fails, try client-side extraction with exifr
@@ -89,7 +89,7 @@ export default function App() {
     }
 
     try {
-      const response = await fetch("/morphometrix/calculate_length/", {
+      const response = await fetch("/morphometrix/calculate-length/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -167,7 +167,7 @@ export default function App() {
     }
 
     try {
-        const response = await fetch("/morphometrix/calculate_curve/", {  // Note: underscore
+        const response = await fetch("/morphometrix/calculate-curve/", {  // Note: underscore
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
@@ -197,7 +197,7 @@ export default function App() {
             ],
         }
 
-        const curveRes = await fetch("/morphometrix/calculate_curve/", {  // Note: underscore
+        const curveRes = await fetch("/morphometrix/calculate-curve/", {  // Note: underscore
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
@@ -229,7 +229,7 @@ export default function App() {
             },
         }
 
-        const response = await fetch("/morphometrix/calculate_area/", {  // Note: underscore
+        const response = await fetch("/morphometrix/calculate-area/", {  // Note: underscore
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
