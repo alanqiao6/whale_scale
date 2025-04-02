@@ -144,6 +144,98 @@ export default function App() {
     }
   }
 
+  const handleFinalizeManualCurve = async () => {
+    if (manualCurvePoints.length < 2) return
+
+    const payload = {
+        measurement_stack: [  // Note: measurement_stack not measurement
+            {
+                measurement_type: "CURVE",  // Note: uppercase CURVE
+                name: "manual_curve",       // Note: name not measurement_name
+                objects_params: manualCurvePoints.map((p) => ({
+                    type: "POINTITEM",      // Note: POINTITEM as string
+                    parms: { x: p.x, y: p.y },
+                })),
+            },
+        ],
+    }
+
+    try {
+        const response = await fetch("/morphometrix/calculate_curve/", {  // Note: underscore
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        })
+
+        // ... rest of the function stays the same
+    } catch (err) {
+        setBackendMessage("❗ Error connecting to backend for manual curve")
+    }
+  }
+
+  const handleFinalizeRuler = async () => {
+    try {
+        const payload = {
+            measurement_stack: [  // Note: measurement_stack not measurement
+                {
+                    measurement_type: "CURVE",
+                    name: "curve_from_crosshairs",
+                    objects_params: crosshairs.map((pair) => ({
+                        type: "POINTITEM",
+                        parms: {
+                            x: (pair.left.x + pair.right.x) / 2,
+                            y: (pair.left.y + pair.right.y) / 2,
+                        },
+                    })),
+                },
+            ],
+        }
+
+        const curveRes = await fetch("/morphometrix/calculate_curve/", {  // Note: underscore
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        })
+
+        // ... rest of the function stays the same
+    } catch (err) {
+        setBackendMessage("❗ Error connecting to backend for ruler")
+    }
+  }
+
+  const handleFinalizeArea = async () => {
+    if (polygonPoints.length < 3) {
+        setBackendMessage("❗ Need at least 3 points for area calculation")
+        return
+    }
+
+    try {
+        const payload = {
+            measurement: {  // Note: this one uses measurement not measurement_stack
+                measurement_type: "AREA",
+                name: "Polygon Area",
+                objects_params: [
+                    {
+                        type: 5,
+                        parms: polygonPoints.map((p) => ({ x: p.x, y: p.y }))
+                    },
+                ],
+            },
+        }
+
+        const response = await fetch("/morphometrix/calculate_area/", {  // Note: underscore
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        })
+
+        // ... rest of the function stays the same
+    } catch (err) {
+        console.error(err)
+        setBackendMessage("❗ Error connecting to backend for area calculation")
+    }
+  }
+
   return (
     <div className="app-container">
       <Sidebar metadata={metadata} onImageUpload={handleImageUpload} onSubmit={handleSubmit} />
