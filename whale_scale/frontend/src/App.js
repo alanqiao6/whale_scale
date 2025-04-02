@@ -68,12 +68,6 @@ export default function App() {
       altitude: dataFromSidebar.altitude,
     })
 
-    // Update metadata with form data
-    setMetadata({
-      focalLength: dataFromSidebar.focalLength,
-      altitude: dataFromSidebar.altitude,
-    })
-
     // Submit measurement to backend
     if (!measurementData || measurementData.points.length < 2) {
       console.error("Not enough points to submit a measurement.")
