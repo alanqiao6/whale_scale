@@ -179,7 +179,7 @@ export default function ImageViewer({
     const perpAngle = angle + Math.PI / 2
     const perpLength = lineLength / 4
 
-    for (let i = 0; i < numSegments; i++) {
+    for (let i = 1; i < numSegments; i++) {
       const ratio = i / numSegments
       const segX = x1 + (x2 - x1) * ratio
       const segY = y1 + (y2 - y1) * ratio
@@ -380,7 +380,11 @@ export default function ImageViewer({
       ctx.beginPath()
       ctx.moveTo(mainLine.x1, mainLine.y1)
       ctx.lineTo(mainLine.x2, mainLine.y2)
+<<<<<<< HEAD
+      ctx.strokeStyle = "#FFFFC5"
+=======
       ctx.strokeStyle = "white"
+>>>>>>> dev
       ctx.lineWidth = 40
       ctx.stroke()
     }
@@ -389,7 +393,11 @@ export default function ImageViewer({
       ctx.beginPath()
       ctx.moveTo(pair.left.x, pair.left.y)
       ctx.lineTo(pair.right.x, pair.right.y)
+<<<<<<< HEAD
+      ctx.strokeStyle = "#FFFFC5"
+=======
       ctx.strokeStyle = "white"
+>>>>>>> dev
       ctx.lineWidth = 30
       ctx.stroke()
     })
