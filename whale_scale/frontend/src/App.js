@@ -127,7 +127,7 @@ export default function App() {
 
   const handleBackendResult = (result) => {
     setBackendResult(result)
-
+  
     if (result.type === "manual_curve") {
       setManualCurveData({
         type: "manual_curve",
@@ -140,12 +140,6 @@ export default function App() {
         curveLength: result.curveLength,
         widthSegments: result.widthSegments ?? [],
         segments: result.widthSegments?.length ?? 0,
-      })
-    } else if (result.type === "area") {
-      setAreaData({
-        type: "area",
-        area: result.area,
-        polygonPoints: result.polygonPoints,
       })
     }
   }
