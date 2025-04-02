@@ -64,8 +64,8 @@ export default function App() {
 
     // Update metadata with form data
     setMetadata({
-      focalLength: dataFromSidebar.focalLength,
-      altitude: dataFromSidebar.altitude,
+      focalLength: backendMetadata.focal_length_mm || "",
+      altitude: backendMetadata.gps_altitude_m || "",
     })
 
     // Submit measurement to backend
