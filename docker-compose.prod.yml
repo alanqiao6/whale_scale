@@ -9,8 +9,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
   backend:
     build:
-      context: ./backend
+      context: ./whale_scale
       dockerfile: Dockerfile.prod
+    ports:
+      - "8000:8000"
     environment:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
       POSTGRES_DB: ${POSTGRES_DB}
@@ -33,12 +35,17 @@ services:
 
   frontend:
     build:
-      context: ./frontend
+      context: ./whale_scale/frontend
       dockerfile: Dockerfile.prod
       args:
+        - NODE_ENV=production
         - REACT_APP_API_URL=https://whale-scale.colab.duke.edu
+    volumes:
+      - frontend_build:/app/build
     depends_on:
       - backend
+    environment:
+      - NODE_ENV=production
 
   nginx:
     image: nginx:alpine
@@ -50,6 +57,7 @@ services:
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - static_volume:/app/static:ro
       - media_volume:/app/media:ro
+      - frontend_build:/app/build:ro
     depends_on:
       - backend
       - frontend
@@ -57,3 +65,4 @@ services:
 volumes:
   static_volume:
   media_volume:
+  frontend_build:

@@ -25,11 +25,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = "django-insecure-)r*pe-1hya)%_1z14@**%fx0(!7kwxevp=inzzv@g291^5v3(i"
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get(f'{ENV.upper()}_DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = []
 
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+STATIC_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Application definition
 
