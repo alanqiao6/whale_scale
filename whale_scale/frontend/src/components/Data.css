@@ -1,15 +1,52 @@
 .data-section {
   background-color: var(--background-gray);
   padding: 20px;
-  min-height: 200px;
-}
-
-.data-section h2 {
-  margin: 0;
-  color: var(--text-color);
+  margin-top: 20px;
 }
 
 .data-content {
-  margin-top: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.form-data,
+.measurement-data {
+  background-color: white;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex: 1;
+  min-width: 250px;
+}
+
+.real-measurements {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+}
+
+h3 {
+  margin-top: 0;
+  color: var(--primary-blue);
+}
+
+h4 {
+  margin-bottom: 10px;
+  color: var(--text-color);
+}
+
+ul {
+  padding-left: 20px;
+}
+
+li {
+  margin-bottom: 5px;
+}
+
+@media (max-width: 768px) {
+  .data-content {
+    flex-direction: column;
+  }
 }
 

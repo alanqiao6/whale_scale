@@ -2,11 +2,10 @@
 import React, { useState, useEffect } from "react";
 import "./Sidebar.css";
 
-export default function Sidebar({ metadata, onImageUpload }) {
+export default function Sidebar({ metadata, onImageUpload, onSubmit }) {
   const [focalLength, setFocalLength] = useState("");
   const [altitude, setAltitude] = useState("");
   const [widthSegments, setWidthSegments] = useState("");
-  const [mirrorSide, setMirrorSide] = useState("None");
   const [crosshairSize, setCrosshairSize] = useState(50);
   const [crosshairOpacity, setCrosshairOpacity] = useState(100);
   const [crosshairColor, setCrosshairColor] = useState("#e7403e");
@@ -14,11 +13,13 @@ export default function Sidebar({ metadata, onImageUpload }) {
 
   // Auto-fill metadata fields when metadata updates
   useEffect(() => {
-    if (metadata) {
-      setFocalLength(metadata.focalLength || "");
-      setAltitude(metadata.altitude || "");
+    if (metadata?.focalLength || metadata?.altitude) {
+      console.log("Auto-populating from metadata:", metadata)
+      setFocalLength(metadata.focalLength || "")
+      setAltitude(metadata.altitude || "")
     }
-  }, [metadata]);
+  }, [metadata?.focalLength, metadata?.altitude])
+  
 
   // Function to handle image upload from Sidebar
   const handleImageUpload = (event) => {
@@ -28,43 +29,17 @@ export default function Sidebar({ metadata, onImageUpload }) {
     }
   };
 
-  // Function to submit form data
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-
-    // Validate required fields
-    if (!focalLength || !altitude) {
-      setMessage("Please fill in all required fields.");
-      return;
-    }
-
+  const handleSubmit = () => {
     const formData = {
       focalLength,
       altitude,
       widthSegments,
-      mirrorSide,
       crosshairSize,
       crosshairOpacity,
       crosshairColor,
-      imageMetadata: metadata, // Include extracted metadata from images
-    };
-
-    try {
-      const response = await fetch("http://your-backend-url.com/submit-form", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await response.json();
-      setMessage(data.message || "Form submitted successfully!");
-    } catch (error) {
-      console.error("Error submitting form:", error);
-      setMessage("Error submitting form. Please try again.");
     }
-  };
+    onSubmit(formData)
+  }
 
   return (
     <div className="sidebar">
@@ -96,17 +71,7 @@ export default function Sidebar({ metadata, onImageUpload }) {
       </div>
 
       <div className="input-group">
-        <label>Mirror Side</label>
-        <select id="mirror-side" value={mirrorSide} onChange={(e) => setMirrorSide(e.target.value)} aria-describedby="mirror-desc">
-          <option value="None">None</option>
-          <option value="Side A">Side A</option>
-          <option value="Side B">Side B</option>
-        </select>
-        <p id="mirror-desc" className="sr-only">Select a mirror side for processing.</p>
-      </div>
-
-      <div className="input-group">
-        <label htmlFor="crosshair-size">Crosshair Size</label>
+        <label>Crosshair Size</label>
         <input
           type="range"
           id="crosshair-size"
@@ -149,13 +114,10 @@ export default function Sidebar({ metadata, onImageUpload }) {
         />
       </div>
 
-      {/* ✅ Moved buttons OUTSIDE of <form> to restore original placement */}
-      <div className="button-group">
-        <button className="submit-button" onClick={handleSubmit} aria-label="Submit the form">Submit</button>
-        <button className="export-button" aria-label="Export data">Export 📤</button>
-      </div>
-
-      {message && <p className="response-message" aria-live="polite">{message}</p>}
+      <button className="submit-button" onClick={handleSubmit}>
+        Submit
+      </button>
+      <button className="export-button">Export 📤</button>
     </div>
   );
 }

@@ -19,6 +19,7 @@ deploy-prod:
     - |
       ssh -o StrictHostKeyChecking=no -i gitlab_vcm $VCM_USER_PROD@$VCM_IP_PROD "
       cd /home/vcm/APP_WHALESCALE && 
+      git fetch &&
       git checkout main && 
       git pull origin main && 
       export POSTGRES_DB='$POSTGRES_DB' &&
@@ -49,6 +50,7 @@ deploy-dev:
     - |
       ssh -o StrictHostKeyChecking=no -i gitlab_vcm $VCM_USER_DEV@$VCM_IP_DEV "
       cd /home/vcm/APP_WHALESCALE && 
+      git fetch &&
       git checkout dev && 
       git pull origin dev && 
       export POSTGRES_DB='$POSTGRES_DB' &&
