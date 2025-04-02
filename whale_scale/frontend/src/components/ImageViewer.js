@@ -276,18 +276,14 @@ export default function ImageViewer({
     if (manualCurvePoints.length < 2) return
 
     const payload = {
-      measurement: {
-        measurement_type: "curve",
-        measurement_name: "manual_curve",
-        objects_params: [
-          {
-            type: 2,
-            parms: {
-              points: manualCurvePoints.map(p => ({ x: p.x, y: p.y }))
-            }
-          }
-        ]
-      }
+        measurement_stack: [{
+            measurement_type: "CURVE",
+            name: "manual_curve",
+            objects_params: manualCurvePoints.map(point => ({
+                type: "POINTITEM",
+                parms: { x: point.x, y: point.y }
+            }))
+        }]
     }
 
     try {
