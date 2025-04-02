@@ -18,11 +18,6 @@ deploy-prod:
     - chmod 600 gitlab_vcm
     - |
       ssh -o StrictHostKeyChecking=no -i gitlab_vcm $VCM_USER_PROD@$VCM_IP_PROD "
-      # Check and kill process using port 443
-      echo 'Checking for processes using port 443...'
-      sudo lsof -ti:443 | xargs sudo kill -9 || true
-      echo 'Port 443 should now be available'
-      
       cd /home/vcm/APP_WHALESCALE && 
       git checkout main && 
       git pull origin main && 
@@ -53,11 +48,6 @@ deploy-dev:
     - chmod 600 gitlab_vcm
     - |
       ssh -o StrictHostKeyChecking=no -i gitlab_vcm $VCM_USER_DEV@$VCM_IP_DEV "
-      # Check and kill process using port 443
-      echo 'Checking for processes using port 443...'
-      sudo lsof -ti:443 | xargs sudo kill -9 || true
-      echo 'Port 443 should now be available'
-      
       cd /home/vcm/APP_WHALESCALE && 
       git checkout dev && 
       git pull origin dev && 
