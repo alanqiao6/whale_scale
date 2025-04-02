@@ -5,7 +5,6 @@ import TopBar from "./components/TopBar"
 import ImageViewer from "./components/ImageViewer"
 import Data from "./components/Data"
 import "./App.css"
-import * as exifr from "exifr"
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("measure")
@@ -41,34 +40,14 @@ export default function App() {
           console.log("Backend Metadata:", backendMetadata)
 
           setMetadata({
-            focalLength: dataFromSidebar.focalLength,
-            altitude: dataFromSidebar.altitude,
+            focalLength: backendMetadata.focal_length_mm || "",
+            altitude: backendMetadata.gps_altitude_m || "",
           })
         } else {
-          // If server fails, try client-side extraction with exifr
-          console.log("Falling back to client-side extraction")
-          const exifrData = await exifr.parse(file)
-          console.log("Exifr Metadata:", exifrData)
-
-          setMetadata({
-            focalLength: exifrData?.FocalLength || "",
-            altitude: exifrData?.GPSAltitude || "",
-          })
+          console.error("Backend metadata extraction failed:", response.statusText)
         }
       } catch (error) {
-        console.error("Error extracting metadata:", error)
-        // Still try client-side extraction if server throws error
-        try {
-          const exifrData = await exifr.parse(file)
-          console.log("Exifr Metadata:", exifrData)
-
-          setMetadata({
-            focalLength: exifrData?.FocalLength || "",
-            altitude: exifrData?.GPSAltitude || "",
-          })
-        } catch (exifrError) {
-          console.error("Client-side extraction also failed:", exifrError)
-        }
+        console.error("Error extracting metadata via backend:", error)
       }
     }
   }
@@ -83,6 +62,13 @@ export default function App() {
     setFormData(dataFromSidebar)
     setWidthSegments(Number.parseInt(dataFromSidebar.widthSegments))
 
+    // Update metadata with form data
+    setMetadata({
+      focalLength: dataFromSidebar.focalLength,
+      altitude: dataFromSidebar.altitude,
+    })
+
+    // Submit measurement to backend
     if (!measurementData || measurementData.points.length < 2) {
       console.error("Not enough points to submit a measurement.")
       return
@@ -129,116 +115,24 @@ export default function App() {
     setBackendResult(result)
 
     if (result.type === "manual_curve") {
-        setManualCurveData({
-            type: "manual_curve",
-            curveLength: result.length,
-            curvePoints: result.curvePoints,
-        })
+      setManualCurveData({
+        type: "manual_curve",
+        curveLength: result.length,
+        curvePoints: result.curvePoints,
+      })
     } else if (result.type === "ruler") {
-        setRulerData({
-            type: "ruler",
-            curveLength: result.curveLength,
-            widthSegments: result.widthSegments ?? [],
-            segments: result.widthSegments?.length ?? 0,
-        })
+      setRulerData({
+        type: "ruler",
+        curveLength: result.curveLength,
+        widthSegments: result.widthSegments ?? [],
+        segments: result.widthSegments?.length ?? 0,
+      })
     } else if (result.type === "area") {
-        setAreaData({
-            type: "area",
-            area: result.area,
-            polygonPoints: result.polygonPoints,
-        })
-    }
-  }
-
-  const handleFinalizeManualCurve = async () => {
-    if (manualCurvePoints.length < 2) return
-
-    const payload = {
-        measurement_stack: [  // Note: measurement_stack not measurement
-            {
-                measurement_type: "CURVE",  // Note: uppercase CURVE
-                name: "manual_curve",       // Note: name not measurement_name
-                objects_params: manualCurvePoints.map((p) => ({
-                    type: "POINTITEM",      // Note: POINTITEM as string
-                    parms: { x: p.x, y: p.y },
-                })),
-            },
-        ],
-    }
-
-    try {
-        const response = await fetch("/morphometrix/calculate-curve/", {  // Note: underscore
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        })
-
-        // ... rest of the function stays the same
-    } catch (err) {
-        setBackendMessage("❗ Error connecting to backend for manual curve")
-    }
-  }
-
-  const handleFinalizeRuler = async () => {
-    try {
-        const payload = {
-            measurement_stack: [  // Note: measurement_stack not measurement
-                {
-                    measurement_type: "CURVE",
-                    name: "curve_from_crosshairs",
-                    objects_params: crosshairs.map((pair) => ({
-                        type: "POINTITEM",
-                        parms: {
-                            x: (pair.left.x + pair.right.x) / 2,
-                            y: (pair.left.y + pair.right.y) / 2,
-                        },
-                    })),
-                },
-            ],
-        }
-
-        const curveRes = await fetch("/morphometrix/calculate-curve/", {  // Note: underscore
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        })
-
-        // ... rest of the function stays the same
-    } catch (err) {
-        setBackendMessage("❗ Error connecting to backend for ruler")
-    }
-  }
-
-  const handleFinalizeArea = async () => {
-    if (polygonPoints.length < 3) {
-        setBackendMessage("❗ Need at least 3 points for area calculation")
-        return
-    }
-
-    try {
-        const payload = {
-            measurement: {  // Note: this one uses measurement not measurement_stack
-                measurement_type: "AREA",
-                name: "Polygon Area",
-                objects_params: [
-                    {
-                        type: 5,
-                        parms: polygonPoints.map((p) => ({ x: p.x, y: p.y }))
-                    },
-                ],
-            },
-        }
-
-        const response = await fetch("/morphometrix/calculate-area/", {  // Note: underscore
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        })
-
-        // ... rest of the function stays the same
-    } catch (err) {
-        console.error(err)
-        setBackendMessage("❗ Error connecting to backend for area calculation")
+      setAreaData({
+        type: "area",
+        area: result.area,
+        polygonPoints: result.polygonPoints,
+      })
     }
   }
 
