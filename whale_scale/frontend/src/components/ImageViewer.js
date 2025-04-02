@@ -275,43 +275,60 @@ export default function ImageViewer({
   const handleFinalizeManualCurve = async () => {
     if (manualCurvePoints.length < 2) return
 
+    // Log the points being sent (for debugging)
+    console.log("Sending points:", manualCurvePoints);
+
     const payload = {
         measurement_stack: [{
             measurement_type: "CURVE",
             name: "manual_curve",
             objects_params: manualCurvePoints.map(point => ({
                 type: "POINTITEM",
-                parms: { x: point.x, y: point.y }
+                parms: {
+                    x: point.x,
+                    y: point.y
+                }
             }))
         }]
-    }
+    };
+
+    // Log the full payload (for debugging)
+    console.log("Sending payload:", JSON.stringify(payload, null, 2));
 
     try {
-      const response = await fetch("/morphometrix/calculate_curve/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      })
+        const response = await fetch("/morphometrix/calculate_curve/", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                // Add X-Requested-With header to indicate AJAX request
+                "X-Requested-With": "XMLHttpRequest"
+            },
+            credentials: 'include', // Include cookies
+            body: JSON.stringify(payload)
+        });
 
-      const result = await response.json()
-      if (!response.ok) {
-        setBackendMessage(`❗ Manual Curve error: ${result.error}`)
-        return
-      }
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error("Server response:", errorText);
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
 
-      setBackendMessage(`✅ Manual Curve: ${result.length.toFixed(2)} px`)
+        const result = await response.json();
+        setBackendMessage(`✅ Manual Curve: ${result.length.toFixed(2)} px`);
 
-      onBackendResult({
-        type: "manual_curve",
-        length: result.length,
-        curvePoints: manualCurvePoints,
-      })
-      setManualCurvePoints([])
-      setActiveTool(null)
+        onBackendResult({
+            type: "manual_curve",
+            length: result.length,
+            curvePoints: manualCurvePoints,
+        });
+        setManualCurvePoints([]);
+        setActiveTool(null);
     } catch (err) {
-      setBackendMessage("❗ Error connecting to backend for manual curve")
+        console.error("Full error:", err);
+        setBackendMessage("❗ Error connecting to backend for manual curve");
     }
-  }
+  };
 
   const handleFinalizeArea = async () => {
     if (polygonPoints.length < 3) {
