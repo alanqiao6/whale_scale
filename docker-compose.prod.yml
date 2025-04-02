@@ -35,7 +35,7 @@ services:
 
   frontend:
     build:
-      context: ./frontend
+      context: ./whale_scale/frontend
       dockerfile: Dockerfile.prod
       args:
         - NODE_ENV=production
