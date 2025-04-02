@@ -72,7 +72,27 @@ class MorphoMetrix(View):
             return JsonResponse({"error": "Invalid function name"}, status=400)
 
     def calculate_curve(self, request):
-        """Compute Bézier curve interpolation and arc length."""
+        """
+        Compute Bézier curve interpolation and arc length.
+
+        Input: JSON with a measurement_stack containing a list of measurements with objects_params of control points (each with x, y).
+
+        Output: JSON with interpolated curve_points and the total length of the curve.
+
+        Axios Example: 
+        axios.post("http://localhost:8000/morphometrix/calculate_curve/", {
+            measurement_stack: [{
+                measurement_type: "curve",
+                name: "Test Curve",
+                objects_params: [
+                { parms: { x: 0, y: 0 } },
+                { parms: { x: 1, y: 2 } },
+                { parms: { x: 3, y: 3 } }
+                ]
+            }]
+        }).then(response => console.log(response.data));
+
+        """
         data = json.loads(request.body)
         measurement_stack = [Measurement(**m) for m in data.get("measurement_stack", [])]
 
@@ -94,7 +114,25 @@ class MorphoMetrix(View):
         return JsonResponse({"curve_points": curve_points, "length": length})
 
     def calculate_length(self, request):
-        """Compute total length of selected measurement."""
+        """
+        Compute total length of selected measurement.
+
+        Input: JSON with a measurement containing objects_params of line segments, each with a length in parms.
+
+        Output: JSON with the total length.
+
+        Axios Example:
+        axios.post("http://localhost:8000/morphometrix/calculate_length/", {
+            measurement: {
+                measurement_type: "line",
+                measurement_name: "Test Line",
+                objects_params: [
+                { parms: { length: 10 } },
+                { parms: { length: 15 } }
+                ]
+            }
+        }).then(response => console.log(response.data));
+        """
         data = json.loads(request.body)
         logger = logging.getLogger(__name__)
         logger.info("Received measurement: %s", data)
@@ -109,7 +147,25 @@ class MorphoMetrix(View):
         return JsonResponse({"length": measurement.measurement_value})
 
     def calculate_angle(self, request):
-        """Compute the angle between two line segments."""
+        """
+        Compute the angle between two line segments.
+
+        Input: JSON with a measurement containing two objects_params with parms for endpoints (x1, y1, x2, y2).
+
+        Output: JSON with the calculated angle.
+
+        Axios Example:
+        axios.post("http://localhost:8000/morphometrix/calculate_angle/", {
+            measurement: {
+                measurement_type: 3,
+                name: "Test Angle Measurement",
+                objects_params: [
+                { type: 1, parms: { x1: 0, y1: 0, x2: 1, y2: 1 } },
+                { type: 1, parms: { x1: 0, y1: 0, x2: 1, y2: -1 } }
+                ]
+            }
+        }).then(response => console.log(response.data));
+        """
 
         try:
             data = json.loads(request.body)
@@ -131,7 +187,32 @@ class MorphoMetrix(View):
 
 
     def calculate_area(self, request):
-        """Compute area using the Shoelace formula."""
+        """
+        Compute area using the Shoelace formula.
+
+        Input: JSON with a measurement containing an objects_params entry of type polygon (type 5) and its list of x, y vertices in parms.
+
+        Output: JSON with the calculated area.
+
+        Axios Example:
+        axios.post("http://localhost:8000/morphometrix/calculate_area/", {
+            measurement: {
+                measurement_type: 2,
+                name: "Test Area Measurement",
+                objects_params: [
+                {
+                    type: 5,
+                    parms: [
+                    { x: 0, y: 0 },
+                    { x: 4, y: 0 },
+                    { x: 4, y: 3 },
+                    { x: 0, y: 3 }
+                    ]
+                }
+                ]
+            }
+        }).then(response => console.log(response.data));
+        """
         data = json.loads(request.body)
         measurement = Measurement(**data.get("measurement"))
 
@@ -172,15 +253,15 @@ class CollatriX(View):
         """
         Routes requests to the appropriate function based on the URL path.
         """
-        if function_name == "calculate-body-condition":
+        if function_name == "calculate_body_condition":
             return self.calculate_body_condition(request)
-        elif function_name == "lidar-wrangle":
+        elif function_name == "lidar_wrangle":
             return self.lidar_wrangle(request)
-        elif function_name == "lidar-image":
+        elif function_name == "lidar_image":
             return self.lidar_image(request)
-        elif function_name == "collate-morphometrix":
+        elif function_name == "collate_morphometrix":
             return self.collate_morphometrix(request)
-        elif function_name == "extract-metadata":
+        elif function_name == "extract_metadata":
             return self.extract_metadata(request)
         else:
             return JsonResponse({"error": "Invalid function name"}, status=400)
@@ -188,6 +269,17 @@ class CollatriX(View):
     def extract_metadata(self, request):
         """
         Extracts metadata from an uploaded image.
+
+        Input: multipart/form-data with a single image file.
+
+        Output: JSON object containing metadata such as timestamp, camera model, GPS coordinates, and exposure settings.
+
+        Axios Example:
+        const formData = new FormData();
+        formData.append("image", imageFile);
+
+        axios.post("http://localhost:8000/collatrix/extract_metadata/", formData)
+        .then(response => console.log(response.data));
         """
         if 'image' not in request.FILES:
             return JsonResponse({"error": "No image file provided"}, status=400)
@@ -244,6 +336,21 @@ class CollatriX(View):
     def calculate_body_condition(self, request):
         """
         Calculates cetacean body condition metrics based on uploaded measurements.
+
+        Input: JSON object with measurements array, bv_method, bai_method, tl_name, and optional range/interval params.
+
+        Output: JSON array with calculated metrics (e.g., BVcir, BAIpar, SA) per image.
+
+        Axios Example:
+        axios.post("http://localhost:8000/collatrix/calculate-body-condition/", {
+        measurements: [...],  // array of measurement objects
+        bv_method: "Circle",
+        bai_method: "Parabola",
+        tl_name: "Length",
+        interval: 5,
+        lower: 0,
+        upper: 30
+        }).then(response => console.log(response.data));
         """
         data = json.loads(request.body)
         df = pd.DataFrame(data["measurements"])
@@ -272,6 +379,20 @@ class CollatriX(View):
     def lidar_wrangle(self, request):
         """
         Wrangles LiDAR data from either LightWare CSV or LemHex GPX files.
+
+        Input: multipart/form-data with files (one or more), lidar_type, and (if needed) gimbal_type.
+
+        Output: JSON array of LiDAR readings with corrected timestamps and altitudes.
+
+        Axios Example:
+        const formData = new FormData();
+        formData.append("files", lidarFile1);
+        formData.append("files", lidarFile2);
+        formData.append("lidar_type", "LightWare");
+        formData.append("gimbal_type", "fixed");
+
+        axios.post("http://localhost:8000/collatrix/lidar-wrangle/", formData)
+        .then(response => console.log(response.data));
         """
         lidar_type = request.POST.get('lidar_type')
         gimbal_type = request.POST.get('gimbal_type')
@@ -452,6 +573,28 @@ class CollatriX(View):
     def lidar_image(self, request):
         """
         Extract metadata from images and match with LiDAR data.
+
+        Input: multipart/form-data with image_files, gps_data, lidar_data, time_window, flight_ixs, and delimiter.
+
+        Output: JSON array with image names and corresponding LiDAR altitudes.
+
+        Axios Example:
+        const formData = new FormData();
+        formData.append("image_files", image1);
+        formData.append("image_files", image2);
+        formData.append("gps_data", JSON.stringify([
+        { FlightID: "ARG_20250123_1_1", GPS_DT: "2025-03-18T14:30:00" },
+        { FlightID: "ARG_20250201_1_1", GPS_DT: "2025-03-18T14:31:00" }
+        ]));
+        formData.append("lidar_data", JSON.stringify([
+        { CorrDT: "2025-03-18T14:30:05", Laser_Alt: 12.5 }
+        ]));
+        formData.append("time_window", "60");
+        formData.append("flight_ixs", JSON.stringify([0, 1, 2, 3]));
+        formData.append("delimiter", "_");
+
+        axios.post("http://localhost:8000/collatrix/lidar-image/", formData)
+        .then(response => console.log(response.data));
         """
         try:
             gps_data = json.loads(request.POST.get("gps_data", "[]"))
@@ -660,6 +803,22 @@ class CollatriX(View):
     def collate_morphometrix(self, request):
         """
         Collates and processes multiple MorphoMetriX CSV files into a single dataset.
+
+        Input: multipart/form-data with multiple csv_files, optional safe_file_path, and config fields (prefix, use_folder_as_animal_id, output_option).
+
+        Output: JSON object with merged measurements (meters/pixels) and processing notes.
+
+        Axios Example:
+        const formData = new FormData();
+        formData.append("csv_files", file1);
+        formData.append("csv_files", file2);
+        formData.append("safe_file_path", safetyFile);
+        formData.append("prefix", "output");
+        formData.append("use_folder_as_animal_id", "false");
+        formData.append("output_option", "Both in one file");
+
+        axios.post("http://localhost:8000/collatrix/collate-morphometrix/", formData)
+        .then(response => console.log(response.data));
         """
         try:
             prefix = request.POST.get("prefix", "output")

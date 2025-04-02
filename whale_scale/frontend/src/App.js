@@ -1,5 +1,5 @@
 "use client"
-import React, { useState } from "react"
+import { useState } from "react"
 import Sidebar from "./components/Sidebar"
 import TopBar from "./components/TopBar"
 import ImageViewer from "./components/ImageViewer"
@@ -61,6 +61,12 @@ export default function App() {
   const handleSubmit = async (dataFromSidebar) => {
     setFormData(dataFromSidebar)
     setWidthSegments(Number.parseInt(dataFromSidebar.widthSegments))
+
+    // Update metadata with form data
+    setMetadata({
+      focalLength: dataFromSidebar.focalLength,
+      altitude: dataFromSidebar.altitude,
+    })
 
     // Update metadata with form data
     setMetadata({

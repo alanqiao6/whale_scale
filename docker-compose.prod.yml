@@ -1,0 +1,68 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  backend:
+    build:
+      context: ./whale_scale
+      dockerfile: Dockerfile.prod
+    ports:
+      - "8000:8000"
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      ENVIRONMENT: ${ENVIRONMENT}
+      PROD_ALLOWED_HOSTS: ${PROD_ALLOWED_HOSTS}
+      DEV_ALLOWED_HOSTS: ${DEV_ALLOWED_HOSTS}
+      PROD_DEBUG: ${PROD_DEBUG}
+      DEV_DEBUG: ${DEV_DEBUG}
+      DJANGO_SUPERUSER_PASSWORD: ${DJANGO_SUPERUSER_PASSWORD}
+    volumes:
+      - static_volume:/app/static
+      - media_volume:/app/media
+    depends_on:
+      - db
+    expose:
+      - "8000"
+
+  frontend:
+    build:
+      context: ./whale_scale/frontend
+      dockerfile: Dockerfile.prod
+      args:
+        - NODE_ENV=production
+        - REACT_APP_API_URL=https://whale-scale.colab.duke.edu
+    volumes:
+      - frontend_build:/app/build
+    depends_on:
+      - backend
+    environment:
+      - NODE_ENV=production
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/default.prod.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - static_volume:/app/static:ro
+      - media_volume:/app/media:ro
+      - frontend_build:/app/build:ro
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  static_volume:
+  media_volume:
+  frontend_build:
