@@ -1,44 +1,52 @@
 .data-section {
-  background-color: var(--background-gray, #f0f0f0);
+  background-color: var(--background-gray);
   padding: 20px;
-  border-radius: 8px;
   margin-top: 20px;
 }
 
-.data-section h2 {
-  margin-top: 0;
-  color: var(--text-color, #333);
-}
-
 .data-content {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 20px;
 }
 
 .form-data,
-.measurement-data,
-.real-measurements {
+.measurement-data {
   background-color: white;
   padding: 15px;
-  border-radius: 6px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex: 1;
+  min-width: 250px;
 }
 
-.data-content h3 {
+.real-measurements {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+}
+
+h3 {
   margin-top: 0;
-  color: var(--primary-blue, #0e8ae3);
-  border-bottom: 1px solid #eee;
-  padding-bottom: 8px;
-  margin-bottom: 12px;
+  color: var(--primary-blue);
 }
 
-.data-content p {
-  margin: 8px 0;
+h4 {
+  margin-bottom: 10px;
+  color: var(--text-color);
 }
 
-.data-content p strong {
-  color: var(--text-color, #333);
-  font-weight: 600;
+ul {
+  padding-left: 20px;
+}
+
+li {
+  margin-bottom: 5px;
+}
+
+@media (max-width: 768px) {
+  .data-content {
+    flex-direction: column;
+  }
 }
 

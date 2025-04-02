@@ -1,10 +1,9 @@
 "use client"
-import React, { useState } from "react"
+import { useState } from "react"
 import Sidebar from "./components/Sidebar"
 import TopBar from "./components/TopBar"
 import ImageViewer from "./components/ImageViewer"
 import Data from "./components/Data"
-import * as exifr from "exifr"
 import "./App.css"
 
 export default function App() {
@@ -16,35 +15,34 @@ export default function App() {
   const [formData, setFormData] = useState(null)
   const [widthSegments, setWidthSegments] = useState(10)
   const [rulerData, setRulerData] = useState(null)
-  const [manualCurveData, setManualCurveData] = useState(null)  
+  const [manualCurveData, setManualCurveData] = useState(null)
+  const [areaData, setAreaData] = useState(null)
   const [backendResult, setBackendResult] = useState(null)
   const [backendMessage, setBackendMessage] = useState("")
-
 
   const handleImageUpload = async (file) => {
     if (file) {
       const imageUrl = URL.createObjectURL(file)
       setImage(imageUrl)
       setImageFile(file)
-  
+
       try {
         const formData = new FormData()
         formData.append("image", file)
-  
+
         const response = await fetch("/collatrix/extract-metadata/", {
           method: "POST",
           body: formData,
         })
-  
+
         if (response.ok) {
           const backendMetadata = await response.json()
           console.log("Backend Metadata:", backendMetadata)
-  
+
           setMetadata({
             focalLength: backendMetadata.focal_length_mm || "",
             altitude: backendMetadata.gps_altitude_m || "",
           })
-          
         } else {
           console.error("Backend metadata extraction failed:", response.statusText)
         }
@@ -53,10 +51,8 @@ export default function App() {
       }
     }
   }
-  
 
   const [measurementData, setMeasurementData] = useState(null)
-
 
   const handleMeasurementUpdate = (data) => {
     setMeasurementData(data)
@@ -65,6 +61,12 @@ export default function App() {
   const handleSubmit = async (dataFromSidebar) => {
     setFormData(dataFromSidebar)
     setWidthSegments(Number.parseInt(dataFromSidebar.widthSegments) || 10)
+
+    // Update metadata with form data
+    setMetadata({
+      focalLength: dataFromSidebar.focalLength,
+      altitude: dataFromSidebar.altitude,
+    })
 
     // Submit measurement to backend
     if (!measurementData || measurementData.points.length < 2) {
@@ -111,7 +113,7 @@ export default function App() {
 
   const handleBackendResult = (result) => {
     setBackendResult(result)
-  
+
     if (result.type === "manual_curve") {
       setManualCurveData({
         type: "manual_curve",
@@ -125,21 +127,18 @@ export default function App() {
         widthSegments: result.widthSegments ?? [],
         segments: result.widthSegments?.length ?? 0,
       })
+    } else if (result.type === "area") {
+      setAreaData({
+        type: "area",
+        area: result.area,
+        polygonPoints: result.polygonPoints,
+      })
     }
   }
-  
-  
-  
-  
-  
 
   return (
     <div className="app-container">
-      <Sidebar
-        metadata={metadata}
-        onImageUpload={handleImageUpload}
-        onSubmit={handleSubmit}
-      />
+      <Sidebar metadata={metadata} onImageUpload={handleImageUpload} onSubmit={handleSubmit} />
       <div className="main-content">
         <TopBar
           activeTab={activeTab}
@@ -155,15 +154,15 @@ export default function App() {
           onMeasurementUpdate={handleMeasurementUpdate}
           onImageUpload={handleImageUpload}
           onBackendResult={handleBackendResult}
+          metadata={metadata}
         />
         {backendMessage && (
-        <p style={{ textAlign: "center", color: "white", fontWeight: "bold", marginTop: "10px" }}>
-          {backendMessage}
-        </p>
+          <p style={{ textAlign: "center", color: "white", fontWeight: "bold", marginTop: "10px" }}>{backendMessage}</p>
         )}
 
-        <Data formData={formData} rulerData={rulerData} manualCurveData={manualCurveData} />
+        <Data formData={formData} rulerData={rulerData} manualCurveData={manualCurveData} areaData={areaData} />
       </div>
     </div>
   )
 }
+

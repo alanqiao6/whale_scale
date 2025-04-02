@@ -6,7 +6,6 @@ export default function Sidebar({ metadata, onImageUpload, onSubmit }) {
   const [focalLength, setFocalLength] = useState("");
   const [altitude, setAltitude] = useState("");
   const [widthSegments, setWidthSegments] = useState("");
-  const [mirrorSide, setMirrorSide] = useState("None");
   const [crosshairSize, setCrosshairSize] = useState(50);
   const [crosshairOpacity, setCrosshairOpacity] = useState(100);
   const [crosshairColor, setCrosshairColor] = useState("#e7403e");
@@ -30,32 +29,17 @@ export default function Sidebar({ metadata, onImageUpload, onSubmit }) {
     }
   };
 
-  const handleSubmit = (event) => {
-    event.preventDefault()
-  
-    const parsedWidth = Number.parseInt(widthSegments)
-  
-    if (!focalLength || !altitude || isNaN(parsedWidth) || parsedWidth < 2) {
-      setMessage("❗ Please fill in all required fields (width segments must be ≥ 2).")
-      return
-    }
-  
-    const data = {
+  const handleSubmit = () => {
+    const formData = {
       focalLength,
       altitude,
-      widthSegments: parsedWidth,
-      mirrorSide,
+      widthSegments,
       crosshairSize,
       crosshairOpacity,
       crosshairColor,
-      imageMetadata: metadata,
     }
-  
-    onSubmit(data)
-    setMessage("") // Clear old messages if valid
+    onSubmit(formData)
   }
-  
-  
 
   return (
     <div className="sidebar">
@@ -87,17 +71,7 @@ export default function Sidebar({ metadata, onImageUpload, onSubmit }) {
       </div>
 
       <div className="input-group">
-        <label>Mirror Side</label>
-        <select id="mirror-side" value={mirrorSide} onChange={(e) => setMirrorSide(e.target.value)} aria-describedby="mirror-desc">
-          <option value="None">None</option>
-          <option value="Side A">Side A</option>
-          <option value="Side B">Side B</option>
-        </select>
-        <p id="mirror-desc" className="sr-only">Select a mirror side for processing.</p>
-      </div>
-
-      <div className="input-group">
-        <label htmlFor="crosshair-size">Crosshair Size</label>
+        <label>Crosshair Size</label>
         <input
           type="range"
           id="crosshair-size"
@@ -140,21 +114,10 @@ export default function Sidebar({ metadata, onImageUpload, onSubmit }) {
         />
       </div>
 
-      {/* ✅ Moved buttons OUTSIDE of <form> to restore original placement */}
-      <div className="button-group">
-      <button
-  className="submit-button"
-  onClick={handleSubmit}
-  aria-label="Submit the form"
->
-  Submit
-</button>
-
-
-        <button className="export-button" aria-label="Export data">Export 📤</button>
-      </div>
-
-      {message && <p className="response-message" aria-live="polite">{message}</p>}
+      <button className="submit-button" onClick={handleSubmit}>
+        Submit
+      </button>
+      <button className="export-button">Export 📤</button>
     </div>
   );
 }
