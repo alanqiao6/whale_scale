@@ -13,6 +13,9 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 import os
 
+# Define ENV from environment variable
+ENV = os.environ.get('ENVIRONMENT', 'dev')  # Default to 'dev' if not set
+
 import socket
 socket.setdefaulttimeout(300)
 
