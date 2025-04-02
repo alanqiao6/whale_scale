@@ -21,6 +21,18 @@
   cursor: crosshair;
 }
 
+.image-canvas.area-active {
+  cursor: crosshair;
+}
+
+.image-canvas.volume-active {
+  cursor: crosshair;
+}
+
+.image-canvas.pencil-active {
+  cursor: crosshair;
+}
+
 .placeholder {
   color: #999;
   font-size: 1.2em;
@@ -86,5 +98,20 @@
   color: var(--primary-color);
   margin-top: 10px;
   font-weight: bold;
+}
+
+.finalize-button,
+.clear-button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.2s ease;
+}
+
+.finalize-button:hover,
+.clear-button:hover {
+  opacity: 0.9;
 }
 

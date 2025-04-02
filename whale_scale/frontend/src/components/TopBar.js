@@ -34,7 +34,13 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
       >
         ✏️
       </button>
-
+      <button
+          className={`tool-button ${activeTool === "area" ? "active" : ""}`}
+          onClick={() => setActiveTool(activeTool === "area" ? null : "area")}
+          title="Measure Area"
+        >
+          🔲
+        </button>
         <button className="tool-button" title="Help">
           ❓
         </button>

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef } from "react"
 import "./ImageViewer.css"
 
 export default function ImageViewer({
@@ -11,6 +11,7 @@ export default function ImageViewer({
   onMeasurementUpdate,
   onImageUpload,
   onBackendResult,
+  metadata,
 }) {
   const canvasRef = useRef(null)
   const [points, setPoints] = useState([])
@@ -21,6 +22,7 @@ export default function ImageViewer({
   const [draggingIndex, setDraggingIndex] = useState(null)
   const [backendMessage, setBackendMessage] = useState("")
   const [manualCurvePoints, setManualCurvePoints] = useState([])
+  const [polygonPoints, setPolygonPoints] = useState([])
 
   useEffect(() => {
     if (!image) return
@@ -49,7 +51,7 @@ export default function ImageViewer({
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.drawImage(imgObj, 0, 0)
     drawOverlay(ctx)
-  }, [points, mainLine, segmentLines, crosshairs, imgObj, manualCurvePoints])
+  }, [points, mainLine, segmentLines, crosshairs, imgObj, manualCurvePoints, polygonPoints])
 
   useEffect(() => {
     if (points.length === 2) {
@@ -128,8 +130,13 @@ export default function ImageViewer({
       return
     }
 
+    if (activeTool === "area") {
+      setPolygonPoints((prev) => [...prev, { x, y }])
+      return
+    }
+
     for (let i = 0; i < crosshairs.length; i++) {
-      for (let side of ["left", "right"]) {
+      for (const side of ["left", "right"]) {
         const { x: cx, y: cy } = crosshairs[i][side]
         const dx = x - cx
         const dy = y - cy
@@ -200,7 +207,7 @@ export default function ImageViewer({
     })
     setCrosshairs(initialCrosshairs)
   }
-  
+
   const handleFinalizeRuler = async () => {
     try {
       const payload = {
@@ -218,22 +225,22 @@ export default function ImageViewer({
           },
         ],
       }
-  
+
       const curveRes = await fetch("/morphometrix/calculate_curve/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
-  
+
       const curveResult = await curveRes.json()
       if (!curveRes.ok) {
         setBackendMessage(`❗ Ruler Curve error: ${curveResult.error}`)
         return
       }
-  
+
       const curveLength = curveResult.length
       const curvePoints = curveResult.curve_points || []
-  
+
       const widths = crosshairs.map((pair, i) => {
         const dx = pair.right.x - pair.left.x
         const dy = pair.right.y - pair.left.y
@@ -249,9 +256,9 @@ export default function ImageViewer({
           },
         }
       })
-  
+
       setBackendMessage(`✅ Ruler Curve: ${curveLength.toFixed(2)} px`)
-  
+
       onBackendResult({
         type: "ruler",
         curveLength,
@@ -262,7 +269,6 @@ export default function ImageViewer({
       setBackendMessage("❗ Error connecting to backend for ruler")
     }
   }
-  
 
   const handleFinalizeManualCurve = async () => {
     if (manualCurvePoints.length < 2) return
@@ -307,6 +313,58 @@ export default function ImageViewer({
     }
   }
 
+  const handleFinalizeArea = async () => {
+    if (polygonPoints.length < 3) {
+      setBackendMessage("❗ Need at least 3 points for area calculation")
+      return
+    }
+
+    try {
+      // Format the polygon points for the backend
+      const payload = {
+        measurement: {
+          measurement_type: "AREA",
+          name: "Polygon Area",
+          objects_params: [
+            {
+              type: 5, // Using value 1
+              parms: polygonPoints.map((p) => ({ x: p.x, y: p.y })),
+              // Changed from { points: [...] } to directly mapping the points
+            },
+          ],
+        },
+      }
+
+      console.log("Area payload:", JSON.stringify(payload, null, 2))
+
+      const response = await fetch("/morphometrix/calculate_area/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      const result = await response.json()
+      if (!response.ok) {
+        setBackendMessage(`❗ Area calculation error: ${result.error}`)
+        return
+      }
+
+      setBackendMessage(`✅ Area: ${result.area.toFixed(2)} px²`)
+
+      onBackendResult({
+        type: "area",
+        area: result.area,
+        polygonPoints: polygonPoints,
+      })
+
+      setPolygonPoints([])
+      setActiveTool(null)
+    } catch (err) {
+      console.error(err)
+      setBackendMessage("❗ Error connecting to backend for area calculation")
+    }
+  }
+
   const drawOverlay = (ctx) => {
     points.forEach((point) => {
       ctx.beginPath()
@@ -322,7 +380,7 @@ export default function ImageViewer({
       ctx.beginPath()
       ctx.moveTo(mainLine.x1, mainLine.y1)
       ctx.lineTo(mainLine.x2, mainLine.y2)
-      ctx.strokeStyle = "blue"
+      ctx.strokeStyle = "white"
       ctx.lineWidth = 40
       ctx.stroke()
     }
@@ -331,13 +389,13 @@ export default function ImageViewer({
       ctx.beginPath()
       ctx.moveTo(pair.left.x, pair.left.y)
       ctx.lineTo(pair.right.x, pair.right.y)
-      ctx.strokeStyle = "green"
+      ctx.strokeStyle = "white"
       ctx.lineWidth = 30
       ctx.stroke()
     })
 
     crosshairs.forEach((pair) => {
-      ["left", "right"].forEach((side) => {
+      ;["left", "right"].forEach((side) => {
         const point = pair[side]
         ctx.beginPath()
         ctx.arc(point.x, point.y, 30, 0, 2 * Math.PI)
@@ -366,6 +424,51 @@ export default function ImageViewer({
         ctx.fill()
       })
     }
+
+    // Draw polygon for area calculation
+    if (polygonPoints.length > 0) {
+      ctx.beginPath()
+      ctx.moveTo(polygonPoints[0].x, polygonPoints[0].y)
+
+      for (let i = 1; i < polygonPoints.length; i++) {
+        ctx.lineTo(polygonPoints[i].x, polygonPoints[i].y)
+      }
+
+      // Close the polygon if there are at least 3 points
+      if (polygonPoints.length >= 3) {
+        ctx.lineTo(polygonPoints[0].x, polygonPoints[0].y)
+      }
+
+      ctx.strokeStyle = "magenta"
+      ctx.lineWidth = 20
+      ctx.stroke()
+
+      // Fill with semi-transparent color
+      ctx.fillStyle = "rgba(128, 0, 128, 0.2)"
+      ctx.fill()
+
+      // Draw points
+      polygonPoints.forEach((p) => {
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, 24, 0, 2 * Math.PI)
+        ctx.fillStyle = "magenta"
+        ctx.fill()
+      })
+    }
+  }
+
+  const handleClearMeasurement = () => {
+    if (activeTool === "area") {
+      setPolygonPoints([])
+    } else if (activeTool === "pencil") {
+      setManualCurvePoints([])
+    } else if (activeTool === "ruler") {
+      setPoints([])
+      setMainLine(null)
+      setSegmentLines([])
+      setCrosshairs([])
+    }
+    setBackendMessage("")
   }
 
   return (
@@ -376,7 +479,7 @@ export default function ImageViewer({
             ref={canvasRef}
             onClick={handleCanvasClick}
             onMouseDown={handleMouseDown}
-            className={`image-canvas ${activeTool === "ruler" ? "ruler-active" : ""}`}
+            className={`image-canvas ${activeTool ? `${activeTool}-active` : ""}`}
           />
 
           {manualCurvePoints.length > 0 && activeTool === "pencil" && (
@@ -401,25 +504,70 @@ export default function ImageViewer({
             </button>
           )}
 
-          {crosshairs.length > 0 && activeTool === null && (
+          {polygonPoints.length > 2 && activeTool === "area" && (
             <button
               className="finalize-button"
-              onClick={handleFinalizeRuler}
+              onClick={handleFinalizeArea}
               style={{
                 position: "absolute",
-                bottom: 70,
+                bottom: 20,
                 left: "50%",
                 transform: "translateX(-50%)",
                 zIndex: 20,
                 padding: "10px 20px",
-                background: "#0077cc",
+                background: "purple",
                 color: "white",
                 border: "none",
                 borderRadius: "6px",
                 cursor: "pointer",
               }}
             >
-              ✅ Finalize Ruler
+              🔲 Calculate Area
+            </button>
+          )}
+
+          {crosshairs.length > 0 && activeTool === null && (
+            <>
+              <button
+                className="finalize-button"
+                onClick={handleFinalizeRuler}
+                style={{
+                  position: "absolute",
+                  bottom: 70,
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  zIndex: 20,
+                  padding: "10px 20px",
+                  background: "#0077cc",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                }}
+              >
+                ✅ Finalize Ruler
+              </button>
+            </>
+          )}
+
+          {(manualCurvePoints.length > 0 || polygonPoints.length > 0 || points.length > 0) && (
+            <button
+              className="clear-button"
+              onClick={handleClearMeasurement}
+              style={{
+                position: "absolute",
+                bottom: 20,
+                right: 20,
+                zIndex: 20,
+                padding: "10px 20px",
+                background: "#ff3333",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+              }}
+            >
+              🗑️ Clear
             </button>
           )}
 
@@ -483,6 +631,11 @@ export default function ImageViewer({
           {points.length === 0 ? "Click to place the first point" : "Click to place the second point"}
         </div>
       )}
+
+      {activeTool === "area" && (
+        <div className="drawing-instructions">Click to place points for area calculation. Need at least 3 points.</div>
+      )}
     </div>
   )
 }
+
