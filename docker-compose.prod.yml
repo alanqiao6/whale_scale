@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
   backend:
     build:
-      context: ./backend
+      context: ./whale_scale
       dockerfile: Dockerfile.prod
     ports:
       - "8000:8000"
