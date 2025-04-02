@@ -5,6 +5,7 @@ import TopBar from "./components/TopBar"
 import ImageViewer from "./components/ImageViewer"
 import Data from "./components/Data"
 import "./App.css"
+import * as exifr from "exifr"
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("measure")
@@ -44,10 +45,30 @@ export default function App() {
             altitude: backendMetadata.gps_altitude_m || "",
           })
         } else {
-          console.error("Backend metadata extraction failed:", response.statusText)
+          // If server fails, try client-side extraction with exifr
+          console.log("Falling back to client-side extraction")
+          const exifrData = await exifr.parse(file)
+          console.log("Exifr Metadata:", exifrData)
+
+          setMetadata({
+            focalLength: exifrData?.FocalLength || "",
+            altitude: exifrData?.GPSAltitude || "",
+          })
         }
       } catch (error) {
-        console.error("Error extracting metadata via backend:", error)
+        console.error("Error extracting metadata:", error)
+        // Still try client-side extraction if server throws error
+        try {
+          const exifrData = await exifr.parse(file)
+          console.log("Exifr Metadata:", exifrData)
+
+          setMetadata({
+            focalLength: exifrData?.FocalLength || "",
+            altitude: exifrData?.GPSAltitude || "",
+          })
+        } catch (exifrError) {
+          console.error("Client-side extraction also failed:", exifrError)
+        }
       }
     }
   }
