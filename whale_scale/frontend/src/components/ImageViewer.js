@@ -277,10 +277,9 @@ export default function ImageViewer({
 
       const payload = {
           measurement_stack: [{
-              measurement_type: "CURVE",  // Use uppercase as in the old version
+              measurement_type: "curve",  // Use uppercase as in the old version
               name: "manual_curve",
               objects_params: manualCurvePoints.map(point => ({
-                  type: "POINTITEM",  // Include type as in the old version
                   parms: {
                       x: point.x,
                       y: point.y
