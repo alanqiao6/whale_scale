@@ -6,3 +6,4 @@ scipy==1.15.2
 psycopg2-binary>=2.9.0
 python-decouple
 gunicorn
+pyexiftool==0.5.5

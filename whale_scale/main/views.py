@@ -247,6 +247,11 @@ class CollatriX(View):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        # Check if exiftool_path is defined and exists, otherwise use default
+        if 'exiftool_path' not in globals() or not os.path.exists(exiftool_path):
+            exiftool_executable = "/usr/bin/exiftool"  # Standard path for Debian-based systems
+        else:
+            exiftool_executable = str(exiftool_path)
         self.exiftool = ExifToolHelper(executable=str(exiftool_path))
 
     def post(self, request, function_name):
@@ -288,11 +293,8 @@ class CollatriX(View):
         image_path = default_storage.save(uploaded_image.name, uploaded_image)
 
         try:
-            # Remove exiftool dependency and use CollatriX directly
-            from MMI_CODEX.collatrix import extract_metadata_from_image  # Import the CollatriX function
-            
-            metadata = extract_metadata_from_image(image_path)
-
+            with self.exiftool as et:
+                metadata = et.get_metadata(image_path)[0]
             response_data = {
                 "timestamp": metadata.get("EXIF:DateTimeOriginal", "Unknown"),
                 "file_name": metadata.get("File:FileName", os.path.basename(image_path)),
@@ -334,9 +336,7 @@ class CollatriX(View):
             return JsonResponse({"error": str(e)}, status=500)
 
         finally:
-            # Clean up the uploaded file
-            if os.path.exists(image_path):
-                os.remove(image_path)
+            os.remove(image_path)
 
     def calculate_body_condition(self, request):
         """
