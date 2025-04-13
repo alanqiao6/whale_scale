@@ -13,13 +13,42 @@ export default function App() {
   const [image, setImage] = useState(null)
   const [imageFile, setImageFile] = useState(null)
   const [metadata, setMetadata] = useState({ focalLength: "", altitude: "" })
-  const [formData, setFormData] = useState(null)
+  const [formData, setFormData] = useState({
+    focalLength: "",
+    altitude: "",
+    widthSegments: "",
+    crosshairSize: 50,
+    crosshairOpacity: 100,
+    crosshairColor: "#e7403e"
+  })
   const [widthSegments, setWidthSegments] = useState(null)
   const [rulerData, setRulerData] = useState(null)
   const [manualCurveData, setManualCurveData] = useState(null)
   const [areaData, setAreaData] = useState(null)
   const [backendResult, setBackendResult] = useState(null)
   const [backendMessage, setBackendMessage] = useState("")
+
+  // Handle real-time input changes from Sidebar
+  const handleInputChange = (name, value) => {
+    // Update formData state
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }))
+    
+    // For width segments, also update the specific state
+    if (name === "widthSegments") {
+      setWidthSegments(value !== "" ? Number.parseInt(value) : null)
+    }
+    
+    // For metadata fields, update the metadata state
+    if (name === "focalLength" || name === "altitude") {
+      setMetadata(prev => ({
+        ...prev,
+        [name]: value
+      }))
+    }
+  }
 
   const handleImageUpload = async (file) => {
     if (file) {
@@ -40,10 +69,19 @@ export default function App() {
           const backendMetadata = await response.json()
           console.log("Backend Metadata:", backendMetadata)
 
-          setMetadata({
+          const newMetadata = {
             focalLength: backendMetadata.focal_length_mm || "",
             altitude: backendMetadata.gps_altitude_m || "",
-          })
+          }
+
+          setMetadata(newMetadata)
+          
+          // Also update these values in formData
+          setFormData(prev => ({
+            ...prev,
+            focalLength: newMetadata.focalLength,
+            altitude: newMetadata.altitude
+          }))
         } 
       } catch (error) {
         console.error("Error extracting metadata via backend:", error)
@@ -59,8 +97,15 @@ export default function App() {
   }
 
   const handleSubmit = async (dataFromSidebar) => {
+    // We already have updated formData from input changes, 
+    // but this ensures consistency
     setFormData(dataFromSidebar)
-    setWidthSegments(Number.parseInt(dataFromSidebar.widthSegments))
+    
+    // No need to set width segments here as it's already set via handleInputChange
+    // But we'll keep it for safety
+    if (dataFromSidebar.widthSegments !== formData.widthSegments) {
+      setWidthSegments(Number.parseInt(dataFromSidebar.widthSegments) || null)
+    }
 
     // Update metadata with form data
     setMetadata({
@@ -125,7 +170,8 @@ export default function App() {
         type: "ruler",
         curveLength: result.curveLength,
         widthSegments: result.widthSegments ?? [],
-        segments: result.widthSegments?.length ?? 0,
+        // Use the user-specified number rather than array length
+        segments: Number.parseInt(formData.widthSegments) || result.widthSegments?.length || 0,
       })
     } else if (result.type === "area") {
       setAreaData({
@@ -138,7 +184,13 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <Sidebar metadata={metadata} onImageUpload={handleImageUpload} onSubmit={handleSubmit} />
+      <Sidebar 
+        metadata={metadata} 
+        formData={formData}
+        onImageUpload={handleImageUpload} 
+        onSubmit={handleSubmit}
+        onInputChange={handleInputChange}
+      />
       <div className="main-content">
         <TopBar
           activeTab={activeTab}
