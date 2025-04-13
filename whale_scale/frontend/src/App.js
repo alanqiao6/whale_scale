@@ -44,32 +44,11 @@ export default function App() {
             focalLength: backendMetadata.focal_length_mm || "",
             altitude: backendMetadata.gps_altitude_m || "",
           })
-        } else {
-          // If server fails (413 error), try client-side extraction
-          console.log("Falling back to client-side extraction")
-          const exifrData = await exifr.parse(file)
-          console.log("Exifr Metadata:", exifrData)
-
-          setMetadata({
-            focalLength: exifrData?.FocalLength || "",
-            altitude: exifrData?.GPSAltitude || "",
-          })
-        }
+        } 
       } catch (error) {
         console.error("Error extracting metadata via backend:", error)
         // Still try client-side extraction if server throws error
-        try {
-          const exifrData = await exifr.parse(file)
-          console.log("Exifr Metadata:", exifrData)
-
-          setMetadata({
-            focalLength: exifrData?.FocalLength || "",
-            altitude: exifrData?.GPSAltitude || "",
-          })
-        } catch (exifrError) {
-          console.error("Client-side extraction also failed:", exifrError)
-        }
-      }
+      } 
     }
   }
 
