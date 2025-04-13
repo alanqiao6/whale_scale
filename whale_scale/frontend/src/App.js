@@ -75,7 +75,7 @@ export default function App() {
     }
 
     try {
-      const response = await fetch("/morphometrix/calculate_length/", {
+      const response = await fetch("/api/morphometrix/calculate_length/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
