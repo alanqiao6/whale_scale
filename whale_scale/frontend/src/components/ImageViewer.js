@@ -277,10 +277,10 @@ export default function ImageViewer({
 
       const payload = {
           measurement_stack: [{
-              measurement_type: "curve",  // Lowercase "curve"
+              measurement_type: "curve",
               name: "manual_curve",
               objects_params: manualCurvePoints.map(point => ({
-                  parms: {  // Just parms without a type field
+                  parms: {
                       x: point.x,
                       y: point.y
                   }
@@ -291,6 +291,7 @@ export default function ImageViewer({
       console.log("Sending payload:", JSON.stringify(payload, null, 2));
 
       try {
+          // First, try to see what error message the server returns
           const response = await fetch("/api/morphometrix/calculate_curve/", {
               method: "POST",
               headers: {
@@ -299,13 +300,22 @@ export default function ImageViewer({
               body: JSON.stringify(payload)
           });
 
-          if (!response.ok) {
-              const errorText = await response.text();
-              console.error("Server response:", errorText);
-              throw new Error(`HTTP error! status: ${response.status}`);
+          // Get more details about the error
+          const responseText = await response.text();
+          console.log("Server response:", responseText);
+          
+          let result;
+          try {
+              // Try to parse the response as JSON if possible
+              result = JSON.parse(responseText);
+          } catch {
+              result = { error: responseText };
           }
 
-          const result = await response.json();
+          if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}, message: ${result.error || responseText}`);
+          }
+
           setBackendMessage(`✅ Manual Curve: ${result.length.toFixed(2)} px`);
 
           onBackendResult({
@@ -317,7 +327,7 @@ export default function ImageViewer({
           setActiveTool(null);
       } catch (err) {
           console.error("Full error:", err);
-          setBackendMessage("❗ Error connecting to backend for manual curve");
+          setBackendMessage(`❗ Error: ${err.message || "Connection to backend failed"}`);
       }
   };
 
