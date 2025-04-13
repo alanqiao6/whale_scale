@@ -315,7 +315,11 @@ class CollatriX(View):
                 "digital_zoom_ratio": metadata.get("EXIF:DigitalZoomRatio", None),
                 "gps_latitude": metadata.get("Composite:GPSLatitude", None),
                 "gps_longitude": metadata.get("Composite:GPSLongitude", None),
-                "gps_altitude_m": metadata.get("Composite:GPSAltitude", None),
+                "gps_altitude_m": (
+                    round(metadata["Composite:GPSAltitude"] / 10, 2)
+                    if "Composite:GPSAltitude" in metadata and isinstance(metadata["Composite:GPSAltitude"], (int, float))
+                    else None
+                ),  #added in /10 as images are stored by wrong decimal 
                 "gimbal_pitch_deg": metadata.get("XMP:GimbalPitchDegree", None),
                 "gimbal_yaw_deg": metadata.get("XMP:GimbalYawDegree", None),
                 "gimbal_roll_deg": metadata.get("XMP:GimbalRollDegree", None),
