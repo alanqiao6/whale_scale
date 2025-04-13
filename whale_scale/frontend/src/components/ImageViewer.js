@@ -273,61 +273,52 @@ export default function ImageViewer({
   }
 
   const handleFinalizeManualCurve = async () => {
-    if (manualCurvePoints.length < 2) return
+      if (manualCurvePoints.length < 2) return
 
-    // Log the points being sent (for debugging)
-    console.log("Sending points:", manualCurvePoints);
+      const payload = {
+          measurement_stack: [{
+              measurement_type: "curve",  // Lowercase "curve"
+              name: "manual_curve",
+              objects_params: manualCurvePoints.map(point => ({
+                  parms: {  // Just parms without a type field
+                      x: point.x,
+                      y: point.y
+                  }
+              }))
+          }]
+      };
 
-    const payload = {
-        measurement_stack: [{
-            measurement_type: "CURVE",
-            name: "manual_curve",
-            objects_params: manualCurvePoints.map(point => ({
-                type: "POINTITEM",
-                parms: {
-                    x: point.x,
-                    y: point.y
-                }
-            }))
-        }]
-    };
+      console.log("Sending payload:", JSON.stringify(payload, null, 2));
 
-    // Log the full payload (for debugging)
-    console.log("Sending payload:", JSON.stringify(payload, null, 2));
+      try {
+          const response = await fetch("/api/morphometrix/calculate_curve/", {
+              method: "POST",
+              headers: {
+                  "Content-Type": "application/json"
+              },
+              body: JSON.stringify(payload)
+          });
 
-    try {
-        const response = await fetch("/api/morphometrix/calculate_curve/", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-                // Add X-Requested-With header to indicate AJAX request
-                "X-Requested-With": "XMLHttpRequest"
-            },
-            credentials: 'include', // Include cookies
-            body: JSON.stringify(payload)
-        });
+          if (!response.ok) {
+              const errorText = await response.text();
+              console.error("Server response:", errorText);
+              throw new Error(`HTTP error! status: ${response.status}`);
+          }
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error("Server response:", errorText);
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+          const result = await response.json();
+          setBackendMessage(`✅ Manual Curve: ${result.length.toFixed(2)} px`);
 
-        const result = await response.json();
-        setBackendMessage(`✅ Manual Curve: ${result.length.toFixed(2)} px`);
-
-        onBackendResult({
-            type: "manual_curve",
-            length: result.length,
-            curvePoints: manualCurvePoints,
-        });
-        setManualCurvePoints([]);
-        setActiveTool(null);
-    } catch (err) {
-        console.error("Full error:", err);
-        setBackendMessage("❗ Error connecting to backend for manual curve");
-    }
+          onBackendResult({
+              type: "manual_curve",
+              length: result.length,
+              curvePoints: manualCurvePoints,
+          });
+          setManualCurvePoints([]);
+          setActiveTool(null);
+      } catch (err) {
+          console.error("Full error:", err);
+          setBackendMessage("❗ Error connecting to backend for manual curve");
+      }
   };
 
   const handleFinalizeArea = async () => {
