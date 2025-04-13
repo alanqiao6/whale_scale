@@ -179,8 +179,8 @@ export default function ImageViewer({
     const perpAngle = angle + Math.PI / 2
     const perpLength = lineLength / 4
 
-    for (let i = 1; i < (numSegments + 1); i++) {
-      const ratio = i / numSegments
+    for (let i = 1; i <= numSegments; i++) {
+      const ratio = i / (numSegments + 1)
       const segX = x1 + (x2 - x1) * ratio
       const segY = y1 + (y2 - y1) * ratio
 
