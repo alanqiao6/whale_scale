@@ -210,23 +210,19 @@ export default function ImageViewer({
 
   const handleFinalizeRuler = async () => {
     try {
+      // New payload format matching what the backend expects
       const payload = {
-        measurement: {
+        measurement_stack: [{
           measurement_type: "curve",
-          measurement_name: "curve_from_crosshairs",
-          objects_params: [
-            {
-              type: 2,
-              parms: {
-                points: crosshairs.map(pair => ({
-                  x: (pair.left.x + pair.right.x) / 2,
-                  y: (pair.left.y + pair.right.y) / 2
-                }))
-              }
+          name: "curve_from_crosshairs",
+          objects_params: crosshairs.map(pair => ({
+            parms: {
+              x: (pair.left.x + pair.right.x) / 2,
+              y: (pair.left.y + pair.right.y) / 2
             }
-          ]
-        }
-      }
+          }))
+        }]
+      };
 
       const curveRes = await fetch("/api/morphometrix/calculate_curve/", {
         method: "POST",
