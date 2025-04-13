@@ -323,43 +323,41 @@ export default function ImageViewer({
       setBackendMessage("❗ Need at least 3 points for area calculation")
       return
     }
-
+  
     try {
       const payload = {
         measurement: {
-          measurement_type: "area",
-          measurement_name: "Polygon Area",
+          measurement_type: 2,  // Using numeric type as shown in the backend example
+          name: "Polygon Area",
           objects_params: [
             {
-              type: 5,
-              parms: {
-                points: polygonPoints
-              }
+              type: 5,  // Type for polygon
+              parms: polygonPoints  // Direct array of points, not wrapped in a 'points' property
             }
           ]
         }
       }
-
+  
       const response = await fetch("/api/morphometrix/calculate_area/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       })
-
+  
       const result = await response.json()
       if (!response.ok) {
         setBackendMessage(`❗ Area calculation error: ${result.error}`)
         return
       }
-
+  
       setBackendMessage(`✅ Area: ${result.area.toFixed(2)} px²`)
-
+  
       onBackendResult({
         type: "area",
         area: result.area,
         polygonPoints: polygonPoints,
       })
-
+  
       setPolygonPoints([])
       setActiveTool(null)
     } catch (err) {
