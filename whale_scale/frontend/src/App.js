@@ -31,7 +31,7 @@ export default function App() {
         const formData = new FormData()
         formData.append("image", file)
 
-        const response = await fetch("/collatrix/extract-metadata/", {
+        const response = await fetch("/collatrix/extract_metadata/", {
           method: "POST",
           body: formData,
         })
@@ -75,7 +75,7 @@ export default function App() {
     }
 
     try {
-      const response = await fetch("/morphometrix/calculate-length/", {
+      const response = await fetch("/morphometrix/calculate_length/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
