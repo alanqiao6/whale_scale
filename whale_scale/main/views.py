@@ -281,6 +281,8 @@ class CollatriX(View):
         axios.post("http://localhost:8000/collatrix/extract_metadata/", formData)
         .then(response => console.log(response.data));
         """
+        print("Request.FILES keys:", request.FILES.keys())
+        print("Request.FILES['image'].size:", request.FILES['image'].size if 'image' in request.FILES else 'No image')
         if 'image' not in request.FILES:
             return JsonResponse({"error": "No image file provided"}, status=400)
 
