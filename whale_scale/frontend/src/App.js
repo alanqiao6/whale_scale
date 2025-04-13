@@ -31,7 +31,7 @@ export default function App() {
         const formData = new FormData()
         formData.append("image", file)
 
-        const response = await fetch("/collatrix/extract_metadata/", {
+        const response = await fetch("/api/collatrix/extract_metadata/", {
           method: "POST",
           body: formData,
         })
