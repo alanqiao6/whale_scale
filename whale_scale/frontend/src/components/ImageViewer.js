@@ -463,14 +463,14 @@ export default function ImageViewer({
       setPolygonPoints([])
     } else if (activeTool === "pencil") {
       setManualCurvePoints([])
-    } else if (activeTool === "ruler") {
+    } else if (activeTool === "ruler" || (activeTool === null && crosshairs.length > 0)) {
       setPoints([])
       setMainLine(null)
       setSegmentLines([])
       setCrosshairs([])
     }
     setBackendMessage("")
-  }
+  }  
 
   return (
     <div className="image-container">
