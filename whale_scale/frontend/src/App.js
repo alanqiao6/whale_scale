@@ -19,7 +19,7 @@ export default function App() {
     widthSegments: "",
     crosshairSize: 50,
     crosshairOpacity: 100,
-    crosshairColor: "#e7403e"
+    segmentColor: "#FFFFC5"
   })
   const [widthSegments, setWidthSegments] = useState(null)
   const [rulerData, setRulerData] = useState(null)
@@ -207,6 +207,7 @@ export default function App() {
           onImageUpload={handleImageUpload}
           onBackendResult={handleBackendResult}
           metadata={metadata}
+          segmentColor={formData.segmentColor}
         />
         {backendMessage && (
           <p style={{ textAlign: "center", color: "white", fontWeight: "bold", marginTop: "10px" }}>{backendMessage}</p>
