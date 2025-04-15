@@ -24,6 +24,13 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
         >
           📏
         </button>
+        <button
+          className={`tool-button ${activeTool === "angle" ? "active" : ""}`}
+          onClick={() => setActiveTool(activeTool === "angle" ? null : "angle")}
+          title="Measure Angle"
+        >
+          📐
+        </button>
         <button className="tool-button" title="Comment">
           🗨️
         </button>
@@ -34,7 +41,7 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
       >
         ✏️
       </button>
-      <button
+        <button
           className={`tool-button ${activeTool === "area" ? "active" : ""}`}
           onClick={() => setActiveTool(activeTool === "area" ? null : "area")}
           title="Measure Area"

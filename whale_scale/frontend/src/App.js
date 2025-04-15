@@ -25,6 +25,8 @@ export default function App() {
   const [rulerData, setRulerData] = useState(null)
   const [manualCurveData, setManualCurveData] = useState(null)
   const [areaData, setAreaData] = useState(null)
+  const [angleData, setAngleData] = useState(null)
+  const [bodyConditionData, setBodyConditionData] = useState(null)
   const [backendResult, setBackendResult] = useState(null)
   const [backendMessage, setBackendMessage] = useState("")
 
@@ -179,8 +181,111 @@ export default function App() {
         area: result.area,
         polygonPoints: result.polygonPoints,
       })
+    } else if (result.type === "angle") {
+      setAngleData({
+        type: "angle",
+        angle: result.angle,
+        anglePoints: result.anglePoints,
+      })
     }
   }
+
+  // Function to handle volume calculations using the ruler data
+  const handleVolumeCalculation = async () => {
+    if (!rulerData || !metadata.focalLength || !metadata.altitude) {
+      alert("Please complete a ruler measurement and provide focal length and altitude data first.")
+      return
+    }
+
+    try {
+      // Generate width positions as percentages of total length (0%, 5%, 10%, etc.)
+      const interval = 5;
+      const maxPercentage = 30;
+      const widthColumns = {};
+      
+      // Create width columns with proper naming convention (Length_w0.00, Length_w5.00, etc.)
+      for (let i = 0; i <= maxPercentage; i += interval) {
+        // Format with 2 decimal places (0.00, 5.00, etc.)
+        const formattedPos = i.toFixed(2);
+        const columnName = `Length_w${formattedPos}`;
+        
+        // Find the closest width segment to this percentage position
+        const segmentIndex = Math.round((i / 100) * rulerData.widthSegments.length);
+        const segment = rulerData.widthSegments[segmentIndex < rulerData.widthSegments.length ? segmentIndex : rulerData.widthSegments.length - 1];
+        
+        // Use the width value from that segment or a default value
+        widthColumns[columnName] = segment ? parseFloat(segment.length) / 100 : 0;
+      }
+
+      // Format the measurement data for the body condition API
+      const measurementData = {
+        measurements: [
+          {
+            Image_ID: imageFile?.name || "current_image",
+            Image: imageFile?.name || "current_image",
+            Length: rulerData.curveLength / 100, // Convert to realistic units
+            ...widthColumns
+          }
+        ],
+        bv_method: "Circle", // Method for body volume calculation
+        bai_method: "Parabola", // Method for body area index
+        tl_name: "Length", // Name of the total length measurement
+        interval: interval, // Width measurement interval
+        lower: 0, // Lower bound
+        upper: maxPercentage // Upper bound
+      };
+
+      console.log("Sending body condition data:", measurementData);
+
+      const response = await fetch("/api/collatrix/calculate_body_condition/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(measurementData),
+      });
+
+      if (response.ok) {
+        const volumeResults = await response.json();
+        console.log("Volume calculation results:", volumeResults);
+        
+        // Check if we got valid results
+        if (volumeResults && volumeResults.length > 0) {
+          let resultMessage = "✅ Body condition results:";
+          
+          // Add BV (Body Volume) if available
+          if (volumeResults[0].BVcir) {
+            resultMessage += ` Volume: ${volumeResults[0].BVcir.toFixed(2)} units³`;
+          }
+          
+          // Add BAI (Body Area Index) if available
+          if (volumeResults[0].BAIpar) {
+            resultMessage += ` | Area Index: ${volumeResults[0].BAIpar.toFixed(2)}`;
+          }
+          
+          setBackendMessage(resultMessage);
+          
+          // Store the body condition results in state
+          setBodyConditionData({
+            type: "body_condition",
+            volume: volumeResults[0]?.BVcir,
+            areaIndex: volumeResults[0]?.BAIpar,
+            surfaceArea: volumeResults[0]?.SA,
+            fullResults: volumeResults[0]
+          });
+        } else {
+          setBackendMessage("⚠️ Volume calculation completed but no results returned");
+        }
+      } else {
+        const errorText = await response.text();
+        console.error("Volume calculation error:", errorText);
+        setBackendMessage("❗ Error calculating volume");
+      }
+    } catch (error) {
+      console.error("Error in volume calculation:", error);
+      setBackendMessage("❗ Error connecting to backend for volume calculation");
+    }
+  };
 
   return (
     <div className="app-container">
@@ -208,12 +313,38 @@ export default function App() {
           onBackendResult={handleBackendResult}
           metadata={metadata}
           segmentColor={formData.segmentColor}
+          crosshairSize={parseInt(formData.crosshairSize) || 12}
         />
         {backendMessage && (
           <p style={{ textAlign: "center", color: "white", fontWeight: "bold", marginTop: "10px" }}>{backendMessage}</p>
         )}
 
-        <Data formData={formData} rulerData={rulerData} manualCurveData={manualCurveData} areaData={areaData} />
+        {rulerData && (
+          <button
+            onClick={handleVolumeCalculation}
+            style={{
+              margin: "10px auto",
+              display: "block",
+              padding: "8px 16px",
+              background: "#4CAF50",
+              color: "white",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+            }}
+          >
+            Calculate Body Volume from Ruler Data
+          </button>
+        )}
+
+        <Data 
+          formData={formData} 
+          rulerData={rulerData} 
+          manualCurveData={manualCurveData} 
+          areaData={areaData}
+          angleData={angleData}
+          bodyConditionData={bodyConditionData}
+        />
       </div>
     </div>
   )

@@ -13,6 +13,7 @@ export default function ImageViewer({
   onBackendResult,
   metadata,
   segmentColor = "#FFFFC5",
+  crosshairSize = 12,
 }) {
   const canvasRef = useRef(null)
   const [points, setPoints] = useState([])
@@ -24,6 +25,8 @@ export default function ImageViewer({
   const [backendMessage, setBackendMessage] = useState("")
   const [manualCurvePoints, setManualCurvePoints] = useState([])
   const [polygonPoints, setPolygonPoints] = useState([])
+  const [anglePoints, setAnglePoints] = useState([])
+  const [angleLines, setAngleLines] = useState([])
 
   useEffect(() => {
     if (!image) return
@@ -52,7 +55,7 @@ export default function ImageViewer({
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.drawImage(imgObj, 0, 0)
     drawOverlay(ctx)
-  }, [points, mainLine, segmentLines, crosshairs, imgObj, manualCurvePoints, polygonPoints])
+  }, [points, mainLine, segmentLines, crosshairs, imgObj, manualCurvePoints, polygonPoints, anglePoints, angleLines])
 
   useEffect(() => {
     if (points.length === 2) {
@@ -135,6 +138,11 @@ export default function ImageViewer({
       setPolygonPoints((prev) => [...prev, { x, y }])
       return
     }
+    
+    if (activeTool === "angle") {
+      setAnglePoints((prev) => [...prev, { x, y }])
+      return
+    }
 
     for (let i = 0; i < crosshairs.length; i++) {
       for (const side of ["left", "right"]) {
@@ -142,7 +150,7 @@ export default function ImageViewer({
         const dx = x - cx
         const dy = y - cy
         const distance = Math.sqrt(dx * dx + dy * dy)
-        if (distance < 12) {
+        if (distance < crosshairSize) {
           setDraggingIndex({ segIndex: i, side })
           return
         }
@@ -367,6 +375,91 @@ export default function ImageViewer({
     }
   }
 
+  useEffect(() => {
+    if (anglePoints.length === 3) {
+      // Create two lines from the three points
+      const lines = [
+        {
+          x1: anglePoints[1].x,
+          y1: anglePoints[1].y,
+          x2: anglePoints[0].x,
+          y2: anglePoints[0].y,
+        },
+        {
+          x1: anglePoints[1].x,
+          y1: anglePoints[1].y,
+          x2: anglePoints[2].x,
+          y2: anglePoints[2].y,
+        }
+      ]
+      setAngleLines(lines)
+    }
+  }, [anglePoints])
+
+  const handleFinalizeAngle = async () => {
+    if (anglePoints.length < 3) {
+      setBackendMessage("❗ Need 3 points to measure an angle")
+      return
+    }
+
+    try {
+      const payload = {
+        measurement: {
+          measurement_type: 3, // Type for angle measurement
+          name: "Angle Measurement",
+          objects_params: [
+            {
+              type: 1, // Type for line
+              parms: {
+                x1: anglePoints[1].x,
+                y1: anglePoints[1].y,
+                x2: anglePoints[0].x,
+                y2: anglePoints[0].y
+              }
+            },
+            {
+              type: 1, // Type for line
+              parms: {
+                x1: anglePoints[1].x,
+                y1: anglePoints[1].y,
+                x2: anglePoints[2].x,
+                y2: anglePoints[2].y
+              }
+            }
+          ]
+        }
+      }
+
+      const response = await fetch("/api/morphometrix/calculate_angle/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+
+      const result = await response.json()
+      if (!response.ok) {
+        setBackendMessage(`❗ Angle calculation error: ${result.error}`)
+        return
+      }
+
+      setBackendMessage(`✅ Angle: ${result.angle.toFixed(2)}°`)
+
+      onBackendResult({
+        type: "angle",
+        angle: result.angle,
+        anglePoints: anglePoints,
+        angleLines: angleLines
+      })
+
+      setAnglePoints([])
+      setAngleLines([])
+      setActiveTool(null)
+    } catch (err) {
+      console.error(err)
+      setBackendMessage("❗ Error connecting to backend for angle calculation")
+    }
+  }
+
   const drawOverlay = (ctx) => {
     points.forEach((point) => {
       ctx.beginPath()
@@ -457,6 +550,40 @@ export default function ImageViewer({
         ctx.fill()
       })
     }
+
+    // Draw angle lines and points
+    if (anglePoints.length > 0) {
+      // Draw the points
+      anglePoints.forEach((point, index) => {
+        ctx.beginPath()
+        ctx.arc(point.x, point.y, 36, 0, 2 * Math.PI)
+        ctx.fillStyle = index === 1 ? "yellow" : "blue" // Middle point (vertex) is yellow
+        ctx.strokeStyle = "white"
+        ctx.lineWidth = 30
+        ctx.fill()
+        ctx.stroke()
+      })
+
+      // Draw first line
+      if (anglePoints.length >= 2) {
+        ctx.beginPath()
+        ctx.moveTo(anglePoints[1].x, anglePoints[1].y) // Start from the middle point
+        ctx.lineTo(anglePoints[0].x, anglePoints[0].y)
+        ctx.strokeStyle = "blue"
+        ctx.lineWidth = 30
+        ctx.stroke()
+      }
+
+      // Draw second line
+      if (anglePoints.length >= 3) {
+        ctx.beginPath()
+        ctx.moveTo(anglePoints[1].x, anglePoints[1].y) // Start from the middle point
+        ctx.lineTo(anglePoints[2].x, anglePoints[2].y)
+        ctx.strokeStyle = "blue"
+        ctx.lineWidth = 30
+        ctx.stroke()
+      }
+    }
   }
 
   const handleClearMeasurement = () => {
@@ -464,6 +591,9 @@ export default function ImageViewer({
       setPolygonPoints([])
     } else if (activeTool === "pencil") {
       setManualCurvePoints([])
+    } else if (activeTool === "angle") {
+      setAnglePoints([])
+      setAngleLines([])
     } else if (activeTool === "ruler" || (activeTool === null && crosshairs.length > 0)) {
       setPoints([])
       setMainLine(null)
@@ -552,6 +682,28 @@ export default function ImageViewer({
             </>
           )}
 
+          {anglePoints.length === 3 && activeTool === "angle" && (
+            <button
+              className="finalize-button"
+              onClick={handleFinalizeAngle}
+              style={{
+                position: "absolute",
+                bottom: 20,
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 20,
+                padding: "10px 20px",
+                background: "#5555FF",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+              }}
+            >
+              📐 Calculate Angle
+            </button>
+          )}
+
           {(manualCurvePoints.length > 0 || polygonPoints.length > 0 || points.length > 0) && (
             <button
               className="clear-button"
@@ -636,6 +788,18 @@ export default function ImageViewer({
 
       {activeTool === "area" && (
         <div className="drawing-instructions">Click to place points for area calculation. Need at least 3 points.</div>
+      )}
+
+      {activeTool === "angle" && (
+        <div className="drawing-instructions">
+          {anglePoints.length === 0
+            ? "Click to place the first point"
+            : anglePoints.length === 1
+            ? "Click to place the vertex point (middle point)"
+            : anglePoints.length === 2
+            ? "Click to place the third point"
+            : "Click 'Calculate Angle' to measure"}
+        </div>
       )}
     </div>
   )
