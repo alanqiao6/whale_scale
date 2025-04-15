@@ -13,7 +13,7 @@ export default function ImageViewer({
   onBackendResult,
   metadata,
   segmentColor = "#FFFFC5",
-  crosshairSize = 12,
+  crosshairSize = 10,
 }) {
   const canvasRef = useRef(null)
   const [points, setPoints] = useState([])
@@ -493,10 +493,11 @@ export default function ImageViewer({
       ;["left", "right"].forEach((side) => {
         const point = pair[side]
         ctx.beginPath()
-        ctx.arc(point.x, point.y, 30, 0, 2 * Math.PI)
+        const visualSize = crosshairSize
+        ctx.arc(point.x, point.y, visualSize, 0, 2 * Math.PI)
         ctx.fillStyle = "white"
         ctx.strokeStyle = "black"
-        ctx.lineWidth = 30
+        ctx.lineWidth = Math.max(visualSize * 0.8, 10)
         ctx.fill()
         ctx.stroke()
       })

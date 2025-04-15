@@ -313,7 +313,7 @@ export default function App() {
           onBackendResult={handleBackendResult}
           metadata={metadata}
           segmentColor={formData.segmentColor}
-          crosshairSize={parseInt(formData.crosshairSize) || 12}
+          crosshairSize={parseInt(formData.crosshairSize) || 10}
         />
         {backendMessage && (
           <p style={{ textAlign: "center", color: "white", fontWeight: "bold", marginTop: "10px" }}>{backendMessage}</p>
