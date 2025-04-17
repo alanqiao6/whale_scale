@@ -1,8 +1,8 @@
 import "./Data.css"
 import React from "react"
 
-export default function Data({ formData, rulerData, manualCurveData, areaData }) {
-  if (!formData && !rulerData && !manualCurveData && !areaData) {
+export default function Data({ formData, rulerData, manualCurveData, areaData, angleData, bodyConditionData }) {
+  if (!formData && !rulerData && !manualCurveData && !areaData && !angleData && !bodyConditionData) {
     return (
       <div className="data-section">
         <h2>Data</h2>
@@ -78,6 +78,53 @@ export default function Data({ formData, rulerData, manualCurveData, areaData })
             <p>
               <strong>Points:</strong> {areaData.polygonPoints.length}
             </p>
+          </div>
+        )}
+        
+        {angleData && (
+          <div className="measurement-data">
+            <h3>📐 Angle Measurement</h3>
+            <p>
+              <strong>Angle:</strong> {angleData.angle.toFixed(2)}°
+            </p>
+            <p>
+              <strong>Points:</strong> {angleData.anglePoints.length}
+            </p>
+          </div>
+        )}
+        
+        {bodyConditionData && (
+          <div className="measurement-data">
+            <h3>🐋 Body Condition Results</h3>
+            {bodyConditionData.volume && (
+              <p>
+                <strong>Body Volume:</strong> {bodyConditionData.volume.toFixed(2)} units³
+              </p>
+            )}
+            {bodyConditionData.areaIndex && (
+              <p>
+                <strong>Body Area Index:</strong> {bodyConditionData.areaIndex.toFixed(2)}
+              </p>
+            )}
+            {bodyConditionData.surfaceArea && (
+              <p>
+                <strong>Surface Area:</strong> {bodyConditionData.surfaceArea.toFixed(2)} units²
+              </p>
+            )}
+            {bodyConditionData.fullResults && Object.entries(bodyConditionData.fullResults)
+              .filter(([key, value]) => 
+                !['Image', 'Image_ID'].includes(key) && 
+                value !== null && 
+                !isNaN(value) &&
+                !key.startsWith('Length_w') &&
+                !key.startsWith('Width_')
+              )
+              .map(([key, value]) => (
+                <p key={key}>
+                  <strong>{key}:</strong> {typeof value === 'number' ? value.toFixed(2) : value}
+                </p>
+              ))
+            }
           </div>
         )}
       </div>

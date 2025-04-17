@@ -103,14 +103,14 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       </div>
 
       <div className="input-group">
-        <label htmlFor="crosshair-color">Crosshair Color</label>
+        <label htmlFor="segment-color">Segment Color</label>
         <input
           type="color"
-          id="crosshair-color"
-          value={formData.crosshairColor}
-          onChange={(e) => handleChange("crosshairColor", e.target.value)}
+          id="segment-color"
+          value={formData.segmentColor}
+          onChange={(e) => handleChange("segmentColor", e.target.value)}
           className="color-picker"
-          aria-label="Select crosshair color"
+          aria-label="Select segment color"
         />
       </div>
 
