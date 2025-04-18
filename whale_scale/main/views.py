@@ -12,6 +12,7 @@ import pandas as pd
 import traceback
 import platform
 import logging
+import math
 
 
 from MMI_CODEX.collatrix.body_condition.calculate_body_area_index import calculate_body_area_index
@@ -268,6 +269,8 @@ class CollatriX(View):
             return self.collate_morphometrix(request)
         elif function_name == "extract_metadata":
             return self.extract_metadata(request)
+        elif function_name == "compute_pixel_dimension":
+            return self.compute_pixel_dimension(request)
         else:
             return JsonResponse({"error": "Invalid function name"}, status=400)
 
@@ -313,13 +316,9 @@ class CollatriX(View):
                 "exposure_compensation": metadata.get("EXIF:ExposureCompensation", None),
                 "white_balance": "Auto" if metadata.get("EXIF:WhiteBalance") == 0 else "Manual",
                 "digital_zoom_ratio": metadata.get("EXIF:DigitalZoomRatio", None),
-                "gps_latitude": metadata.get("Composite:GPSLatitude", None),
-                "gps_longitude": metadata.get("Composite:GPSLongitude", None),
-                "gps_altitude_m": (
-                    round(metadata["Composite:GPSAltitude"] / 10, 2)
-                    if "Composite:GPSAltitude" in metadata and isinstance(metadata["Composite:GPSAltitude"], (int, float))
-                    else None
-                ),  #added in /10 as images are stored by wrong decimal 
+                "gps_latitude": metadata.get("XMP:GPSLatitude", None),
+                "gps_longitude": metadata.get("XMP:GPSLongitude", None),
+                "gps_altitude_m": metadata.get("XMP:RelativeAltitude", None),
                 "gimbal_pitch_deg": metadata.get("XMP:GimbalPitchDegree", None),
                 "gimbal_yaw_deg": metadata.get("XMP:GimbalYawDegree", None),
                 "gimbal_roll_deg": metadata.get("XMP:GimbalRollDegree", None),
@@ -341,6 +340,74 @@ class CollatriX(View):
 
         finally:
             os.remove(image_path)
+
+    def compute_pixel_dimension(self, request):
+        """
+        Computes pixel dimension in meters/pixel using one of two formula options:
+
+        Option A:
+            - altitude (meters)
+            - fov (degrees)
+            - image_width (pixels)
+
+        Option B:
+            - altitude (meters)
+            - focal_length (mm)
+            - sensor_width (mm)
+            - image_width (pixels)
+
+        Input: JSON POST request with required fields for one of the formulas.
+
+        Axios Example
+        // Option A: Using FOV
+        axios.post("http://localhost:8000/collatrix/compute_pixel_dimension/", {
+        altitude: 22.7,
+        fov: 28.84,
+        image_width: 8064
+        }).then(res => console.log(res.data));
+
+        // Option B: Using focal length and sensor width
+        axios.post("http://localhost:8000/collatrix/compute_pixel_dimension/", {
+        altitude: 22.7,
+        focal_length: 19.35, // in mm
+        sensor_width: 13.2,  // in mm (e.g., for 1" sensor)
+        image_width: 8064
+        }).then(res => console.log(res.data));
+
+        Output: {"pixel_dimension": <meters_per_pixel>}
+        """
+        try:
+            data = json.loads(request.body)
+
+            # Option A
+            if all(key in data for key in ("altitude", "fov", "image_width")):
+                altitude = float(data["altitude"])
+                fov_deg = float(data["fov"])
+                image_width = int(data["image_width"])
+                fov_rad = math.radians(fov_deg)
+                scene_width_m = 2 * altitude * math.tan(fov_rad / 2)
+                pixel_dimension = scene_width_m / image_width
+
+            # Option B
+            elif all(key in data for key in ("altitude", "focal_length", "sensor_width", "image_width")):
+                altitude = float(data["altitude"])
+                focal_length = float(data["focal_length"])  # in mm
+                sensor_width = float(data["sensor_width"])  # in mm
+                image_width = int(data["image_width"])
+                pixel_dimension = (altitude / focal_length) * (sensor_width / image_width)
+
+            else:
+                return JsonResponse({
+                    "error": "Missing required parameters. Provide either: (altitude, fov, image_width) OR (altitude, focal_length, sensor_width, image_width)."
+                }, status=400)
+
+            return JsonResponse({"pixel_dimension": pixel_dimension})
+
+        except (ValueError, TypeError, KeyError) as e:
+            return JsonResponse({"error": f"Invalid input: {str(e)}"}, status=400)
+        except Exception as e:
+            traceback.print_exc()
+            return JsonResponse({"error": str(e)}, status=500)
 
     def calculate_body_condition(self, request):
         """
