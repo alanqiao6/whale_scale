@@ -86,12 +86,14 @@ class MorphoMetrix(View):
                 { parms: { x: 1, y: 2 } },
                 { parms: { x: 3, y: 3 } }
                 ]
-            }]
+            }],
+            pixel_dimension: 0.123 // OPTIONAL: This will be used to convert the output length to the unit of the pixel dimension (i.e. meters)
         }).then(response => console.log(response.data));
 
         """
         data = json.loads(request.body)
         measurement_stack = [Measurement(**m) for m in data.get("measurement_stack", [])]
+        pixel_dimension = data.get("pixel_dimension", 1)
 
         measurement = measurement_stack[-1]
         control_points = np.array([[obj["parms"]["x"], obj["parms"]["y"]] for obj in measurement.objects_params])
@@ -100,6 +102,12 @@ class MorphoMetrix(View):
             return JsonResponse({"error": "At least two control points required"}, status=400)
 
         B, length, Q, kb, P = compute_curve_length(control_points)
+
+        try:
+            pixel_dimension = float(pixel_dimension)
+            length *= pixel_dimension
+        except ValueError:
+            return JsonResponse({"error": "Invalid pixel_dimension"}, status=400)
 
         measurement.measurement_value = length
         measurement.Q = Q
@@ -127,20 +135,30 @@ class MorphoMetrix(View):
                 { parms: { length: 10 } },
                 { parms: { length: 15 } }
                 ]
-            }
+            },
+            pixel_dimension: 0.123 // OPTIONAL: This will be used to convert the output length to the unit of the pixel dimension (i.e. meters)
         }).then(response => console.log(response.data));
         """
         data = json.loads(request.body)
         logger = logging.getLogger(__name__)
         logger.info("Received measurement: %s", data)
         measurement_data = data.get("measurement", {})
+        pixel_dimension = data.get("pixel_dimension", 1)
+        try:
+            pixel_dimension = float(pixel_dimension)
+        except ValueError:
+            return JsonResponse({"error": "Invalid pixel_dimension"}, status=400)
+    
         measurement = Measurement(
             measurement_type=measurement_data.get("measurement_type"),
             name=measurement_data.get("measurement_name")
         )
         measurement.objects_params = measurement_data.get("objects_params", [])
 
-        measurement.measurement_value = sum([obj["parms"].get("length", 0) for obj in measurement.objects_params])
+        measurement.measurement_value = sum([
+            obj["parms"].get("length", 0) * pixel_dimension if "length" in obj["parms"] else 0
+            for obj in measurement.objects_params
+        ])
         return JsonResponse({"length": measurement.measurement_value})
 
     def calculate_angle(self, request):
@@ -207,11 +225,13 @@ class MorphoMetrix(View):
                     ]
                 }
                 ]
-            }
+            },
+            pixel_dimension: 0.123 // OPTIONAL: This will be used to convert the output length to the unit of the pixel dimension (i.e. meters)
         }).then(response => console.log(response.data));
         """
         data = json.loads(request.body)
         measurement = Measurement(**data.get("measurement"))
+        pixel_dimension = data.get("pixel_dimension", 1)
 
         qpolygon = [obj["parms"] for obj in measurement.objects_params if obj["type"] == ObjectTypes.POLYGONITEM]
 
@@ -219,6 +239,11 @@ class MorphoMetrix(View):
             return JsonResponse({"error": "No polygon found"}, status=400)
 
         area = compute_polygon_area(qpolygon[0])
+        try:
+            pixel_dimension = float(pixel_dimension)
+            area *= pixel_dimension ** 2
+        except ValueError:
+            return JsonResponse({"error": "Invalid pixel_dimension"}, status=400)
         measurement.measurement_value = area
 
         return JsonResponse({"area": measurement.measurement_value})
@@ -227,6 +252,16 @@ class MorphoMetrix(View):
         """Compute width measurements."""
         measurement_stack = [Measurement(**m) for m in data.get("measurement_stack", [])]
         bias = data.get("bias", None)
+        pixel_dimension = data.get("pixel_dimension", 1)
+
+        try:
+            pixel_dimension = float(pixel_dimension)
+            for m in measurement_stack:
+                for obj in m.objects_params:
+                    if "length" in obj["parms"]:
+                        obj["parms"]["length"] *= pixel_dimension
+        except ValueError:
+            return {"success": False, "message": "Invalid pixel_dimension"}
 
         widths = calculate_widths(measurement_stack, bias)
         if not widths:
