@@ -48,10 +48,6 @@ if platform.system() == "Windows":
 else:
     exiftool_path = "exiftool"
 
-
-def index(request):
-    return JsonResponse({"message": "Hello World!"})
-
 # -------------------------
 # MorphoMetriX API
 # -------------------------
