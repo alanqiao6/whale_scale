@@ -320,6 +320,14 @@ class CollatriX(View):
         axios.post("http://localhost:8000/collatrix/extract_metadata/", formData)
         .then(response => console.log(response.data));
         """
+
+        def to_float(value):
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return value
+        
+
         if 'image' not in request.FILES:
             return JsonResponse({"error": "No image file provided"}, status=400)
 
@@ -333,34 +341,36 @@ class CollatriX(View):
                 "timestamp": metadata.get("EXIF:DateTimeOriginal", "Unknown"),
                 "file_name": metadata.get("File:FileName", os.path.basename(image_path)),
                 "file_size_bytes": metadata.get("File:FileSize", None),
-                "image_dimensions": f"{metadata.get('File:ImageWidth', '?')} x {metadata.get('File:ImageHeight', '?')}",
-                "megapixels": metadata.get("Composite:Megapixels", None),
+                # "image_dimensions": f"{metadata.get('File:ImageWidth', '?')} x {metadata.get('File:ImageHeight', '?')}",
+                "image_width": to_float(metadata.get("File:ImageWidth")),
+                "image_height": to_float(metadata.get("File:ImageHeight")),
+                "megapixels": to_float(metadata.get("Composite:Megapixels", None)),
                 "camera_make": metadata.get("EXIF:Make", "Unknown"),
                 "camera_model": metadata.get("EXIF:Model", "Unknown"),
                 "lens_info": metadata.get("EXIF:LensInfo", "Unknown"),
                 "serial_number": metadata.get("EXIF:SerialNumber", "Unknown"),
-                "shutter_speed_sec": metadata.get("EXIF:ShutterSpeedValue", None),
-                "aperture_f_number": metadata.get("EXIF:ApertureValue", None),
-                "iso": metadata.get("EXIF:ISO", None),
-                "focal_length_mm": metadata.get("EXIF:FocalLength", None),
-                "focal_length_35mm_equiv": metadata.get("EXIF:FocalLengthIn35mmFormat", None),
-                "exposure_compensation": metadata.get("EXIF:ExposureCompensation", None),
+                "shutter_speed_sec": to_float(metadata.get("EXIF:ShutterSpeedValue", None)),
+                "aperture_f_number": to_float(metadata.get("EXIF:ApertureValue", None)),
+                "iso": to_float(metadata.get("EXIF:ISO", None)),
+                "focal_length_mm": to_float(metadata.get("EXIF:FocalLength", None)),
+                "focal_length_35mm_equiv": to_float(metadata.get("EXIF:FocalLengthIn35mmFormat", None)),
+                "exposure_compensation": to_float(metadata.get("EXIF:ExposureCompensation", None)),
                 "white_balance": "Auto" if metadata.get("EXIF:WhiteBalance") == 0 else "Manual",
-                "digital_zoom_ratio": metadata.get("EXIF:DigitalZoomRatio", None),
-                "gps_latitude": metadata.get("XMP:GPSLatitude", None),
-                "gps_longitude": metadata.get("XMP:GPSLongitude", None),
-                "gps_altitude_m": metadata.get("XMP:RelativeAltitude", None),
-                "gimbal_pitch_deg": metadata.get("XMP:GimbalPitchDegree", None),
-                "gimbal_yaw_deg": metadata.get("XMP:GimbalYawDegree", None),
-                "gimbal_roll_deg": metadata.get("XMP:GimbalRollDegree", None),
-                "drone_pitch_deg": metadata.get("XMP:FlightPitchDegree", None),
-                "drone_yaw_deg": metadata.get("XMP:FlightYawDegree", None),
-                "drone_roll_deg": metadata.get("XMP:FlightRollDegree", None),
-                "sensor_temperature_c": metadata.get("XMP:SensorTemperature", None),
-                "sensor_fps": metadata.get("XMP:SensorFPS", None),
-                "field_of_view_deg": metadata.get("Composite:FOV", None),
-                "hyperfocal_distance_m": metadata.get("Composite:HyperfocalDistance", None),
-                "light_value_ev": metadata.get("Composite:LightValue", None),
+                "digital_zoom_ratio": to_float(metadata.get("EXIF:DigitalZoomRatio", None)),
+                "gps_latitude": to_float(metadata.get("XMP:GPSLatitude", None)),
+                "gps_longitude": to_float(metadata.get("XMP:GPSLongitude", None)),
+                "gps_altitude_m": to_float(metadata.get("XMP:RelativeAltitude", None)),
+                "gimbal_pitch_deg": to_float(metadata.get("XMP:GimbalPitchDegree", None)),
+                "gimbal_yaw_deg": to_float(metadata.get("XMP:GimbalYawDegree", None)),
+                "gimbal_roll_deg": to_float(metadata.get("XMP:GimbalRollDegree", None)),
+                "drone_pitch_deg": to_float(metadata.get("XMP:FlightPitchDegree", None)),
+                "drone_yaw_deg": to_float(metadata.get("XMP:FlightYawDegree", None)),
+                "drone_roll_deg": to_float(metadata.get("XMP:FlightRollDegree", None)),
+                "sensor_temperature_c": to_float(metadata.get("XMP:SensorTemperature", None)),
+                "sensor_fps": to_float(metadata.get("XMP:SensorFPS", None)),
+                "field_of_view_deg": to_float(metadata.get("Composite:FOV", None)),
+                "hyperfocal_distance_m": to_float(metadata.get("Composite:HyperfocalDistance", None)),
+                "light_value_ev": to_float(metadata.get("Composite:LightValue", None)),
             }
 
             return JsonResponse(response_data)
