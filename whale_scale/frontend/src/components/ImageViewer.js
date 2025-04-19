@@ -235,7 +235,7 @@ export default function ImageViewer({
         ...(pixelDimension && { pixel_dimension: pixelDimension })
       };
 
-      const curveRes = await fetch("/morphometrix/calculate_curve/", {
+      const curveRes = await fetch("/api/morphometrix/calculate_curve/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -300,7 +300,7 @@ export default function ImageViewer({
 
       try {
           // Use the same URL path as in the old version
-          const response = await fetch("/morphometrix/calculate_curve/", {
+          const response = await fetch("/api/morphometrix/calculate_curve/", {
               method: "POST",
               headers: {
                   "Content-Type": "application/json"
@@ -351,7 +351,7 @@ export default function ImageViewer({
         ...(pixelDimension && { pixel_dimension: pixelDimension })
       }
   
-      const response = await fetch("/morphometrix/calculate_area/", {
+      const response = await fetch("/api/morphometrix/calculate_area/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -434,7 +434,7 @@ export default function ImageViewer({
         }
       }
 
-      const response = await fetch("/morphometrix/calculate_angle/", {
+      const response = await fetch("/api/morphometrix/calculate_angle/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
