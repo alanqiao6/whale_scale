@@ -16,6 +16,11 @@ export default function App() {
   const [formData, setFormData] = useState({
     focalLength: "",
     altitude: "",
+    altitudeOffset: "",
+    imageWidth: "",
+    imageHeight: "",
+    fov: "",
+    sensorWidth: "",
     widthSegments: "",
     crosshairSize: 50,
     crosshairOpacity: 100,
@@ -29,28 +34,25 @@ export default function App() {
   const [bodyConditionData, setBodyConditionData] = useState(null)
   const [backendResult, setBackendResult] = useState(null)
   const [backendMessage, setBackendMessage] = useState("")
+  const [pixelDimension, setPixelDimension] = useState(null)
 
   // Handle real-time input changes from Sidebar
   const handleInputChange = (name, value) => {
-    // Update formData state
     setFormData(prev => ({
       ...prev,
       [name]: value
     }))
-    
-    // For width segments, also update the specific state
     if (name === "widthSegments") {
       setWidthSegments(value !== "" ? Number.parseInt(value) : null)
     }
-    
-    // For metadata fields, update the metadata state
-    if (name === "focalLength" || name === "altitude") {
+    if (["focalLength", "altitude", "altitudeOffset", "imageWidth", "imageHeight", "fov", "sensorWidth"].includes(name)) {
       setMetadata(prev => ({
         ...prev,
         [name]: value
       }))
     }
   }
+
 
   const handleImageUpload = async (file) => {
     if (file) {
@@ -62,7 +64,7 @@ export default function App() {
         const formData = new FormData()
         formData.append("image", file)
 
-        const response = await fetch("/api/collatrix/extract_metadata/", {
+        const response = await fetch("/collatrix/extract_metadata/", {
           method: "POST",
           body: formData,
         })
@@ -74,6 +76,10 @@ export default function App() {
           const newMetadata = {
             focalLength: backendMetadata.focal_length_mm || "",
             altitude: backendMetadata.gps_altitude_m || "",
+            imageWidth: backendMetadata.image_width || "",
+            imageHeight: backendMetadata.image_height || "",
+            fov: backendMetadata.field_of_view_deg || "",
+            sensorWidth: backendMetadata.sensor_width || ""
           }
 
           setMetadata(newMetadata)
@@ -81,8 +87,7 @@ export default function App() {
           // Also update these values in formData
           setFormData(prev => ({
             ...prev,
-            focalLength: newMetadata.focalLength,
-            altitude: newMetadata.altitude
+            ...newMetadata
           }))
         } 
       } catch (error) {
@@ -102,6 +107,10 @@ export default function App() {
     // We already have updated formData from input changes, 
     // but this ensures consistency
     setFormData(dataFromSidebar)
+
+    if (dataFromSidebar.pixelDimension) {
+      setPixelDimension(dataFromSidebar.pixelDimension)
+    }
     
     // No need to set width segments here as it's already set via handleInputChange
     // But we'll keep it for safety
@@ -110,10 +119,10 @@ export default function App() {
     }
 
     // Update metadata with form data
-    setMetadata({
-      focalLength: dataFromSidebar.focalLength,
-      altitude: dataFromSidebar.altitude,
-    })
+    setMetadata(prev => ({
+      ...prev,
+      ...dataFromSidebar
+    }))
 
     // Submit measurement to backend
     if (!measurementData || measurementData.points.length < 2) {
@@ -122,7 +131,7 @@ export default function App() {
     }
 
     try {
-      const response = await fetch("/api/morphometrix/calculate_length/", {
+      const response = await fetch("/morphometrix/calculate_length/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -237,7 +246,7 @@ export default function App() {
 
       console.log("Sending body condition data:", measurementData);
 
-      const response = await fetch("/api/collatrix/calculate_body_condition/", {
+      const response = await fetch("/collatrix/calculate_body_condition/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -314,9 +323,10 @@ export default function App() {
           metadata={metadata}
           segmentColor={formData.segmentColor}
           crosshairSize={parseInt(formData.crosshairSize) || 10}
+          pixelDimension={pixelDimension}
         />
         {backendMessage && (
-          <p style={{ textAlign: "center", color: "white", fontWeight: "bold", marginTop: "10px" }}>{backendMessage}</p>
+          <p style={{ textAlign: "center", color: "black", fontWeight: "bold", marginTop: "10px" }}>{backendMessage}</p>
         )}
 
         {rulerData && (
@@ -344,6 +354,7 @@ export default function App() {
           areaData={areaData}
           angleData={angleData}
           bodyConditionData={bodyConditionData}
+          pixelDimension={pixelDimension}
         />
       </div>
     </div>

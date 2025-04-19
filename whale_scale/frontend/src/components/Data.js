@@ -1,7 +1,7 @@
 import "./Data.css"
 import React from "react"
 
-export default function Data({ formData, rulerData, manualCurveData, areaData, angleData, bodyConditionData }) {
+export default function Data({ formData, rulerData, manualCurveData, areaData, angleData, bodyConditionData, pixelDimension }) {
   if (!formData && !rulerData && !manualCurveData && !areaData && !angleData && !bodyConditionData) {
     return (
       <div className="data-section">
@@ -11,6 +11,8 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
     )
   }
 
+  const format = (value) => (value !== undefined && value !== null && value !== "" ? value : "None")
+
   return (
     <div className="data-section">
       <h2>Measurement Data</h2>
@@ -18,18 +20,18 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
         {formData && (
           <div className="form-data">
             <h3>Form Data</h3>
-            <p>
-              <strong>Focal Length:</strong> {formData.focalLength} mm
-            </p>
-            <p>
-              <strong>Altitude:</strong> {formData.altitude} m
-            </p>
-            <p>
-              <strong>Width Segments:</strong> {formData.widthSegments}
-            </p>
-            <p>
-              <strong>Mirror Side:</strong> {formData.mirrorSide}
-            </p>
+            <p><strong>Focal Length:</strong> {format(formData.focalLength)}</p>
+            <p><strong>Altitude:</strong> {format(formData.altitude)}</p>
+            <p><strong>Altitude Offset:</strong> {format(formData.altitudeOffset)}</p>
+            <p><strong>Image Width:</strong> {format(formData.imageWidth)}</p>
+            <p><strong>Image Height:</strong> {format(formData.imageHeight)}</p>
+            <p><strong>Field of View:</strong> {format(formData.fov)}</p>
+            <p><strong>Sensor Width:</strong> {format(formData.sensorWidth)}</p>
+            <p><strong>Width Segments:</strong> {format(formData.widthSegments)}</p>
+            <p><strong>Crosshair Size:</strong> {format(formData.crosshairSize)}</p>
+            <p><strong>Crosshair Opacity:</strong> {format(formData.crosshairOpacity)}</p>
+            <p><strong>Segment Color:</strong> {format(formData.segmentColor)}</p>
+            <p><strong>Pixel Dimension:</strong> {format(pixelDimension)}</p>
           </div>
         )}
 
@@ -40,7 +42,7 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
               <strong>Type:</strong> {rulerData.type}
             </p>
             <p>
-              <strong>Curve Length:</strong> {rulerData.curveLength.toFixed(2)} px
+              <strong>Curve Length:</strong> {rulerData.curveLength.toFixed(2)} m
             </p>
             <p>
               <strong>Segments:</strong> {rulerData.segments}
@@ -50,7 +52,7 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
             <ul>
               {rulerData.widthSegments.map((seg) => (
                 <li key={seg.index}>
-                  Segment {seg.index}: {seg.length} px
+                  Segment {seg.index}: {seg.length} m
                 </li>
               ))}
             </ul>
@@ -61,7 +63,7 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
           <div className="measurement-data">
             <h3>✏️ Manual Curve</h3>
             <p>
-              <strong>Curve Length:</strong> {manualCurveData.curveLength.toFixed(2)} px
+              <strong>Curve Length:</strong> {manualCurveData.curveLength.toFixed(2)} m
             </p>
             <p>
               <strong>Points:</strong> {manualCurveData.curvePoints.length}
@@ -73,7 +75,7 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
           <div className="measurement-data">
             <h3>🔲 Area Measurement</h3>
             <p>
-              <strong>Area:</strong> {areaData.area.toFixed(2)} px²
+              <strong>Area:</strong> {areaData.area.toFixed(2)} m²
             </p>
             <p>
               <strong>Points:</strong> {areaData.polygonPoints.length}
@@ -98,7 +100,7 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
             <h3>🐋 Body Condition Results</h3>
             {bodyConditionData.volume && (
               <p>
-                <strong>Body Volume:</strong> {bodyConditionData.volume.toFixed(2)} units³
+                <strong>Body Volume:</strong> {bodyConditionData.volume.toFixed(2)} m³
               </p>
             )}
             {bodyConditionData.areaIndex && (
@@ -108,7 +110,7 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
             )}
             {bodyConditionData.surfaceArea && (
               <p>
-                <strong>Surface Area:</strong> {bodyConditionData.surfaceArea.toFixed(2)} units²
+                <strong>Surface Area:</strong> {bodyConditionData.surfaceArea.toFixed(2)} m²
               </p>
             )}
             {bodyConditionData.fullResults && Object.entries(bodyConditionData.fullResults)

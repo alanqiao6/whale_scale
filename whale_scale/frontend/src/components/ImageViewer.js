@@ -14,6 +14,7 @@ export default function ImageViewer({
   metadata,
   segmentColor = "#FFFFC5",
   crosshairSize = 10,
+  pixelDimension,
 }) {
   const canvasRef = useRef(null)
   const [points, setPoints] = useState([])
@@ -211,7 +212,7 @@ export default function ImageViewer({
         left: { x: seg.x1, y: seg.y1 },
         right: { x: seg.x2, y: seg.y2 },
         origin: { x1: seg.x1, y1: seg.y1, dx, dy },
-        length: length.toFixed(2),
+        length: (length * (pixelDimension || 1)).toFixed(4),
       }
     })
     setCrosshairs(initialCrosshairs)
@@ -230,10 +231,11 @@ export default function ImageViewer({
               y: (pair.left.y + pair.right.y) / 2
             }
           }))
-        }]
+        }],
+        ...(pixelDimension && { pixel_dimension: pixelDimension })
       };
 
-      const curveRes = await fetch("/api/morphometrix/calculate_curve/", {
+      const curveRes = await fetch("/morphometrix/calculate_curve/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -254,7 +256,7 @@ export default function ImageViewer({
         const length = Math.hypot(dx, dy)
         return {
           index: i + 1,
-          length: length.toFixed(2),
+          length: parseFloat((length * (pixelDimension || 1)).toFixed(4)),
           coords: {
             x1: pair.left.x,
             y1: pair.left.y,
@@ -264,7 +266,7 @@ export default function ImageViewer({
         }
       })
 
-      setBackendMessage(`✅ Ruler Curve: ${curveLength.toFixed(2)} px`)
+      setBackendMessage(`✅ Ruler Curve: ${curveLength.toFixed(2)} m`)
 
       onBackendResult({
         type: "ruler",
@@ -290,14 +292,15 @@ export default function ImageViewer({
                       y: point.y
                   }
               }))
-          }]
+          }],
+          ...(pixelDimension && { pixel_dimension: pixelDimension })
       };
 
       console.log("Sending payload:", JSON.stringify(payload, null, 2));
 
       try {
           // Use the same URL path as in the old version
-          const response = await fetch("/api/morphometrix/calculate_curve/", {
+          const response = await fetch("/morphometrix/calculate_curve/", {
               method: "POST",
               headers: {
                   "Content-Type": "application/json"
@@ -312,7 +315,7 @@ export default function ImageViewer({
           }
 
           const result = await response.json();
-          setBackendMessage(`✅ Manual Curve: ${result.length.toFixed(2)} px`);
+          setBackendMessage(`✅ Manual Curve: ${result.length.toFixed(2)} m`);
 
           onBackendResult({
               type: "manual_curve",
@@ -344,10 +347,11 @@ export default function ImageViewer({
               parms: polygonPoints  // Direct array of points, not wrapped in a 'points' property
             }
           ]
-        }
+        },
+        ...(pixelDimension && { pixel_dimension: pixelDimension })
       }
   
-      const response = await fetch("/api/morphometrix/calculate_area/", {
+      const response = await fetch("/morphometrix/calculate_area/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -359,7 +363,7 @@ export default function ImageViewer({
         return
       }
   
-      setBackendMessage(`✅ Area: ${result.area.toFixed(2)} px²`)
+      setBackendMessage(`✅ Area: ${result.area.toFixed(2)} m²`)
   
       onBackendResult({
         type: "area",
@@ -430,7 +434,7 @@ export default function ImageViewer({
         }
       }
 
-      const response = await fetch("/api/morphometrix/calculate_angle/", {
+      const response = await fetch("/morphometrix/calculate_angle/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)

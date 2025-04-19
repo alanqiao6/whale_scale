@@ -12,6 +12,7 @@ import pandas as pd
 import traceback
 import platform
 import logging
+import math
 
 
 from MMI_CODEX.collatrix.body_condition.calculate_body_area_index import calculate_body_area_index
@@ -46,10 +47,6 @@ if platform.system() == "Windows":
     exiftool_path = (current_dir / ".." / "MMI_CODEX" / "collatrix" / "exiftool.exe").resolve()
 else:
     exiftool_path = "exiftool"
-
-
-def index(request):
-    return JsonResponse({"message": "Hello World!"})
 
 # -------------------------
 # MorphoMetriX API
@@ -89,12 +86,14 @@ class MorphoMetrix(View):
                 { parms: { x: 1, y: 2 } },
                 { parms: { x: 3, y: 3 } }
                 ]
-            }]
+            }],
+            pixel_dimension: 0.123 // OPTIONAL: This will be used to convert the output length to the unit of the pixel dimension (i.e. meters)
         }).then(response => console.log(response.data));
 
         """
         data = json.loads(request.body)
         measurement_stack = [Measurement(**m) for m in data.get("measurement_stack", [])]
+        pixel_dimension = data.get("pixel_dimension", 1)
 
         measurement = measurement_stack[-1]
         control_points = np.array([[obj["parms"]["x"], obj["parms"]["y"]] for obj in measurement.objects_params])
@@ -103,6 +102,12 @@ class MorphoMetrix(View):
             return JsonResponse({"error": "At least two control points required"}, status=400)
 
         B, length, Q, kb, P = compute_curve_length(control_points)
+
+        try:
+            pixel_dimension = float(pixel_dimension)
+            length *= pixel_dimension
+        except ValueError:
+            return JsonResponse({"error": "Invalid pixel_dimension"}, status=400)
 
         measurement.measurement_value = length
         measurement.Q = Q
@@ -130,20 +135,30 @@ class MorphoMetrix(View):
                 { parms: { length: 10 } },
                 { parms: { length: 15 } }
                 ]
-            }
+            },
+            pixel_dimension: 0.123 // OPTIONAL: This will be used to convert the output length to the unit of the pixel dimension (i.e. meters)
         }).then(response => console.log(response.data));
         """
         data = json.loads(request.body)
         logger = logging.getLogger(__name__)
         logger.info("Received measurement: %s", data)
         measurement_data = data.get("measurement", {})
+        pixel_dimension = data.get("pixel_dimension", 1)
+        try:
+            pixel_dimension = float(pixel_dimension)
+        except ValueError:
+            return JsonResponse({"error": "Invalid pixel_dimension"}, status=400)
+    
         measurement = Measurement(
             measurement_type=measurement_data.get("measurement_type"),
             name=measurement_data.get("measurement_name")
         )
         measurement.objects_params = measurement_data.get("objects_params", [])
 
-        measurement.measurement_value = sum([obj["parms"].get("length", 0) for obj in measurement.objects_params])
+        measurement.measurement_value = sum([
+            obj["parms"].get("length", 0) * pixel_dimension if "length" in obj["parms"] else 0
+            for obj in measurement.objects_params
+        ])
         return JsonResponse({"length": measurement.measurement_value})
 
     def calculate_angle(self, request):
@@ -210,11 +225,13 @@ class MorphoMetrix(View):
                     ]
                 }
                 ]
-            }
+            },
+            pixel_dimension: 0.123 // OPTIONAL: This will be used to convert the output length to the unit of the pixel dimension (i.e. meters)
         }).then(response => console.log(response.data));
         """
         data = json.loads(request.body)
         measurement = Measurement(**data.get("measurement"))
+        pixel_dimension = data.get("pixel_dimension", 1)
 
         qpolygon = [obj["parms"] for obj in measurement.objects_params if obj["type"] == ObjectTypes.POLYGONITEM]
 
@@ -222,6 +239,11 @@ class MorphoMetrix(View):
             return JsonResponse({"error": "No polygon found"}, status=400)
 
         area = compute_polygon_area(qpolygon[0])
+        try:
+            pixel_dimension = float(pixel_dimension)
+            area *= pixel_dimension ** 2
+        except ValueError:
+            return JsonResponse({"error": "Invalid pixel_dimension"}, status=400)
         measurement.measurement_value = area
 
         return JsonResponse({"area": measurement.measurement_value})
@@ -230,6 +252,16 @@ class MorphoMetrix(View):
         """Compute width measurements."""
         measurement_stack = [Measurement(**m) for m in data.get("measurement_stack", [])]
         bias = data.get("bias", None)
+        pixel_dimension = data.get("pixel_dimension", 1)
+
+        try:
+            pixel_dimension = float(pixel_dimension)
+            for m in measurement_stack:
+                for obj in m.objects_params:
+                    if "length" in obj["parms"]:
+                        obj["parms"]["length"] *= pixel_dimension
+        except ValueError:
+            return {"success": False, "message": "Invalid pixel_dimension"}
 
         widths = calculate_widths(measurement_stack, bias)
         if not widths:
@@ -268,6 +300,8 @@ class CollatriX(View):
             return self.collate_morphometrix(request)
         elif function_name == "extract_metadata":
             return self.extract_metadata(request)
+        elif function_name == "compute_pixel_dimension":
+            return self.compute_pixel_dimension(request)
         else:
             return JsonResponse({"error": "Invalid function name"}, status=400)
 
@@ -286,6 +320,14 @@ class CollatriX(View):
         axios.post("http://localhost:8000/collatrix/extract_metadata/", formData)
         .then(response => console.log(response.data));
         """
+
+        def to_float(value):
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return value
+        
+
         if 'image' not in request.FILES:
             return JsonResponse({"error": "No image file provided"}, status=400)
 
@@ -299,38 +341,36 @@ class CollatriX(View):
                 "timestamp": metadata.get("EXIF:DateTimeOriginal", "Unknown"),
                 "file_name": metadata.get("File:FileName", os.path.basename(image_path)),
                 "file_size_bytes": metadata.get("File:FileSize", None),
-                "image_dimensions": f"{metadata.get('File:ImageWidth', '?')} x {metadata.get('File:ImageHeight', '?')}",
-                "megapixels": metadata.get("Composite:Megapixels", None),
+                # "image_dimensions": f"{metadata.get('File:ImageWidth', '?')} x {metadata.get('File:ImageHeight', '?')}",
+                "image_width": to_float(metadata.get("File:ImageWidth")),
+                "image_height": to_float(metadata.get("File:ImageHeight")),
+                "megapixels": to_float(metadata.get("Composite:Megapixels", None)),
                 "camera_make": metadata.get("EXIF:Make", "Unknown"),
                 "camera_model": metadata.get("EXIF:Model", "Unknown"),
                 "lens_info": metadata.get("EXIF:LensInfo", "Unknown"),
                 "serial_number": metadata.get("EXIF:SerialNumber", "Unknown"),
-                "shutter_speed_sec": metadata.get("EXIF:ShutterSpeedValue", None),
-                "aperture_f_number": metadata.get("EXIF:ApertureValue", None),
-                "iso": metadata.get("EXIF:ISO", None),
-                "focal_length_mm": metadata.get("EXIF:FocalLength", None),
-                "focal_length_35mm_equiv": metadata.get("EXIF:FocalLengthIn35mmFormat", None),
-                "exposure_compensation": metadata.get("EXIF:ExposureCompensation", None),
+                "shutter_speed_sec": to_float(metadata.get("EXIF:ShutterSpeedValue", None)),
+                "aperture_f_number": to_float(metadata.get("EXIF:ApertureValue", None)),
+                "iso": to_float(metadata.get("EXIF:ISO", None)),
+                "focal_length_mm": to_float(metadata.get("EXIF:FocalLength", None)),
+                "focal_length_35mm_equiv": to_float(metadata.get("EXIF:FocalLengthIn35mmFormat", None)),
+                "exposure_compensation": to_float(metadata.get("EXIF:ExposureCompensation", None)),
                 "white_balance": "Auto" if metadata.get("EXIF:WhiteBalance") == 0 else "Manual",
-                "digital_zoom_ratio": metadata.get("EXIF:DigitalZoomRatio", None),
-                "gps_latitude": metadata.get("Composite:GPSLatitude", None),
-                "gps_longitude": metadata.get("Composite:GPSLongitude", None),
-                "gps_altitude_m": (
-                    round(metadata["Composite:GPSAltitude"] / 10, 2)
-                    if "Composite:GPSAltitude" in metadata and isinstance(metadata["Composite:GPSAltitude"], (int, float))
-                    else None
-                ),  #added in /10 as images are stored by wrong decimal 
-                "gimbal_pitch_deg": metadata.get("XMP:GimbalPitchDegree", None),
-                "gimbal_yaw_deg": metadata.get("XMP:GimbalYawDegree", None),
-                "gimbal_roll_deg": metadata.get("XMP:GimbalRollDegree", None),
-                "drone_pitch_deg": metadata.get("XMP:FlightPitchDegree", None),
-                "drone_yaw_deg": metadata.get("XMP:FlightYawDegree", None),
-                "drone_roll_deg": metadata.get("XMP:FlightRollDegree", None),
-                "sensor_temperature_c": metadata.get("XMP:SensorTemperature", None),
-                "sensor_fps": metadata.get("XMP:SensorFPS", None),
-                "field_of_view_deg": metadata.get("Composite:FOV", None),
-                "hyperfocal_distance_m": metadata.get("Composite:HyperfocalDistance", None),
-                "light_value_ev": metadata.get("Composite:LightValue", None),
+                "digital_zoom_ratio": to_float(metadata.get("EXIF:DigitalZoomRatio", None)),
+                "gps_latitude": to_float(metadata.get("XMP:GPSLatitude", None)),
+                "gps_longitude": to_float(metadata.get("XMP:GPSLongitude", None)),
+                "gps_altitude_m": to_float(metadata.get("XMP:RelativeAltitude", None)),
+                "gimbal_pitch_deg": to_float(metadata.get("XMP:GimbalPitchDegree", None)),
+                "gimbal_yaw_deg": to_float(metadata.get("XMP:GimbalYawDegree", None)),
+                "gimbal_roll_deg": to_float(metadata.get("XMP:GimbalRollDegree", None)),
+                "drone_pitch_deg": to_float(metadata.get("XMP:FlightPitchDegree", None)),
+                "drone_yaw_deg": to_float(metadata.get("XMP:FlightYawDegree", None)),
+                "drone_roll_deg": to_float(metadata.get("XMP:FlightRollDegree", None)),
+                "sensor_temperature_c": to_float(metadata.get("XMP:SensorTemperature", None)),
+                "sensor_fps": to_float(metadata.get("XMP:SensorFPS", None)),
+                "field_of_view_deg": to_float(metadata.get("Composite:FOV", None)),
+                "hyperfocal_distance_m": to_float(metadata.get("Composite:HyperfocalDistance", None)),
+                "light_value_ev": to_float(metadata.get("Composite:LightValue", None)),
             }
 
             return JsonResponse(response_data)
@@ -341,6 +381,74 @@ class CollatriX(View):
 
         finally:
             os.remove(image_path)
+
+    def compute_pixel_dimension(self, request):
+        """
+        Computes pixel dimension in meters/pixel using one of two formula options:
+
+        Option A:
+            - altitude (meters)
+            - fov (degrees)
+            - image_width (pixels)
+
+        Option B:
+            - altitude (meters)
+            - focal_length (mm)
+            - sensor_width (mm)
+            - image_width (pixels)
+
+        Input: JSON POST request with required fields for one of the formulas.
+
+        Axios Example
+        // Option A: Using FOV
+        axios.post("http://localhost:8000/collatrix/compute_pixel_dimension/", {
+        altitude: 22.7,
+        fov: 28.84,
+        image_width: 8064
+        }).then(res => console.log(res.data));
+
+        // Option B: Using focal length and sensor width
+        axios.post("http://localhost:8000/collatrix/compute_pixel_dimension/", {
+        altitude: 22.7,
+        focal_length: 19.35, // in mm
+        sensor_width: 13.2,  // in mm (e.g., for 1" sensor)
+        image_width: 8064
+        }).then(res => console.log(res.data));
+
+        Output: {"pixel_dimension": <meters_per_pixel>}
+        """
+        try:
+            data = json.loads(request.body)
+
+            # Option A
+            if all(key in data for key in ("altitude", "fov", "image_width")):
+                altitude = float(data["altitude"])
+                fov_deg = float(data["fov"])
+                image_width = int(data["image_width"])
+                fov_rad = math.radians(fov_deg)
+                scene_width_m = 2 * altitude * math.tan(fov_rad / 2)
+                pixel_dimension = scene_width_m / image_width
+
+            # Option B
+            elif all(key in data for key in ("altitude", "focal_length", "sensor_width", "image_width")):
+                altitude = float(data["altitude"])
+                focal_length = float(data["focal_length"])  # in mm
+                sensor_width = float(data["sensor_width"])  # in mm
+                image_width = int(data["image_width"])
+                pixel_dimension = (altitude / focal_length) * (sensor_width / image_width)
+
+            else:
+                return JsonResponse({
+                    "error": "Missing required parameters. Provide either: (altitude, fov, image_width) OR (altitude, focal_length, sensor_width, image_width)."
+                }, status=400)
+
+            return JsonResponse({"pixel_dimension": pixel_dimension})
+
+        except (ValueError, TypeError, KeyError) as e:
+            return JsonResponse({"error": f"Invalid input: {str(e)}"}, status=400)
+        except Exception as e:
+            traceback.print_exc()
+            return JsonResponse({"error": str(e)}, status=500)
 
     def calculate_body_condition(self, request):
         """
@@ -434,150 +542,7 @@ class CollatriX(View):
             for file_path in file_paths:
                 os.remove(file_path)
 
-    def lidar_video(self, request):
-        """
-        Extract metadata from videos and match with LiDAR data.
-        """
-        files = request.FILES.getlist('video_files')
-        gps_data = json.loads(request.body).get("gps_data")
-        lidar_data = json.loads(request.body).get("lidar_data")
-        time_window = float(json.loads(request.body).get("time_window", 5))
-
-        if not files or not gps_data or not lidar_data:
-            return JsonResponse({"error": "Video files, GPS data, and LiDAR data are required"}, status=400)
-
-        video_paths = [default_storage.save(file.name, file) for file in files]
-
-        try:
-            et = self.exiftool
-            df_video = self._wrangle_video_metadata(video_paths, et)
-            df_gps = pd.DataFrame(gps_data)
-            df_lidar = pd.DataFrame(lidar_data)
-
-            # Merge GPS and video data
-            df_gps['GPS_DT'] = pd.to_datetime(df_gps['GPS_DT'])
-            df_video['START'] = pd.to_datetime(df_video['START'])
-
-            # Merge to assign offset
-            df_vid_x = df_video.merge(
-                df_gps[['FlightID', 'GPS_DT']],
-                on='FlightID',
-                how='left'
-            )
-
-            # Calculate offset
-            df_vid_x['offset'] = df_vid_x['GPS_DT'] - df_vid_x['START']
-
-            # Correct time by adding offset
-            df_vid_x['CorrStart'] = df_vid_x['START'] + df_vid_x['offset']
-            df_vid_x['CorrEnd'] = df_vid_x['MT.DT'] + df_vid_x['offset']
-
-            # Handle missing flights
-            missing_flights = df_vid_x[df_vid_x['CorrStart'].isna()]['FlightID'].tolist()
-            if missing_flights:
-                message = f"These flights were skipped because they were not in the GPS time csv: {missing_flights}"
-                print(message)
-
-            # Filter out invalid rows
-            df_vid_x = df_vid_x.dropna(subset=['CorrStart'])
-
-            # Explode dataframe to one row per second
-            df_vid_x['CorrDT'] = df_vid_x.apply(
-                lambda row: pd.date_range(start=row['CorrStart'], end=row['CorrEnd'], freq="S"),
-                axis=1
-            )
-            df_exploded = df_vid_x.explode('CorrDT')
-
-            # Compute video time relative to the start
-            df_exploded['VideoTime'] = df_exploded['CorrDT'] - df_exploded['CorrStart']
-
-            # Merge with LiDAR data using time window
-            df_lidar['CorrDT'] = pd.to_datetime(df_lidar['CorrDT'])
-
-            if time_window > 0:
-                # Sort values for merge_asof
-                df_exploded = df_exploded.sort_values('CorrDT')
-                df_lidar = df_lidar.sort_values('CorrDT')
-
-                df_lidarmerge = pd.merge_asof(
-                    df_exploded,
-                    df_lidar[['CorrDT', 'Laser_Alt']],
-                    on="CorrDT",
-                    tolerance=pd.Timedelta(seconds=time_window),
-                    direction="nearest"
-                )
-            else:
-                df_lidarmerge = df_exploded.merge(
-                    df_lidar[['CorrDT', 'Laser_Alt']],
-                    how='left',
-                    on='CorrDT'
-                )
-
-            # Clean up final output
-            result = df_lidarmerge[['VideoID', 'FlightID', 'VideoTime', 'Laser_Alt']].dropna()
-
-            return JsonResponse(result.to_dict(orient="records"), safe=False)
-
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-
-        finally:
-            for path in video_paths:
-                os.remove(path)
-
-    def _wrangle_video_metadata(self, video_paths, et):
-        """
-        Internal method for extracting video metadata using ExifTool.
-        """
-        df_video = pd.DataFrame()
-        tagnames = []
-
-        # Extract metadata using ExifTool
-        for d in et.get_metadata(video_paths):
-            tempdict = {k: v for k, v in d.items()}
-            tagnames.extend(tempdict.keys())
-            tempdf = pd.DataFrame(data=tempdict, index=[0])
-            df_video = pd.concat([df_video, tempdf]).reset_index(drop=True)
-
-        # Clean up dataframe
-        tagnames = list(set(tagnames))
-
-        name_tag = next((x for x in tagnames if 'File:FileName' in x), None)
-        duration_tag = next((x for x in tagnames if 'TrackDuration' in x or 'Duration' in x), None)
-        date_tag = next((x for x in tagnames if 'CreateDate' in x or 'ModifyDate' in x), None)
-
-        if not name_tag or not duration_tag or not date_tag:
-            raise ValueError("Required EXIF tags not found in video metadata.")
-
-        df_video = df_video.rename(columns={
-            name_tag: 'MOV',
-            duration_tag: 'DUR_S',
-            date_tag: 'MT'
-        })
-
-        # Clean up data
-        df_video['VideoID'] = df_video['MOV'].str.replace('.MOV', '')
-
-        # Convert duration to timedelta
-        df_video['DUR.TD'] = pd.to_timedelta(df_video['DUR_S'], unit='s')
-
-        # Convert modify time to datetime
-        df_video['MT.DT'] = pd.to_datetime(df_video['MT'], format="%Y:%m:%d %H:%M:%S", errors="coerce")
-
-        # Calculate video start time
-        df_video['START'] = df_video['MT.DT'] - df_video['DUR.TD']
-
-        # Handle flight ID parsing
-        flight_ixs = json.loads(self.request.body).get("flight_ixs", [])
-        delimiter = json.loads(self.request.body).get("delimiter", "_")
-
-        if flight_ixs:
-            df_video['FlightID'] = [
-                delimiter.join(x.split(delimiter)[i] for i in flight_ixs)
-                for x in df_video['MOV']
-            ]
-
-        return df_video
+    
 
     def lidar_image(self, request):
         """
@@ -716,98 +681,6 @@ class CollatriX(View):
             return df_images
         finally:
             et.terminate()
-
-    def lidar_match(self, request):
-        """
-        Match image data with LiDAR data using timestamps and video IDs.
-        """
-        data = json.loads(request.body)
-        image_data = data.get("images", [])
-        lidar_data = data.get("lidar", [])
-        time_window = float(data.get("time_window", 5))
-        delimiter = data.get("delimiter", "_")
-        video_ixs = data.get("video_ixs", [])
-
-        if not image_data or not lidar_data:
-            return JsonResponse({"error": "Image and LiDAR data are required"}, status=400)
-
-        try:
-            # Load data into dataframes
-            df_images = pd.DataFrame(image_data)
-            df_lidar = pd.DataFrame(lidar_data)
-
-            # Step 1: Extract time from image names if not already provided
-            if "VideoTime" not in df_images:
-                df_images["VideoTime"] = df_images["Image"].apply(
-                    lambda x: extract_time_from_filename(x, delimiter, video_ixs)
-                )
-
-            df_images["VideoTime"] = pd.to_datetime(df_images["VideoTime"], format="%H:%M:%S").dt.time
-
-            # Step 2: Generate VideoID from file names if missing
-            if "VideoID" not in df_images:
-                df_images["VideoID"] = df_images["Image"].apply(
-                    lambda x: generate_video_id(x, delimiter, video_ixs)
-                )
-
-            # Step 3: Process LiDAR data
-            df_lidar["VideoTime"] = pd.to_datetime(
-                df_lidar["VideoTime"], format="%H:%M:%S", errors="coerce"
-            ).dt.time
-
-            df_lidar = df_lidar.dropna(subset=["Laser_Alt"])  # Remove invalid LiDAR data
-
-            if time_window > 0:
-                # Convert time to seconds for merge_asof
-                df_images["ImgTime_s"] = df_images["VideoTime"].apply(
-                    lambda t: t.hour * 3600 + t.minute * 60 + t.second
-                )
-                df_lidar["LidarTime_s"] = df_lidar["VideoTime"].apply(
-                    lambda t: t.hour * 3600 + t.minute * 60 + t.second
-                )
-
-                # Create timestamp for merge_asof
-                df_images["MergeTime"] = pd.to_datetime(df_images["VideoTime"], format="%H:%M:%S")
-                df_lidar["MergeTime"] = pd.to_datetime(df_lidar["VideoTime"], format="%H:%M:%S")
-
-                # Sort for merge_asof
-                df_images = df_images.sort_values(by="MergeTime")
-                df_lidar = df_lidar.sort_values(by="MergeTime")
-
-                # Merge with time window tolerance
-                df_lidarmerge = pd.merge_asof(
-                    df_images,
-                    df_lidar[["VideoID", "VideoTime", "LidarTime_s", "MergeTime", "Laser_Alt"]],
-                    on="MergeTime",
-                    by="VideoID",
-                    tolerance=pd.Timedelta(seconds=time_window),
-                    direction="nearest",
-                    suffixes=("_image", "_lidar")
-                )
-
-                # Calculate time difference in seconds
-                df_lidarmerge["timediff_sec"] = (
-                    df_lidarmerge["ImgTime_s"] - df_lidarmerge["LidarTime_s"]
-                )
-
-                df_lidarmerge = df_lidarmerge.drop(
-                    columns=["ImgTime_s", "LidarTime_s", "MergeTime"]
-                )
-            else:
-                # Direct merge without time tolerance
-                df_lidarmerge = df_images.merge(
-                    df_lidar[["VideoID", "VideoTime", "Laser_Alt"]],
-                    how="left",
-                    on=["VideoID", "VideoTime"]
-                )
-
-            # Clean final output
-            result = df_lidarmerge[["Image", "VideoID", "VideoTime", "Laser_Alt"]].dropna()
-
-            return JsonResponse(result.to_dict(orient="records"), safe=False)
-
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
 
     def collate_morphometrix(self, request):
         """
