@@ -39,7 +39,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
         sensor_width: parseFloat(formData.sensorWidth)
       };
 
-      const response = await fetch("/collatrix/compute_pixel_dimension/", {
+      const response = await fetch("/api/collatrix/compute_pixel_dimension/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
