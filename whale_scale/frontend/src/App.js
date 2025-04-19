@@ -34,6 +34,7 @@ export default function App() {
   const [bodyConditionData, setBodyConditionData] = useState(null)
   const [backendResult, setBackendResult] = useState(null)
   const [backendMessage, setBackendMessage] = useState("")
+  const [pixelDimension, setPixelDimension] = useState(null)
 
   // Handle real-time input changes from Sidebar
   const handleInputChange = (name, value) => {
@@ -106,6 +107,10 @@ export default function App() {
     // We already have updated formData from input changes, 
     // but this ensures consistency
     setFormData(dataFromSidebar)
+
+    if (dataFromSidebar.pixelDimension) {
+      setPixelDimension(dataFromSidebar.pixelDimension)
+    }
     
     // No need to set width segments here as it's already set via handleInputChange
     // But we'll keep it for safety
@@ -318,9 +323,10 @@ export default function App() {
           metadata={metadata}
           segmentColor={formData.segmentColor}
           crosshairSize={parseInt(formData.crosshairSize) || 10}
+          pixelDimension={pixelDimension}
         />
         {backendMessage && (
-          <p style={{ textAlign: "center", color: "white", fontWeight: "bold", marginTop: "10px" }}>{backendMessage}</p>
+          <p style={{ textAlign: "center", color: "black", fontWeight: "bold", marginTop: "10px" }}>{backendMessage}</p>
         )}
 
         {rulerData && (
@@ -348,6 +354,7 @@ export default function App() {
           areaData={areaData}
           angleData={angleData}
           bodyConditionData={bodyConditionData}
+          pixelDimension={pixelDimension}
         />
       </div>
     </div>
