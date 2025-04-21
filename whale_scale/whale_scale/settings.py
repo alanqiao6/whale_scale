@@ -30,7 +30,7 @@ ALLOWED_HOSTS = os.environ.get(f'{ENV.upper()}_ALLOWED_HOSTS', 'localhost').spli
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure1234')
 
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
-STATIC_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Fixed: Changed from duplicate STATIC_ROOT
 
 # Application definition
 
@@ -42,9 +42,12 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "main",
+    "accounts",  # Add this for authentication
+    "corsheaders",  # Add this if you want to use CORS
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',  # This must be first
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -131,6 +134,13 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 CORS_ALLOWED_ORIGINS = [ "http://localhost:3000", ]
+CORS_ALLOW_CREDENTIALS = True  # Important for cookies/session auth
+
+# Authentication settings
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/accounts/login/'
+LOGIN_URL = '/accounts/login/'
+SESSION_COOKIE_AGE = 3600
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024
