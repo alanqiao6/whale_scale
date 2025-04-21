@@ -50,9 +50,22 @@ def signup_api(request):
         return JsonResponse({'error': 'Invalid request'}, status=400)
 
 @require_http_methods(["POST"])
+@csrf_exempt  # For development only - in production use proper CSRF tokens
 def logout_api(request):
     logout(request)
-    return JsonResponse({'message': 'Logged out successfully'})
+    # Clear the entire session
+    request.session.flush()
+    # Create response with additional security measures
+    response = JsonResponse({'message': 'Logged out successfully'})
+    # Delete the session cookie
+    response.delete_cookie('sessionid', path='/')
+    # Delete the CSRF cookie if it exists
+    response.delete_cookie('csrftoken', path='/')
+    # Set the response headers to prevent caching
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    return response
 
 @require_http_methods(["GET"])
 def check_auth(request):

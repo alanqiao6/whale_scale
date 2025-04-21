@@ -28,11 +28,25 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
 
   const handleLogout = async () => {
     try {
-      await fetch('http://localhost:8000/accounts/api/logout/', {
+      const response = await fetch('http://localhost:8000/accounts/api/logout/', {
         method: 'POST',
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
       })
-      setUser(null)
+      
+      if (response.ok) {
+        // Clear user state immediately
+        setUser(null)
+        // Clear any frontend storage
+        localStorage.clear()
+        sessionStorage.clear()
+        // Force a page reload to fully clear any cached data
+        window.location.reload()
+      } else {
+        console.error('Logout failed: Server responded with error')
+      }
     } catch (error) {
       console.error('Logout failed:', error)
     }
