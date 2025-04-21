@@ -8,6 +8,8 @@ import json
 
 @require_http_methods(["POST"])
 def login_api(request):
+    if request.content_type != 'application/json':
+        return JsonResponse({'error': 'Content-Type must be application/json'}, status=415)
     try:
         data = json.loads(request.body)
         username = data.get('username')
@@ -17,14 +19,17 @@ def login_api(request):
         
         if user is not None:
             login(request, user)
-            return JsonResponse({
+            response = JsonResponse({
                 'id': user.id,
                 'username': user.username,
             })
+            return response
         else:
             return JsonResponse({'error': 'Invalid credentials'}, status=401)
-    except:
-        return JsonResponse({'error': 'Invalid request'}, status=400)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': f'Server error: {str(e)}'}, status=500)
 
 @require_http_methods(["POST"])
 def signup_api(request):
