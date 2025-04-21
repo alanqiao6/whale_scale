@@ -2,20 +2,19 @@
 import "./TopBar.css"
 import React, { useState, useEffect } from "react"
 import AuthModal from './AuthModal'
-import config from './config'
-import { getCSRFToken } from './csrfUtils'
 
 export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveTool }) {
   const [user, setUser] = useState(null)
   const [showAuthModal, setShowAuthModal] = useState(false)
 
+  // Check if user is logged in on component mount
   useEffect(() => {
     checkAuth()
   }, [])
 
   const checkAuth = async () => {
     try {
-      const response = await fetch(config.endpoints.checkAuth, {
+      const response = await fetch('http://localhost:8000/accounts/api/user/', {
         credentials: 'include'
       })
       if (response.ok) {
@@ -29,20 +28,21 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
 
   const handleLogout = async () => {
     try {
-      const csrfToken = getCSRFToken()
-      const response = await fetch(config.endpoints.logout, {
+      const response = await fetch('http://localhost:8000/accounts/api/logout/', {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRFToken': csrfToken
         }
       })
       
       if (response.ok) {
+        // Clear user state immediately
         setUser(null)
+        // Clear any frontend storage
         localStorage.clear()
         sessionStorage.clear()
+        // Force a page reload to fully clear any cached data
         window.location.reload()
       } else {
         console.error('Logout failed: Server responded with error')

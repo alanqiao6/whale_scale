@@ -1,38 +1,22 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import './AuthModal.css'
-import config from './config'
-import { getCSRFToken } from './csrfUtils'
 
 const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
   const [isLogin, setIsLogin] = useState(true)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const [csrfLoaded, setCsrfLoaded] = useState(false)
-
-  useEffect(() => {
-    // Get CSRF token when modal opens
-    if (isOpen && !csrfLoaded) {
-      fetch(`${config.API_URL}/accounts/api/csrf/`, {
-        credentials: 'include'
-      })
-      .then(() => setCsrfLoaded(true))
-      .catch(err => console.error('Failed to fetch CSRF token:', err))
-    }
-  }, [isOpen, csrfLoaded])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
 
     try {
-      const csrfToken = getCSRFToken()
-      const url = isLogin ? config.endpoints.login : config.endpoints.signup
-      const response = await fetch(url, {
+      const url = isLogin ? '/accounts/api/login/' : '/accounts/api/signup/'
+      const response = await fetch(`http://localhost:8000${url}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRFToken': csrfToken
         },
         credentials: 'include',
         body: JSON.stringify({ username, password })

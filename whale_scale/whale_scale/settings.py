@@ -11,27 +11,29 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+
 import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Environment setting (prod or dev)
-ENV = os.environ.get('ENVIRONMENT', 'dev')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure1234')
+ENV = os.environ.get('ENVIRONMENT', 'dev')  # 'prod' or 'dev'
 
-# Debug setting based on environment
 DEBUG = os.environ.get(f'{ENV.upper()}_DEBUG', 'True') == 'True'
 
-# Allowed hosts based on environment
 ALLOWED_HOSTS = os.environ.get(f'{ENV.upper()}_ALLOWED_HOSTS', 'localhost').split(',')
 
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure1234')
+
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Fixed: Changed from duplicate STATIC_ROOT
+
 # Application definition
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -40,12 +42,12 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "main",
-    "accounts",
-    "corsheaders",
+    "accounts",  # Add this for authentication
+    "corsheaders",  # Add this if you want to use CORS
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # Must be first
+    'corsheaders.middleware.CorsMiddleware',  # This must be first
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -75,6 +77,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "whale_scale.wsgi.application"
 
+
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 DATABASES = {
@@ -88,8 +91,10 @@ DATABASES = {
     }
 }
 
+
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
+
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
@@ -105,54 +110,52 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
+
 LANGUAGE_CODE = "en-us"
+
 TIME_ZONE = "UTC"
+
 USE_I18N = True
+
 USE_TZ = True
+
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
+
 STATIC_URL = "static/"
-STATIC_ROOT = os.path.join(BASE_DIR, 'static')
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-MEDIA_URL = '/media/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# CORS and CSRF settings for hosted environments only
 CORS_ALLOWED_ORIGINS = [
-    "https://whale-scale.colab.duke.edu",
-    "https://dev-whale-scale.colab.duke.edu",
+    "http://localhost:3000",
 ]
+CORS_ALLOW_CREDENTIALS = True  # Important for cookies/session auth
 
+# Add this section to fix the CSRF issue
 CSRF_TRUSTED_ORIGINS = [
-    'https://whale-scale.colab.duke.edu',
-    'https://dev-whale-scale.colab.duke.edu',
+    'http://localhost:3000',
 ]
 
-# Security settings for HTTPS environments
-SESSION_COOKIE_SECURE = True  # Must be True for HTTPS
-SESSION_COOKIE_DOMAIN = '.colab.duke.edu'  # Allow cookies across subdomains
-CSRF_COOKIE_SECURE = True  # Secure CSRF cookies in production
-
-# Other session settings remain the same
-CORS_ALLOW_CREDENTIALS = True
-SESSION_COOKIE_AGE = 3600
-SESSION_EXPIRE_AT_BROWSER_CLOSE = True
-SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = 'Lax'
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-SESSION_COOKIE_PATH = '/'
+# Session settings
+SESSION_COOKIE_AGE = 3600  # 1 hour (you can keep this as is)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Add this to ensure session expires when browser closes
+SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
+SESSION_COOKIE_HTTPONLY = True  # Add this to prevent JavaScript access to session cookie
+SESSION_COOKIE_SAMESITE = 'Lax'  # Add this for security
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Use database-backed sessions
+SESSION_COOKIE_PATH = '/'  # Add this to ensure the cookie applies to all paths
 
 # Authentication settings
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 LOGIN_URL = '/accounts/login/'
 
-# File upload settings
-DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024  # 100 MB
-FILE_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024  # 100 MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024
