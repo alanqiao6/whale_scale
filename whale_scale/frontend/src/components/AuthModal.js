@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'  // Add useEffect import
+import React, { useState, useEffect } from 'react'
 import './AuthModal.css'
 
 // Utility function to get CSRF token from cookies
@@ -17,8 +17,8 @@ function getCookie(name) {
   return cookieValue;
 }
 
-// Use the correct base URL
-const API_BASE_URL = 'https://dev-whale-scale.colab.duke.edu';
+// Use window.location.origin to determine the base URL dynamically
+const API_BASE_URL = window.location.origin;
 
 const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
   const [isLogin, setIsLogin] = useState(true)
@@ -53,7 +53,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
     setIsSubmitting(true)
 
     try {
-      const csrftoken = getCookie('dev_csrftoken') || getCookie('csrftoken');  // Try both cookie names
+      const csrftoken = getCookie('dev_csrftoken') || getCookie('prod_csrftoken') || getCookie('csrftoken');  // Try all possible cookie names
       const url = isLogin ? '/accounts/api/login/' : '/accounts/api/signup/'
       
       console.log('Making auth request to:', `${API_BASE_URL}${url}`);

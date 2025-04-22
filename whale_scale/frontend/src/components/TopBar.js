@@ -20,8 +20,8 @@ function getCookie(name) {
   return cookieValue;
 }
 
-// Use the correct base URL matching your Django server
-const API_BASE_URL = 'https://dev-whale-scale.colab.duke.edu';
+// Use window.location.origin to determine the base URL dynamically
+const API_BASE_URL = window.location.origin;
 
 export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveTool }) {
   const [user, setUser] = useState(null)
@@ -29,6 +29,21 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
 
   useEffect(() => {
     checkAuth()
+    
+    // Add this function to fetch CSRF token when component mounts
+    const fetchCsrfToken = async () => {
+      try {
+        await fetch(`${API_BASE_URL}/accounts/api/csrf/`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+        console.log('CSRF token cookie requested in TopBar');
+      } catch (error) {
+        console.error('Error fetching CSRF token:', error);
+      }
+    };
+    
+    fetchCsrfToken();
   }, [])
 
   const checkAuth = async () => {
@@ -57,7 +72,8 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
 
   const handleLogout = async () => {
     try {
-      const csrftoken = getCookie('csrftoken');
+      // Try both possible cookie names (dev and standard)
+      const csrftoken = getCookie('dev_csrftoken') || getCookie('prod_csrftoken') || getCookie('csrftoken');
       console.log('Logging out at:', `${API_BASE_URL}/accounts/api/logout/`);
       console.log('CSRF Token:', csrftoken); // For debugging
       
@@ -85,6 +101,7 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
 
   return (
     <div className="top-bar">
+      {/* Rest of your component remains the same */}
       <div className="tabs">
         <button className={`tab ${activeTab === "measure" ? "active" : ""}`} onClick={() => setActiveTab("measure")}>
           Measure
