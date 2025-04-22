@@ -1,6 +1,8 @@
 "use client"
+
 import "./TopBar.css"
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react"
+import AuthModal from './AuthModal'
 
 // Utility function to get CSRF token from cookies
 function getCookie(name) {
@@ -25,7 +27,6 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
   const [user, setUser] = useState(null)
   const [showAuthModal, setShowAuthModal] = useState(false)
 
-  // Check if user is logged in on component mount
   useEffect(() => {
     checkAuth()
   }, [])
@@ -47,7 +48,6 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
   const handleLogout = async () => {
     try {
       const csrftoken = getCookie('csrftoken');
-      
       const response = await fetch(`${API_BASE_URL}/accounts/api/logout/`, {
         method: 'POST',
         credentials: 'include',
@@ -56,14 +56,10 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
           'X-CSRFToken': csrftoken,
         }
       })
-      
       if (response.ok) {
-        // Clear user state immediately
         setUser(null)
-        // Clear any frontend storage
         localStorage.clear()
         sessionStorage.clear()
-        // Force a page reload to fully clear any cached data
         window.location.reload()
       } else {
         console.error('Logout failed: Server responded with error')
@@ -86,43 +82,65 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
           Xcertainty
         </button>
       </div>
-      <div className="tools">
-        <button
-          className={`tool-button ${activeTool === "ruler" ? "active" : ""}`}
-          onClick={() => setActiveTool(activeTool === "ruler" ? null : "ruler")}
-          title="Measure Length"
-        >
-          📏
-        </button>
-        <button
-          className={`tool-button ${activeTool === "angle" ? "active" : ""}`}
-          onClick={() => setActiveTool(activeTool === "angle" ? null : "angle")}
-          title="Measure Angle"
-        >
-          📐
-        </button>
-        <button className="tool-button" title="Comment">
-          🗨️
-        </button>
-        <button
-        className={`tool-button ${activeTool === "pencil" ? "active" : ""}`}
-        onClick={() => setActiveTool(activeTool === "pencil" ? null : "pencil")}
-        title="Draw"
-      >
-        ✏️
-      </button>
-        <button
-          className={`tool-button ${activeTool === "area" ? "active" : ""}`}
-          onClick={() => setActiveTool(activeTool === "area" ? null : "area")}
-          title="Measure Area"
-        >
-          🔲
-        </button>
-        <button className="tool-button" title="Help">
-          ❓
-        </button>
+
+      <div className="right-section">
+        <div className="tools">
+          <button
+            className={`tool-button ${activeTool === "ruler" ? "active" : ""}`}
+            onClick={() => setActiveTool(activeTool === "ruler" ? null : "ruler")}
+            title="Measure Length"
+          >
+            📏
+          </button>
+          <button
+            className={`tool-button ${activeTool === "angle" ? "active" : ""}`}
+            onClick={() => setActiveTool(activeTool === "angle" ? null : "angle")}
+            title="Measure Angle"
+          >
+            📐
+          </button>
+          <button className="tool-button" title="Comment">🗨️</button>
+          <button
+            className={`tool-button ${activeTool === "pencil" ? "active" : ""}`}
+            onClick={() => setActiveTool(activeTool === "pencil" ? null : "pencil")}
+            title="Draw"
+          >
+            ✏️
+          </button>
+          <button
+            className={`tool-button ${activeTool === "area" ? "active" : ""}`}
+            onClick={() => setActiveTool(activeTool === "area" ? null : "area")}
+            title="Measure Area"
+          >
+            🔲
+          </button>
+          <button className="tool-button" title="Help">❓</button>
+        </div>
+
+        <div className="auth-section">
+          {user ? (
+            <div className="user-info">
+              <span className="username">Hi, {user.username}</span>
+              <button className="logout-button" onClick={handleLogout}>
+                Logout
+              </button>
+            </div>
+          ) : (
+            <button className="login-button" onClick={() => setShowAuthModal(true)}>
+              Login
+            </button>
+          )}
+        </div>
       </div>
+
+      <AuthModal 
+        isOpen={showAuthModal} 
+        onClose={() => setShowAuthModal(false)}
+        onAuthSuccess={(userData) => {
+          setUser(userData)
+          setShowAuthModal(false)
+        }}
+      />
     </div>
   )
 }
-
