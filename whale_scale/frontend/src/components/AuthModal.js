@@ -17,7 +17,7 @@ function getCookie(name) {
   return cookieValue;
 }
 
-// Use the correct base URL - this should match your Django server
+// Use the correct base URL
 const API_BASE_URL = 'https://dev-whale-scale.colab.duke.edu';
 
 const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
@@ -25,17 +25,23 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    setIsSubmitting(true)
 
     try {
       const csrftoken = getCookie('csrftoken');
       const url = isLogin ? '/accounts/api/login/' : '/accounts/api/signup/'
       
       console.log('Making auth request to:', `${API_BASE_URL}${url}`);
-      console.log('CSRF Token:', csrftoken); // For debugging
+      console.log('CSRF Token:', csrftoken);
+      
+      // Log the request payload for debugging
+      const payload = { username, password };
+      console.log('Request payload:', JSON.stringify(payload));
       
       const response = await fetch(`${API_BASE_URL}${url}`, {
         method: 'POST',
@@ -44,32 +50,40 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
           'X-CSRFToken': csrftoken,
         },
         credentials: 'include',
-        body: JSON.stringify({ username, password })
-      })
+        body: JSON.stringify(payload)
+      });
+      
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries([...response.headers]));
 
-      // Handle non-JSON responses
+      // Try to parse response as JSON
+      let data;
       const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
+      
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+        console.log('Response data:', data);
+      } else {
         const textResponse = await response.text();
         console.error('Non-JSON response:', textResponse);
-        throw new Error('Server responded with non-JSON content');
+        throw new Error(`Server responded with non-JSON content (${response.status})`);
       }
-
-      const data = await response.json()
 
       if (response.ok) {
-        onAuthSuccess(data)
-        onClose()
+        onAuthSuccess(data);
+        onClose();
       } else {
-        setError(data.error || 'An error occurred')
+        setError(data.error || `Request failed with status ${response.status}`);
       }
     } catch (err) {
-      setError('Failed to connect to server: ' + err.message)
-      console.error('Auth error:', err)
+      console.error('Auth error:', err);
+      setError(`Failed to connect to server: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   return (
     <div className="auth-modal-overlay">
@@ -121,8 +135,9 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
           <button
             type="submit"
             className="auth-modal-submit"
+            disabled={isSubmitting}
           >
-            {isLogin ? 'Login' : 'Create Account'}
+            {isSubmitting ? 'Processing...' : (isLogin ? 'Login' : 'Create Account')}
           </button>
         </form>
         
