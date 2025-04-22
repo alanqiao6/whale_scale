@@ -19,6 +19,8 @@
     width: 90%;
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
     font-family: sans-serif;
+    max-height: 80vh;
+    overflow-y: auto;
   }
   
   .help-controls {

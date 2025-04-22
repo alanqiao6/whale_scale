@@ -1,16 +1,52 @@
 // HelpModal.js
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import "./HelpModal.css"
 
-export default function HelpModal({ isOpen, onClose, mode = "docs" }) {
+export default function HelpModal({ isOpen, onClose, mode = "docs", setHelpMode }) {
+  const [step, setStep] = useState(0)
+  const [internalIsOpen, setInternalIsOpen] = useState(isOpen)
+  const [showSidebarDetails, setShowSidebarDetails] = useState(false)
+
+  useEffect(() => {
+    if (mode === "onboarding") {
+      setInternalIsOpen(true)
+    } else {
+      setInternalIsOpen(isOpen)
+    }
+  }, [isOpen, mode])
+
+  if (!internalIsOpen) return null
+
   const steps = [
     {
       title: "📄 Upload an Image",
-      text: "Click the 'Add Image' button on the sidebar to upload your image.",
+      text: "Click the 'Add Image' button on the sidebar/cartoon whale or upload a file directly to the cartoon whale to upload your image.",
     },
     {
-      title: "🔧 Set Width Segments",
-      text: "Adjust the '# Width Segments' in the sidebar to control measurement resolution.",
+      title: "🔧 Set Width Segments + Fill in Sidebar",
+      text: (
+        <>
+          Once a picture is uploaded, the sidebar should automatically update with metadata pulled from the image. Check each field and update if any values look wrong or are missing.<br /><br />
+          <strong>Adjust <code># Width Segments</code></strong> to control how many cross-section measurements are generated along the spine.<br /><br />
+          <button className="collapsible-toggle" onClick={() => setShowSidebarDetails(prev => !prev)}>
+            {showSidebarDetails ? "Hide Sidebar Field Definitions" : "Show Sidebar Field Definitions"}
+          </button>
+          {showSidebarDetails && (
+            <ul style={{ paddingLeft: "20px" }}>
+              <li><strong>Altitude</strong>: Drone height when the image was taken (in meters).</li>
+              <li><strong>Altitude Offset</strong>: Manual adjustment added to altitude for calibration.</li>
+              <li><strong>Image Width</strong>: Width of the image in pixels.</li>
+              <li><strong>Image Height</strong>: Height of the image in pixels.</li>
+              <li><strong>Focal Length</strong>: Camera lens focal length (in mm).</li>
+              <li><strong>Field of View</strong>: Camera field of view angle (in degrees).</li>
+              <li><strong>Sensor Width</strong>: Physical width of the camera’s sensor (in mm).</li>
+              <li><strong># Width Segments</strong>: Number of evenly spaced width cross-sections generated along the whale's spine.</li>
+              <li><strong>Crosshair Size</strong>: Pixel diameter of crosshairs used to mark width points.</li>
+              <li><strong>Crosshair Opacity</strong>: Transparency level of the crosshairs on the image.</li>
+            </ul>
+          )}
+        </>
+      )
     },
     {
       title: "📏 Use the Ruler Tool",
@@ -26,20 +62,16 @@ export default function HelpModal({ isOpen, onClose, mode = "docs" }) {
     },
   ]
 
-  const [step, setStep] = useState(0)
-
-  if (!isOpen) return null
-
   return (
     <div className="help-modal-overlay">
       <div className="help-modal">
         {mode === "onboarding" ? (
           <>
             <h2>{steps[step].title}</h2>
-            <p>{steps[step].text}</p>
+            <div className="help-step-text">{steps[step].text}</div>
             <div className="help-controls">
               <button disabled={step === 0} onClick={() => setStep(s => s - 1)}>← Back</button>
-              <button onClick={onClose}>Close</button>
+              <button onClick={() => setInternalIsOpen(false)}>Close</button>
               <button disabled={step === steps.length - 1} onClick={() => setStep(s => s + 1)}>Next →</button>
             </div>
           </>
@@ -48,10 +80,14 @@ export default function HelpModal({ isOpen, onClose, mode = "docs" }) {
             <h2>📘 How to Use WhaleScale</h2>
             <ul className="help-list">
               {steps.map((s, idx) => (
-                <li key={idx}><strong>{s.title}</strong>: {s.text}</li>
+                <li key={idx}><strong>{s.title}</strong>: <div className="help-step-text">{s.text}</div></li>
               ))}
             </ul>
             <div className="help-controls">
+              {setHelpMode && <button onClick={() => {
+                setHelpMode("onboarding")
+                onClose()
+              }}>Restart Tutorial</button>}
               <button onClick={onClose}>Close</button>
             </div>
           </>
