@@ -50,9 +50,8 @@ deploy-dev:
     - |
       ssh -o StrictHostKeyChecking=no -i gitlab_vcm $VCM_USER_DEV@$VCM_IP_DEV "
       cd /home/vcm/APP_WHALESCALE && 
-      git fetch &&
-      git checkout dev && 
-      git pull origin dev && 
+      git fetch origin && 
+      git reset --hard origin/dev && 
       export POSTGRES_DB='$POSTGRES_DB' &&
       export POSTGRES_USER='$POSTGRES_USER' &&
       export POSTGRES_PASSWORD='$POSTGRES_PASSWORD' &&
