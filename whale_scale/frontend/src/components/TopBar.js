@@ -3,6 +3,8 @@
 import "./TopBar.css"
 import React, { useState, useEffect } from "react"
 import AuthModal from './AuthModal'
+import HelpModal from './HelpModal'
+
 
 // Utility function to get CSRF token from cookies
 function getCookie(name) {
@@ -26,6 +28,10 @@ const API_BASE_URL = window.location.origin;
 export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveTool }) {
   const [user, setUser] = useState(null)
   const [showAuthModal, setShowAuthModal] = useState(false)
+  const [showHelp, setShowHelp] = useState(true)
+  const [helpMode, setHelpMode] = useState("onboarding")
+
+
 
   useEffect(() => {
     checkAuth()
@@ -130,7 +136,6 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
           >
             📐
           </button>
-          <button className="tool-button" title="Comment">🗨️</button>
           <button
             className={`tool-button ${activeTool === "pencil" ? "active" : ""}`}
             onClick={() => setActiveTool(activeTool === "pencil" ? null : "pencil")}
@@ -145,7 +150,17 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
           >
             🔲
           </button>
-          <button className="tool-button" title="Help">❓</button>
+          <button 
+            className="tool-button" 
+            title="Help" 
+            onClick={() => {
+              setShowHelp(true)
+              setHelpMode("docs")
+            }}
+          >
+            ❓
+          </button>
+
         </div>
 
         <div className="auth-section">
@@ -172,6 +187,13 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
           setShowAuthModal(false)
         }}
       />
+      <HelpModal 
+        isOpen={showHelp} 
+        onClose={() => setShowHelp(false)} 
+        mode={helpMode}
+        setHelpMode={setHelpMode}
+      />
+
     </div>
   )
 }
