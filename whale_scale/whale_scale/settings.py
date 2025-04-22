@@ -25,12 +25,12 @@ ENV = os.environ.get('ENVIRONMENT', 'dev')  # 'prod' or 'dev'
 
 DEBUG = os.environ.get(f'{ENV.upper()}_DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.environ.get(f'{ENV.upper()}_ALLOWED_HOSTS', 'localhost').split(',')
+ALLOWED_HOSTS = os.environ.get(f'{ENV.upper()}_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure1234')
 
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Fixed: Changed from duplicate STATIC_ROOT
+# MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Fixed: Changed from duplicate STATIC_ROOT
 
 # Application definition
 
