@@ -1,6 +1,5 @@
 "use client"
 import "./TopBar.css"
-import React from "react"
 import React, { useState, useEffect } from 'react';
 
 // Utility function to get CSRF token from cookies
