@@ -7,6 +7,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      
   backend:
     build:
       context: ./whale_scale
@@ -32,6 +33,13 @@ services:
       - db
     expose:
       - "8000"
+    # Add this command to run migrations before starting the server
+    command: >
+      bash -c "
+        python manage.py migrate &&
+        python manage.py collectstatic --noinput &&
+        python manage.py runserver 0.0.0.0:8000
+      "
 
   frontend:
     build:
