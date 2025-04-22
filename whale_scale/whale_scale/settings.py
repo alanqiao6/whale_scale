@@ -147,6 +147,20 @@ CSRF_TRUSTED_ORIGINS = [
     "https://whale-scale.colab.duke.edu",
 ]
 
+# Add environment-specific cookie settings to prevent conflicts
+if ENV == 'dev':
+    SESSION_COOKIE_NAME = 'dev_sessionid'
+    CSRF_COOKIE_NAME = 'dev_csrftoken'
+    if not DEBUG:  # Only set domain in production-like environment
+        CSRF_COOKIE_DOMAIN = 'dev-whale-scale.colab.duke.edu'
+        SESSION_COOKIE_DOMAIN = 'dev-whale-scale.colab.duke.edu'
+else:
+    SESSION_COOKIE_NAME = 'prod_sessionid'
+    CSRF_COOKIE_NAME = 'prod_csrftoken'
+    if not DEBUG:  # Only set domain in production environment
+        CSRF_COOKIE_DOMAIN = 'whale-scale.colab.duke.edu'
+        SESSION_COOKIE_DOMAIN = 'whale-scale.colab.duke.edu'
+
 # Session settings
 SESSION_COOKIE_AGE = 3600  # 1 hour (you can keep this as is)
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Add this to ensure session expires when browser closes

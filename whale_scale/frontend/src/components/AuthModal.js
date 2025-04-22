@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'  // Add useEffect import
 import './AuthModal.css'
 
 // Utility function to get CSRF token from cookies
@@ -26,6 +26,26 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  
+  // Add this new fetchCsrfToken function
+  const fetchCsrfToken = async () => {
+    try {
+      await fetch(`${API_BASE_URL}/accounts/api/csrf/`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      console.log('CSRF token cookie requested');
+    } catch (error) {
+      console.error('Error fetching CSRF token:', error);
+    }
+  };
+  
+  // Add this useEffect hook to fetch CSRF token when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchCsrfToken();
+    }
+  }, [isOpen]);
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -33,7 +53,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
     setIsSubmitting(true)
 
     try {
-      const csrftoken = getCookie('csrftoken');
+      const csrftoken = getCookie('dev_csrftoken') || getCookie('csrftoken');  // Try both cookie names
       const url = isLogin ? '/accounts/api/login/' : '/accounts/api/signup/'
       
       console.log('Making auth request to:', `${API_BASE_URL}${url}`);

@@ -132,3 +132,12 @@ def check_auth(request):
     except Exception as e:
         logger.exception(f"Auth check error: {str(e)}")
         return JsonResponse({'error': 'Server error', 'details': str(e)}, status=500)
+    
+@require_http_methods(["GET"])
+@ensure_csrf_cookie
+def get_csrf_token(request):
+    """
+    Simple view that returns a 200 OK response and sets the CSRF cookie.
+    This endpoint should be called before any POST request that requires CSRF protection.
+    """
+    return JsonResponse({"detail": "CSRF cookie set"})
