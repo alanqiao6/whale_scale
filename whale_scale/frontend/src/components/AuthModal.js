@@ -1,6 +1,25 @@
 import React, { useState } from 'react'
 import './AuthModal.css'
 
+// Utility function to get CSRF token from cookies
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+// Get API base URL from environment or default to localhost
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+
 const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
   const [isLogin, setIsLogin] = useState(true)
   const [username, setUsername] = useState('')
@@ -12,11 +31,14 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
     setError('')
 
     try {
+      const csrftoken = getCookie('csrftoken');
       const url = isLogin ? '/accounts/api/login/' : '/accounts/api/signup/'
-      const response = await fetch(`http://localhost:8000${url}`, {
+      
+      const response = await fetch(`${API_BASE_URL}${url}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-CSRFToken': csrftoken,
         },
         credentials: 'include',
         body: JSON.stringify({ username, password })
@@ -32,6 +54,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
       }
     } catch (err) {
       setError('Failed to connect to server')
+      console.error('Auth error:', err)
     }
   }
 

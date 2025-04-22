@@ -1,14 +1,13 @@
 # whale_scale/accounts/views.py
-
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.models import User
-from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import ensure_csrf_cookie, csrf_protect
 import json
 
 @require_http_methods(["POST"])
-@csrf_exempt  # For development only - in production use proper CSRF tokens
+@csrf_protect  # Use csrf_protect instead of csrf_exempt
 def login_api(request):
     try:
         data = json.loads(request.body)
@@ -25,11 +24,11 @@ def login_api(request):
             })
         else:
             return JsonResponse({'error': 'Invalid credentials'}, status=401)
-    except:
-        return JsonResponse({'error': 'Invalid request'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': 'Invalid request', 'details': str(e)}, status=400)
 
 @require_http_methods(["POST"])
-@csrf_exempt  # For development only - in production use proper CSRF tokens
+@csrf_protect  # Use csrf_protect instead of csrf_exempt
 def signup_api(request):
     try:
         data = json.loads(request.body)
@@ -46,11 +45,11 @@ def signup_api(request):
             'id': user.id,
             'username': user.username,
         })
-    except:
-        return JsonResponse({'error': 'Invalid request'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': 'Invalid request', 'details': str(e)}, status=400)
 
 @require_http_methods(["POST"])
-@csrf_exempt  # For development only - in production use proper CSRF tokens
+@csrf_protect  # Use csrf_protect instead of csrf_exempt
 def logout_api(request):
     logout(request)
     # Clear the entire session
@@ -68,11 +67,12 @@ def logout_api(request):
     return response
 
 @require_http_methods(["GET"])
+@ensure_csrf_cookie  # Add this to set a CSRF cookie
 def check_auth(request):
     if request.user.is_authenticated:
         return JsonResponse({
             'id': request.user.id,
-            'username': request.user.username,
+            'username': request.username,
         })
     else:
         return JsonResponse({'error': 'Not authenticated'}, status=401)

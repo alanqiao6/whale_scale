@@ -3,6 +3,25 @@ import "./TopBar.css"
 import React, { useState, useEffect } from "react"
 import AuthModal from './AuthModal'
 
+// Utility function to get CSRF token from cookies
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+// Get API base URL from environment or default to localhost
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+
 export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveTool }) {
   const [user, setUser] = useState(null)
   const [showAuthModal, setShowAuthModal] = useState(false)
@@ -14,7 +33,7 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
 
   const checkAuth = async () => {
     try {
-      const response = await fetch('http://localhost:8000/accounts/api/user/', {
+      const response = await fetch(`${API_BASE_URL}/accounts/api/user/`, {
         credentials: 'include'
       })
       if (response.ok) {
@@ -28,11 +47,14 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
 
   const handleLogout = async () => {
     try {
-      const response = await fetch('http://localhost:8000/accounts/api/logout/', {
+      const csrftoken = getCookie('csrftoken');
+      
+      const response = await fetch(`${API_BASE_URL}/accounts/api/logout/`, {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
+          'X-CSRFToken': csrftoken,
         }
       })
       

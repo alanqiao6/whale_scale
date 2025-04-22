@@ -135,18 +135,22 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
+    "https://dev-whale-scale.colab.duke.edu",  # Add your production domain
+    "https://whale-scale.colab.duke.edu",
 ]
 CORS_ALLOW_CREDENTIALS = True  # Important for cookies/session auth
 
 # Add this section to fix the CSRF issue
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:3000',
+    "https://dev-whale-scale.colab.duke.edu",  # Add your production domain
+    "https://whale-scale.colab.duke.edu",
 ]
 
 # Session settings
 SESSION_COOKIE_AGE = 3600  # 1 hour (you can keep this as is)
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Add this to ensure session expires when browser closes
-SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
+SESSION_COOKIE_SECURE = True  # Set to True in production with HTTPS
 SESSION_COOKIE_HTTPONLY = True  # Add this to prevent JavaScript access to session cookie
 SESSION_COOKIE_SAMESITE = 'Lax'  # Add this for security
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Use database-backed sessions
