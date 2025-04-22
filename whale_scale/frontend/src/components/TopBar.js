@@ -20,8 +20,8 @@ function getCookie(name) {
   return cookieValue;
 }
 
-// Get API base URL from environment or default to localhost
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+// Use the correct base URL matching your Django server
+const API_BASE_URL = 'https://dev-whale-scale.colab.duke.edu';
 
 export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveTool }) {
   const [user, setUser] = useState(null)
@@ -33,9 +33,19 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
 
   const checkAuth = async () => {
     try {
+      console.log('Checking auth status at:', `${API_BASE_URL}/accounts/api/user/`);
       const response = await fetch(`${API_BASE_URL}/accounts/api/user/`, {
         credentials: 'include'
       })
+      
+      // Handle non-JSON responses
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const textResponse = await response.text();
+        console.error('Non-JSON response:', textResponse);
+        throw new Error('Server responded with non-JSON content');
+      }
+      
       if (response.ok) {
         const data = await response.json()
         setUser(data)
@@ -48,6 +58,9 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
   const handleLogout = async () => {
     try {
       const csrftoken = getCookie('csrftoken');
+      console.log('Logging out at:', `${API_BASE_URL}/accounts/api/logout/`);
+      console.log('CSRF Token:', csrftoken); // For debugging
+      
       const response = await fetch(`${API_BASE_URL}/accounts/api/logout/`, {
         method: 'POST',
         credentials: 'include',
@@ -56,6 +69,7 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
           'X-CSRFToken': csrftoken,
         }
       })
+      
       if (response.ok) {
         setUser(null)
         localStorage.clear()

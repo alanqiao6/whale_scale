@@ -17,8 +17,8 @@ function getCookie(name) {
   return cookieValue;
 }
 
-// Get API base URL from environment or default to localhost
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+// Use the correct base URL - this should match your Django server
+const API_BASE_URL = 'https://dev-whale-scale.colab.duke.edu';
 
 const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
   const [isLogin, setIsLogin] = useState(true)
@@ -34,6 +34,9 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
       const csrftoken = getCookie('csrftoken');
       const url = isLogin ? '/accounts/api/login/' : '/accounts/api/signup/'
       
+      console.log('Making auth request to:', `${API_BASE_URL}${url}`);
+      console.log('CSRF Token:', csrftoken); // For debugging
+      
       const response = await fetch(`${API_BASE_URL}${url}`, {
         method: 'POST',
         headers: {
@@ -44,6 +47,14 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
         body: JSON.stringify({ username, password })
       })
 
+      // Handle non-JSON responses
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const textResponse = await response.text();
+        console.error('Non-JSON response:', textResponse);
+        throw new Error('Server responded with non-JSON content');
+      }
+
       const data = await response.json()
 
       if (response.ok) {
@@ -53,7 +64,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
         setError(data.error || 'An error occurred')
       }
     } catch (err) {
-      setError('Failed to connect to server')
+      setError('Failed to connect to server: ' + err.message)
       console.error('Auth error:', err)
     }
   }
