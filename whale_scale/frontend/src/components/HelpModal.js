@@ -15,6 +15,17 @@ export default function HelpModal({ isOpen, onClose, mode = "docs", setHelpMode 
     }
   }, [isOpen, mode])
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setInternalIsOpen(false)
+      }
+    }
+  
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [])
+
   if (!internalIsOpen) return null
 
   const steps = [

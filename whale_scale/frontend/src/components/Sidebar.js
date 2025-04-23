@@ -31,31 +31,46 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
   const handleSubmit = async () => {
     try {
       setError("");
+  
+      // Validate that an image was uploaded (by checking formData.imageWidth, not metadata)
+      if (!formData.imageWidth || !formData.imageHeight) {
+        setError("⚠️ Please upload an image before submitting.");
+        return;
+      }
+  
+      // Validate width segments
+      if (!formData.widthSegments || isNaN(formData.widthSegments) || parseInt(formData.widthSegments) <= 0) {
+        setError("⚠️ Please enter a valid number of width segments.");
+        return;
+      }
+  
       const payload = {
         altitude: parseFloat(formData.altitude),
         focal_length: parseFloat(formData.focalLength),
-        image_width: parseInt(metadata.image_width || formData.imageWidth),
-        fov: parseFloat(metadata.fov || formData.fov),
+        image_width: parseInt(formData.imageWidth),
+        fov: parseFloat(formData.fov),
         sensor_width: parseFloat(formData.sensorWidth)
       };
-
+  
       const response = await fetch("/api/collatrix/compute_pixel_dimension/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-
+  
       const result = await response.json();
-
+  
       if (response.ok && result.pixel_dimension) {
         onSubmit({ ...formData, pixelDimension: result.pixel_dimension });
       } else {
         throw new Error(result.error || "Failed to compute pixel dimension");
       }
     } catch (err) {
-      setError(err.message);
+      setError(`❌ Error: ${err.message}`);
     }
   };
+  
+  
 
   const renderInput = (label, name, disabled = false) => (
     <div className="input-group">
@@ -102,7 +117,9 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       {renderInput("Sensor Width (mm)", "sensorWidth", mode === "extract")}
 
       <div className="input-group">
-        <label># Width Segments</label>
+      <label>
+        # Width Segments ⚠️
+      </label>
         <input 
           type="number" 
           id="width-segments" 
