@@ -87,18 +87,22 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
 
   const renderInput = (label, name, disabled = false) => (
     <div className="input-group">
-      <label>{label}</label>
+      <label htmlFor={`input-${name}`}>{label}</label>
       <input
         type="number"
+        id={`input-${name}`}
+        name={name}
         value={formData[name]}
         disabled={disabled}
         onChange={(e) => handleChange(name, e.target.value)}
+        aria-describedby={`${name}-help`}
       />
+      <span id={`${name}-help`} className="sr-only">Enter the {label.toLowerCase()}</span>
     </div>
   );
 
   return (
-    <div className="sidebar">
+    <div className="sidebar" role="complementary" aria-label="Configuration controls">
       <div className="upload-section">
         <label className="upload-button" htmlFor="image-upload" tabIndex="0" aria-label="Upload an image" onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -120,22 +124,28 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       {renderInput("Sensor Width (mm)", "sensorWidth", false)}
 
       <div className="input-group">
-      <label>
-        # Width Segments ⚠️
+      <label htmlFor="width-segments">
+        # Width Segments <span aria-hidden="true">⚠️</span>
+        <span className="sr-only">required field</span>
       </label>
         <input 
           type="number" 
           id="width-segments" 
+          name="widthSegments"
           value={formData.widthSegments} 
           onChange={(e) => handleChange("widthSegments", e.target.value)} 
+          aria-required="true"
+          aria-describedby="width-segments-help"
         />
+        <span id="width-segments-help" className="sr-only">Enter the number of width segments. This field is required.</span>
       </div>
 
       <div className="input-group">
-        <label>Crosshair Size</label>
+        <label htmlFor="crosshair-size">Crosshair Size</label>
         <input
           type="range"
           id="crosshair-size"
+          name="crosshairSize"
           min="0"
           max="100"
           value={formData.crosshairSize}
@@ -152,6 +162,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
         <input
           type="color"
           id="crosshair-color"
+          name="crosshairColor"
           value={formData.crosshairColor || "#FF0000"}
           onChange={(e) => handleChange("crosshairColor", e.target.value)}
           className="color-picker"
@@ -165,6 +176,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
         <input
           type="color"
           id="segment-color"
+          name="segmentColor"
           value={formData.segmentColor}
           onChange={(e) => handleChange("segmentColor", e.target.value)}
           className="color-picker"
@@ -173,24 +185,34 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       </div>
 
       {inputConflict && (
-        <p style={{ color: "orange", fontWeight: "bold" }}>
+        <p style={{ color: "orange", fontWeight: "bold" }} role="alert">
           ⚠️ Your input does not match extracted metadata.
         </p>
       )}
 
       {error && (
-        <p style={{ color: "#e52e2e", fontWeight: "bold" }}>
+        <p style={{ color: "#e52e2e", fontWeight: "bold" }} role="alert" aria-live="assertive">
           {error}
         </p>
       )}
 
-      <button className="submit-button" onClick={handleSubmit}>
+      <button 
+        className="submit-button" 
+        onClick={handleSubmit}
+        aria-label="Submit configuration"
+      >
         Submit
       </button>
       <p style={{ fontSize: "0.8em", color: "#555", marginTop: "4px", marginBottom: "12px" }}>
-        ⚠️ required field
+        <span aria-hidden="true">⚠️</span> <span>required field</span>
       </p>
-      <button className="export-button" onClick={handleExport}>Export 📤</button>
+      <button 
+        className="export-button" 
+        onClick={handleExport}
+        aria-label="Export data to CSV"
+      >
+        Export 📤
+      </button>
     </div>
   );
 }

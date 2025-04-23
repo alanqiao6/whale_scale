@@ -47,6 +47,21 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
     }
   }, [isOpen]);
 
+  // Trap focus within the modal when it's open
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Handle Escape key to close modal
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
@@ -106,49 +121,61 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="auth-modal-overlay">
+    <div 
+      className="auth-modal-overlay" 
+      role="dialog" 
+      aria-modal="true" 
+      aria-labelledby="auth-modal-title"
+    >
       <div className="auth-modal-content">
         <button 
           onClick={onClose}
           className="auth-modal-close"
+          aria-label="Close authentication dialog"
         >
-          ✕
+          <span aria-hidden="true">✕</span>
         </button>
         
-        <h2 className="auth-modal-title">
+        <h2 className="auth-modal-title" id="auth-modal-title">
           {isLogin ? 'Login' : 'Create Account'}
         </h2>
         
         {error && (
-          <div className="auth-modal-error">
+          <div className="auth-modal-error" role="alert" aria-live="assertive">
             {error}
           </div>
         )}
         
         <form onSubmit={handleSubmit} className="auth-modal-form">
           <div className="auth-modal-field">
-            <label className="auth-modal-label">
+            <label className="auth-modal-label" htmlFor="auth-username">
               Username
             </label>
             <input
               type="text"
+              id="auth-username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="auth-modal-input"
               required
+              aria-required="true"
+              autoComplete={isLogin ? "username" : "new-username"}
             />
           </div>
           
           <div className="auth-modal-field">
-            <label className="auth-modal-label">
+            <label className="auth-modal-label" htmlFor="auth-password">
               Password
             </label>
             <input
               type="password"
+              id="auth-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="auth-modal-input"
               required
+              aria-required="true"
+              autoComplete={isLogin ? "current-password" : "new-password"}
             />
           </div>
           
@@ -156,6 +183,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
             type="submit"
             className="auth-modal-submit"
             disabled={isSubmitting}
+            aria-busy={isSubmitting}
           >
             {isSubmitting ? 'Processing...' : (isLogin ? 'Login' : 'Create Account')}
           </button>
@@ -166,6 +194,7 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
           <button
             onClick={() => setIsLogin(!isLogin)}
             className="auth-modal-switch-btn"
+            type="button"
           >
             {isLogin ? 'Sign up' : 'Login'}
           </button>
