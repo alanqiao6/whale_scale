@@ -1,5 +1,5 @@
 "use client"
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import Sidebar from "./components/Sidebar"
 import TopBar from "./components/TopBar"
 import ImageViewer from "./components/ImageViewer"
@@ -7,11 +7,33 @@ import Data from "./components/Data"
 import "./App.css"
 import * as exifr from "exifr"
 
+// Utility function to get cookie value
+const getCookie = (name) => {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+};
+
+// Get the session ID from cookies
+const getSessionId = () => {
+  return getCookie('sessionid') || getCookie('dev_sessionid') || getCookie('prod_sessionid');
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("measure")
   const [activeTool, setActiveTool] = useState(null)
   const [image, setImage] = useState(null)
   const [imageFile, setImageFile] = useState(null)
+  const [imageDataUrl, setImageDataUrl] = useState(null) // For storing image as Data URL
   const [metadata, setMetadata] = useState({ focalLength: "", altitude: "" })
   const [formData, setFormData] = useState({
     focalLength: "",
@@ -35,6 +57,123 @@ export default function App() {
   const [backendResult, setBackendResult] = useState(null)
   const [backendMessage, setBackendMessage] = useState("")
   const [pixelDimension, setPixelDimension] = useState(null)
+  const [user, setUser] = useState(null) // Add user state
+
+  // Function to save state to localStorage using session cookie
+  const saveStateToStorage = () => {
+    const sessionId = getSessionId();
+    if (!sessionId) return; // Only save if there's a valid session
+    
+    try {
+      const dataToSave = {
+        formData,
+        metadata,
+        rulerData,
+        manualCurveData,
+        areaData,
+        angleData,
+        bodyConditionData,
+        pixelDimension,
+        imageDataUrl,
+        savedAt: new Date().toISOString(),
+      };
+      
+      localStorage.setItem(`whalescale_data_${sessionId}`, JSON.stringify(dataToSave));
+      console.log("Measurement data saved for session");
+    } catch (err) {
+      console.error("Error saving state to localStorage:", err);
+    }
+  };
+  
+  // Function to load state from localStorage
+  const loadStateFromStorage = () => {
+    const sessionId = getSessionId();
+    if (!sessionId) return false; // No session, no data to load
+    
+    try {
+      const savedData = localStorage.getItem(`whalescale_data_${sessionId}`);
+      if (!savedData) return false;
+      
+      const data = JSON.parse(savedData);
+      console.log("Loaded saved measurement data for session");
+      
+      // Restore state from saved data
+      if (data.formData) setFormData(data.formData);
+      if (data.metadata) setMetadata(data.metadata);
+      if (data.rulerData) setRulerData(data.rulerData);
+      if (data.manualCurveData) setManualCurveData(data.manualCurveData);
+      if (data.areaData) setAreaData(data.areaData);
+      if (data.angleData) setAngleData(data.angleData);
+      if (data.bodyConditionData) setBodyConditionData(data.bodyConditionData);
+      if (data.pixelDimension) setPixelDimension(data.pixelDimension);
+      
+      // Restore image if available
+      if (data.imageDataUrl) {
+        setImageDataUrl(data.imageDataUrl);
+        setImage(data.imageDataUrl);
+      }
+      
+      return true;
+    } catch (err) {
+      console.error("Error loading state from localStorage:", err);
+      return false;
+    }
+  };
+  
+  // Function to clear saved state (when a new image is uploaded)
+  const clearSavedState = () => {
+    const sessionId = getSessionId();
+    if (!sessionId) return;
+    
+    try {
+      localStorage.removeItem(`whalescale_data_${sessionId}`);
+      console.log("Cleared saved measurement data for session");
+    } catch (err) {
+      console.error("Error clearing saved state:", err);
+    }
+  };
+
+  // Check authentication status and load saved data on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch(`${window.location.origin}/accounts/api/user/`, {
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const userData = await response.json();
+          setUser(userData);
+          
+          // Load saved state if available
+          const loaded = loadStateFromStorage();
+          if (!loaded) {
+            console.log("No saved data found for this session");
+          }
+        }
+      } catch (error) {
+        console.error("Auth check failed:", error);
+      }
+    };
+    
+    checkAuth();
+  }, []);
+  
+  // Save state whenever important data changes and we have a session
+  useEffect(() => {
+    if (getSessionId() && (formData || rulerData || manualCurveData || areaData || angleData || bodyConditionData)) {
+      saveStateToStorage();
+    }
+  }, [
+    formData,
+    rulerData,
+    manualCurveData,
+    areaData,
+    angleData,
+    bodyConditionData,
+    pixelDimension,
+    imageDataUrl
+  ]);
 
   // Handle real-time input changes from Sidebar
   const handleInputChange = (name, value) => {
@@ -53,31 +192,40 @@ export default function App() {
     }
   }
 
-
   const handleImageUpload = async (file) => {
     if (file) {
-      const imageUrl = URL.createObjectURL(file)
-      setImage(imageUrl)
-      setImageFile(file)
+      // Clear saved state when a new image is uploaded
+      clearSavedState();
+      
+      const imageUrl = URL.createObjectURL(file);
+      setImage(imageUrl);
+      setImageFile(file);
+      
+      // Also convert the image to a Data URL for storage
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImageDataUrl(e.target.result);
+      };
+      reader.readAsDataURL(file);
 
       // Store image path in formData for CSV export
       setFormData(prev => ({
         ...prev,
         imagePath: file.name
-      }))
+      }));
 
       try {
-        const formData = new FormData()
-        formData.append("image", file)
+        const formData = new FormData();
+        formData.append("image", file);
 
         const response = await fetch("/api/collatrix/extract_metadata/", {
           method: "POST",
           body: formData,
-        })
+        });
 
         if (response.ok) {
-          const backendMetadata = await response.json()
-          console.log("Backend Metadata:", backendMetadata)
+          const backendMetadata = await response.json();
+          console.log("Backend Metadata:", backendMetadata);
 
           const newMetadata = {
             focalLength: backendMetadata.focal_length_mm || "",
@@ -86,54 +234,54 @@ export default function App() {
             imageHeight: backendMetadata.image_height || "",
             fov: backendMetadata.field_of_view_deg || "",
             sensorWidth: backendMetadata.sensor_width || ""
-          }
+          };
 
-          setMetadata(newMetadata)
+          setMetadata(newMetadata);
           
           // Also update these values in formData
           setFormData(prev => ({
             ...prev,
             ...newMetadata
-          }))
+          }));
         } 
       } catch (error) {
-        console.error("Error extracting metadata via backend:", error)
+        console.error("Error extracting metadata via backend:", error);
         // Still try client-side extraction if server throws error
       } 
     }
-  }
+  };
 
-  const [measurementData, setMeasurementData] = useState(null)
+  const [measurementData, setMeasurementData] = useState(null);
 
   const handleMeasurementUpdate = (data) => {
-    setMeasurementData(data)
-  }
+    setMeasurementData(data);
+  };
 
   const handleSubmit = async (dataFromSidebar) => {
     // We already have updated formData from input changes, 
     // but this ensures consistency
-    setFormData(dataFromSidebar)
+    setFormData(dataFromSidebar);
 
     if (dataFromSidebar.pixelDimension) {
-      setPixelDimension(dataFromSidebar.pixelDimension)
+      setPixelDimension(dataFromSidebar.pixelDimension);
     }
     
     // No need to set width segments here as it's already set via handleInputChange
     // But we'll keep it for safety
     if (dataFromSidebar.widthSegments !== formData.widthSegments) {
-      setWidthSegments(Number.parseInt(dataFromSidebar.widthSegments) || null)
+      setWidthSegments(Number.parseInt(dataFromSidebar.widthSegments) || null);
     }
 
     // Update metadata with form data
     setMetadata(prev => ({
       ...prev,
       ...dataFromSidebar
-    }))
+    }));
 
     // Submit measurement to backend
     if (!measurementData || measurementData.points.length < 2) {
-      console.error("Not enough points to submit a measurement.")
-      return
+      console.error("Not enough points to submit a measurement.");
+      return;
     }
 
     try {
@@ -160,28 +308,28 @@ export default function App() {
             ],
           },
         }),
-      })
+      });
 
       if (response.ok) {
-        const result = await response.json()
-        console.log("Line measurement result:", result)
+        const result = await response.json();
+        console.log("Line measurement result:", result);
       } else {
-        console.error("Measurement submission failed:", response.statusText)
+        console.error("Measurement submission failed:", response.statusText);
       }
     } catch (error) {
-      console.error("Error submitting measurement:", error)
+      console.error("Error submitting measurement:", error);
     }
-  }
+  };
 
   const handleBackendResult = (result) => {
-    setBackendResult(result)
+    setBackendResult(result);
 
     if (result.type === "manual_curve") {
       setManualCurveData({
         type: "manual_curve",
         curveLength: result.length,
         curvePoints: result.curvePoints,
-      })
+      });
     } else if (result.type === "ruler") {
       setRulerData({
         type: "ruler",
@@ -189,27 +337,27 @@ export default function App() {
         widthSegments: result.widthSegments ?? [],
         // Use the user-specified number rather than array length
         segments: Number.parseInt(formData.widthSegments) || result.widthSegments?.length || 0,
-      })
+      });
     } else if (result.type === "area") {
       setAreaData({
         type: "area",
         area: result.area,
         polygonPoints: result.polygonPoints,
-      })
+      });
     } else if (result.type === "angle") {
       setAngleData({
         type: "angle",
         angle: result.angle,
         anglePoints: result.anglePoints,
-      })
+      });
     }
-  }
+  };
 
   // Function to handle volume calculations using the ruler data
   const handleVolumeCalculation = async () => {
     if (!rulerData || !metadata.focalLength || !metadata.altitude) {
-      alert("Please complete a ruler measurement and provide focal length and altitude data first.")
-      return
+      alert("Please complete a ruler measurement and provide focal length and altitude data first.");
+      return;
     }
 
     try {
@@ -361,8 +509,9 @@ export default function App() {
           angleData={angleData}
           bodyConditionData={bodyConditionData}
           pixelDimension={pixelDimension}
+          user={user} // Pass user info to Data component
         />
       </div>
     </div>
-  )
+  );
 }
