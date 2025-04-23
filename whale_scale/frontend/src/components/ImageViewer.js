@@ -15,6 +15,7 @@ export default function ImageViewer({
   segmentColor = "#FFFFC5",
   crosshairSize = 10,
   pixelDimension,
+  crosshairColor = "#FF0000",
 }) {
   const canvasRef = useRef(null)
   const [points, setPoints] = useState([])
@@ -502,8 +503,8 @@ export default function ImageViewer({
         const armLength = size * 2;
         const gap = size * 0.4;
     
-        ctx.strokeStyle = "red";
-        ctx.fillStyle = "red";
+        ctx.strokeStyle = crosshairColor;
+        ctx.fillStyle = crosshairColor;
         ctx.lineWidth = size*0.2; // Increase this for thicker lines (try 5 or 6 if needed)
     
         // Outer ring only

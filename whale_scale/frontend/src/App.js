@@ -46,7 +46,8 @@ export default function App() {
     widthSegments: "",
     crosshairSize: 50,
     crosshairOpacity: 100,
-    segmentColor: "#FFFFC5"
+    segmentColor: "#FFFFC5",
+    crosshairColor: "#FF0000"
   })
   const [widthSegments, setWidthSegments] = useState(null)
   const [rulerData, setRulerData] = useState(null)
@@ -349,6 +350,7 @@ export default function App() {
           onBackendResult={handleBackendResult}
           metadata={metadata}
           segmentColor={formData.segmentColor}
+          crosshairColor={formData.crosshairColor}
           crosshairSize={parseInt(formData.crosshairSize) || 10}
           pixelDimension={pixelDimension}
         />

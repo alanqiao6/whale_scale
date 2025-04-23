@@ -46,7 +46,6 @@ export default function HelpModal({ isOpen, onClose, mode = "docs", setHelpMode,
               <li><strong>Sensor Width</strong>: Physical width of the camera’s sensor (in mm).</li>
               <li><strong># Width Segments</strong>: Number of evenly spaced width cross-sections generated along the whale's spine.</li>
               <li><strong>Crosshair Size</strong>: Pixel diameter of crosshairs used to mark width points.</li>
-              <li><strong>Crosshair Opacity</strong>: Transparency level of the crosshairs on the image.</li>
             </ul>
           )}
         </>

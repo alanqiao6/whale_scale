@@ -162,20 +162,17 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       </div>
 
       <div className="input-group">
-        <label htmlFor="crosshair-opacity">Crosshair Opacity</label>
+        <label htmlFor="crosshair-color">Crosshair Color</label>
         <input
-          type="range"
-          id="crosshair-opacity"
-          min="0"
-          max="100"
-          value={formData.crosshairOpacity}
-          onChange={(e) => handleChange("crosshairOpacity", e.target.value)}
-          aria-valuenow={formData.crosshairOpacity}
-          aria-valuemin="0"
-          aria-valuemax="100"
-          aria-label="Adjust crosshair opacity"
+          type="color"
+          id="crosshair-color"
+          value={formData.crosshairColor || "#FF0000"}
+          onChange={(e) => handleChange("crosshairColor", e.target.value)}
+          className="color-picker"
+          aria-label="Select crosshair color"
         />
       </div>
+
 
       <div className="input-group">
         <label htmlFor="segment-color">Segment Color</label>
