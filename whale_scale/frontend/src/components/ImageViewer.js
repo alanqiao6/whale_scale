@@ -45,7 +45,24 @@ export default function ImageViewer({
       canvas.width = canvas.parentElement.clientWidth
       canvas.height = canvas.parentElement.clientHeight
 
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      const imgAspect = img.width / img.height
+      const canvasAspect = canvas.width / canvas.height
+
+      let drawWidth, drawHeight, offsetX, offsetY
+
+      if (imgAspect > canvasAspect) {
+        drawWidth = canvas.width
+        drawHeight = canvas.width / imgAspect
+        offsetX = 0
+        offsetY = (canvas.height - drawHeight) / 2
+      } else {
+        drawHeight = canvas.height
+        drawWidth = canvas.height * imgAspect
+        offsetX = (canvas.width - drawWidth) / 2
+        offsetY = 0
+      }
+
+      ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight)
       setImgObj(img)
     }
     img.src = image
@@ -60,7 +77,24 @@ export default function ImageViewer({
     canvas.height = canvas.parentElement.clientHeight
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.drawImage(imgObj, 0, 0, canvas.width, canvas.height)
+    const imgAspect = imgObj.width / imgObj.height
+    const canvasAspect = canvas.width / canvas.height
+
+    let drawWidth, drawHeight, offsetX, offsetY
+
+    if (imgAspect > canvasAspect) {
+      drawWidth = canvas.width
+      drawHeight = canvas.width / imgAspect
+      offsetX = 0
+      offsetY = (canvas.height - drawHeight) / 2
+    } else {
+      drawHeight = canvas.height
+      drawWidth = canvas.height * imgAspect
+      offsetX = (canvas.width - drawWidth) / 2
+      offsetY = 0
+    }
+
+    ctx.drawImage(imgObj, offsetX, offsetY, drawWidth, drawHeight)
     drawOverlay(ctx)
   }, [points, mainLine, segmentLines, crosshairs, imgObj, manualCurvePoints, polygonPoints, anglePoints, angleLines])
 
@@ -68,7 +102,7 @@ export default function ImageViewer({
     if (imgObj && canvasRef.current) {
       const canvas = canvasRef.current;
       const scale = imgObj.naturalWidth / canvas.width;
-      setImageScale(scale - 0.5);
+      setImageScale(scale);
     }
   }, [imgObj]);
 
