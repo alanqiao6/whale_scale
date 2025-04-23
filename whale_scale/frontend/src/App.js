@@ -36,6 +36,127 @@ export default function App() {
   const [backendMessage, setBackendMessage] = useState("")
   const [pixelDimension, setPixelDimension] = useState(null)
 
+  const [user, setUser] = useState(null) // Add user state
+  const [sidebarSubmitted, setSidebarSubmitted] = useState(false);
+
+
+  // Function to save state to localStorage using session cookie
+  const saveStateToStorage = () => {
+    const sessionId = getSessionId();
+    if (!sessionId) return; // Only save if there's a valid session
+    
+    try {
+      const dataToSave = {
+        formData,
+        metadata,
+        rulerData,
+        manualCurveData,
+        areaData,
+        angleData,
+        bodyConditionData,
+        pixelDimension,
+        imageDataUrl,
+        savedAt: new Date().toISOString(),
+      };
+      
+      localStorage.setItem(`whalescale_data_${sessionId}`, JSON.stringify(dataToSave));
+      console.log("Measurement data saved for session");
+    } catch (err) {
+      console.error("Error saving state to localStorage:", err);
+    }
+  };
+  
+  // Function to load state from localStorage
+  const loadStateFromStorage = () => {
+    const sessionId = getSessionId();
+    if (!sessionId) return false; // No session, no data to load
+    
+    try {
+      const savedData = localStorage.getItem(`whalescale_data_${sessionId}`);
+      if (!savedData) return false;
+      
+      const data = JSON.parse(savedData);
+      console.log("Loaded saved measurement data for session");
+      
+      // Restore state from saved data
+      if (data.formData) setFormData(data.formData);
+      if (data.metadata) setMetadata(data.metadata);
+      if (data.rulerData) setRulerData(data.rulerData);
+      if (data.manualCurveData) setManualCurveData(data.manualCurveData);
+      if (data.areaData) setAreaData(data.areaData);
+      if (data.angleData) setAngleData(data.angleData);
+      if (data.bodyConditionData) setBodyConditionData(data.bodyConditionData);
+      if (data.pixelDimension) setPixelDimension(data.pixelDimension);
+      
+      // Restore image if available
+      if (data.imageDataUrl) {
+        setImageDataUrl(data.imageDataUrl);
+        setImage(data.imageDataUrl);
+      }
+      
+      return true;
+    } catch (err) {
+      console.error("Error loading state from localStorage:", err);
+      return false;
+    }
+  };
+  
+  // Function to clear saved state (when a new image is uploaded)
+  const clearSavedState = () => {
+    const sessionId = getSessionId();
+    if (!sessionId) return;
+    
+    try {
+      localStorage.removeItem(`whalescale_data_${sessionId}`);
+      console.log("Cleared saved measurement data for session");
+    } catch (err) {
+      console.error("Error clearing saved state:", err);
+    }
+  };
+
+  // Check authentication status and load saved data on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch(`${window.location.origin}/accounts/api/user/`, {
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const userData = await response.json();
+          setUser(userData);
+          
+          // Load saved state if available
+          const loaded = loadStateFromStorage();
+          if (!loaded) {
+            console.log("No saved data found for this session");
+          }
+        }
+      } catch (error) {
+        console.error("Auth check failed:", error);
+      }
+    };
+    
+    checkAuth();
+  }, []);
+  
+  // Save state whenever important data changes and we have a session
+  useEffect(() => {
+    if (getSessionId() && (formData || rulerData || manualCurveData || areaData || angleData || bodyConditionData)) {
+      saveStateToStorage();
+    }
+  }, [
+    formData,
+    rulerData,
+    manualCurveData,
+    areaData,
+    angleData,
+    bodyConditionData,
+    pixelDimension,
+    imageDataUrl
+  ]);
+>>>>>>> help
+
   // Handle real-time input changes from Sidebar
   const handleInputChange = (name, value) => {
     setFormData(prev => ({
@@ -112,7 +233,9 @@ export default function App() {
   const handleSubmit = async (dataFromSidebar) => {
     // We already have updated formData from input changes, 
     // but this ensures consistency
-    setFormData(dataFromSidebar)
+
+    setFormData(dataFromSidebar);
+    setSidebarSubmitted(true);
 
     if (dataFromSidebar.pixelDimension) {
       setPixelDimension(dataFromSidebar.pixelDimension)
@@ -317,6 +440,7 @@ export default function App() {
           setActiveTab={setActiveTab}
           activeTool={activeTool}
           setActiveTool={setActiveTool}
+          sidebarSubmitted={sidebarSubmitted}
         />
         <ImageViewer
           image={image}

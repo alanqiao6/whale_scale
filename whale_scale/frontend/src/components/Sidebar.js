@@ -196,7 +196,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       )}
 
       {error && (
-        <p style={{ color: "red", fontWeight: "bold" }}>
+        <p style={{ color: "#e52e2e", fontWeight: "bold" }}>
           {error}
         </p>
       )}
