@@ -106,13 +106,24 @@ export default function App() {
       if (data.angleData) setAngleData(data.angleData);
       if (data.bodyConditionData) setBodyConditionData(data.bodyConditionData);
       if (data.pixelDimension) setPixelDimension(data.pixelDimension);
-      
+
       // Restore image if available
       if (data.imageDataUrl) {
         setImageDataUrl(data.imageDataUrl);
         setImage(data.imageDataUrl);
+        
+        // Also convert the Data URL back to a File object
+        fetch(data.imageDataUrl)
+          .then(res => res.blob())
+          .then(blob => {
+            // Create a File object from the blob
+            const fileName = data.formData?.imagePath || "restored-image.jpg";
+            const file = new File([blob], fileName, { type: blob.type });
+            setImageFile(file);
+          })
+          .catch(err => console.error("Error restoring image file:", err));
       }
-      
+
       return true;
     } catch (err) {
       console.error("Error loading state from localStorage:", err);
