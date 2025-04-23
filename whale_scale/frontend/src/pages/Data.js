@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { CSVLink } from "react-csv";
-import axios from "axios";
 import "../App.css";
 
 export default function Data({ onSelectedDataChange }) {
@@ -37,21 +36,30 @@ export default function Data({ onSelectedDataChange }) {
   ];
 
   useEffect(() => {
-    axios.get("/api/measurements/")
-      .then(response => {
-        setResults(response.data);
-        if (response.data.length > 0) {
-          const allKeys = Object.keys(response.data[0]);
+    fetch("/api/measurements/", {
+      method: "GET",
+      credentials: "include"
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setResults(data);
+        if (data.length > 0) {
+          const allKeys = Object.keys(data[0]);
           const filtered = defaultColumns.filter(col => allKeys.includes(col));
-          setSelectedColumns(filtered); // Only select the defaults, in order
+          setSelectedColumns(filtered);
         }
       })
-      .catch(error => {
+      .catch((error) => {
         console.error("Error fetching measurement data:", error);
       });
-      axios.get("/api/body_conditions/")
-      .then(response => setBodyConditions(response.data))
-      .catch(error => console.error("Error fetching body condition data:", error));
+  
+    fetch("/api/body_conditions/", {
+      method: "GET",
+      credentials: "include"
+    })
+      .then((res) => res.json())
+      .then((data) => setBodyConditions(data))
+      .catch((error) => console.error("Error fetching body condition data:", error));
   }, []);
 
   useEffect(() => {
