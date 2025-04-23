@@ -527,7 +527,7 @@ export default function ImageViewer({
         const point = pair[side];
         const size = crosshairSize * 2;
     
-        const outerRadius = size;
+        const outerRadius = size*1.3;
         const armLength = size * 2;
         const gap = size * 0.4;
     

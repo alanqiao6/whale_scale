@@ -87,7 +87,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
 
   // Define a style for labels to ensure proper contrast
   const labelStyle = {
-    color: "#000000", // Black text for maximum contrast
+    color: "#FFFFFF", // Black text for maximum contrast
     fontWeight: "bold"
   };
 
