@@ -1,11 +1,33 @@
 "use client"
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import Sidebar from "./components/Sidebar"
 import TopBar from "./components/TopBar"
 import ImageViewer from "./components/ImageViewer"
 import Data from "./components/Data"
 import "./App.css"
 import * as exifr from "exifr"
+
+// Utility function to get cookie value
+const getCookie = (name) => {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+};
+
+// Get the session ID from cookies
+const getSessionId = () => {
+  return getCookie('sessionid') || getCookie('dev_sessionid') || getCookie('prod_sessionid');
+};
+
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("measure")
@@ -35,6 +57,8 @@ export default function App() {
   const [backendResult, setBackendResult] = useState(null)
   const [backendMessage, setBackendMessage] = useState("")
   const [pixelDimension, setPixelDimension] = useState(null)
+  const [sidebarSubmitted, setSidebarSubmitted] = useState(false)
+
 
   // Handle real-time input changes from Sidebar
   const handleInputChange = (name, value) => {
@@ -107,6 +131,8 @@ export default function App() {
     // We already have updated formData from input changes, 
     // but this ensures consistency
     setFormData(dataFromSidebar)
+    setSidebarSubmitted(true)
+
 
     if (dataFromSidebar.pixelDimension) {
       setPixelDimension(dataFromSidebar.pixelDimension)
@@ -311,6 +337,7 @@ export default function App() {
           setActiveTab={setActiveTab}
           activeTool={activeTool}
           setActiveTool={setActiveTool}
+          sidebarSubmitted={sidebarSubmitted}
         />
         <ImageViewer
           image={image}
