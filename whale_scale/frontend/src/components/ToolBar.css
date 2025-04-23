@@ -1,0 +1,20 @@
+.tool-bar {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #eaeaea;
+  border-bottom: 1px solid #ccc;
+}
+
+.tool-bar button {
+  padding: 0.4rem 0.8rem;
+  border: 2px solid #00cfff;
+  background-color: #e7faff;
+  font-style: italic;
+  cursor: pointer;
+}
+
+.tool-bar button.active {
+  background-color: #a5c9ff;
+  border-color: #444;
+}

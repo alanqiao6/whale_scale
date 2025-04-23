@@ -1,64 +1,38 @@
 .top-bar {
   display: flex;
   justify-content: space-between;
-  padding: 10px 20px;
-  background-color: white;
-  border-bottom: 1px solid #eee;
+  align-items: center;
+  background-color: #ccc;
+  padding: 0.5rem 1rem;
+  font-family: sans-serif;
 }
 
 .tabs {
   display: flex;
-  gap: 10px;
+  gap: 1rem;
 }
 
 .tab {
-  padding: 10px 20px;
-  border: none;
   background: none;
+  border: none;
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
   cursor: pointer;
-  font-size: 16px;
-  color: var(--text-color);
+  font-style: italic;
+  color: #333;
 }
 
 .tab.active {
-  background-color: var(--primary-blue);
-  color: white;
-  border-radius: 4px;
+  background-color: #ddd;
+  border-radius: 5px;
+  font-weight: bold;
 }
 
-.tools {
-  display: flex;
-  gap: 10px;
-}
-
-.tool-button {
+.logout button {
   background: none;
   border: none;
-  font-size: 20px;
+  font-style: italic;
+  font-size: 1rem;
   cursor: pointer;
-  padding: 5px;
-  border-radius: 50%;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
+  color: #333;
 }
-
-.tool-button:hover {
-  background-color: #f0f0f0;
-}
-
-.tool-button.active {
-  background-color: var(--primary-blue);
-  color: white;
-}
-
-@media (max-width: 768px) {
-  .top-bar {
-    flex-direction: column;
-    gap: 10px;
-  }
-}
-

@@ -1,84 +1,41 @@
 .sidebar {
+  background-color: #a9eaff;
+  padding: 1rem;
   width: 250px;
-  background-color: var(--primary-blue);
-  padding: 20px;
-  color: white;
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  font-family: sans-serif;
 }
 
-.upload-button {
-  background-color: white;
-  color: var(--text-color);
-  padding: 10px;
-  border-radius: 4px;
-  cursor: pointer;
+.sidebar h2 {
+  font-style: italic;
   text-align: center;
-  display: block;
+  margin-bottom: 1rem;
 }
 
-.input-group {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+.sidebar label {
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
 }
 
-.input-group input,
-.input-group select {
-  padding: 8px;
-  border: none;
-  border-radius: 4px;
-  background-color: white;
-}
-
-.input-group input[type="range"] {
+.sidebar input[type="text"],
+.sidebar input[type="color"] {
   width: 100%;
+  padding: 0.3rem;
+  margin-top: 0.2rem;
+  margin-bottom: 0.5rem;
+  box-sizing: border-box;
 }
 
-.color-picker {
-  width: 100%;
-  height: 40px;
-  padding: 0;
+.sidebar button {
+  margin-top: 1rem;
+  padding: 0.5rem;
+  background-color: #3366cc;
+  color: white;
   border: none;
   cursor: pointer;
 }
 
-.button-group {
-  display: flex;
-  flex-direction: column; /* Stack buttons vertically */
-  align-items: center; /* Center align buttons */
-  gap: 10px; /* Adds spacing between buttons */
-}
-
-.submit-button,
-.export-button {
-  width: 100%; /* Make buttons full width */
-  padding: 10px;
-  border: none;
-  border-radius: 4px;
-  background-color: white;
-  color: var(--text-color);
-  cursor: pointer;
-  font-weight: bold;
-  margin-top: 0; /* Remove previous margin */
-}
-
-
-@media (max-width: 768px) {
-  .sidebar {
-    width: 100%;
-    order: 2;
-  }
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  border: 0;
+.sidebar button:hover {
+  background-color: #254c9a;
 }

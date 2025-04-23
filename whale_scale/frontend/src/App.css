@@ -1,29 +1,59 @@
-:root {
-  --primary-blue: #0e8ae3;
-  --accent-red: #e7403e;
-  --background-gray: #d9d9d9;
-  --text-color: #333;
+/* App.css */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: sans-serif;
 }
 
 .app-container {
   display: flex;
-  min-height: 100vh;
-  font-family: Arial, sans-serif;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
 }
 
-.main-content {
+/* Sidebar */
+.sidebar {
+  width: 10%;
+  background-color: #a9eaff;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* Right side: TopBar + Main content */
+.content-container {
   flex: 1;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  width: 100%;
 }
 
-@media (max-width: 768px) {
-  .app-container {
-    flex-direction: column;
-  }
-
-  .main-content {
-    order: 1;
-  }
+/* TopBar */
+.top-bar {
+  flex-shrink: 0;
+  height: 50px; /* Adjust if needed */
+  background-color: #ccc;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1rem;
 }
 
+/* Main content under TopBar */
+.main-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
