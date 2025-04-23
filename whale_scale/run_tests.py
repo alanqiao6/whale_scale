@@ -16,6 +16,60 @@ import argparse
 import django
 from django.test.runner import DiscoverRunner
 import coverage
+import unittest
+import time
+from io import StringIO
+from unittest.runner import TextTestResult
+from django.test.runner import DiscoverRunner
+
+# Terminal colors
+GREEN = "\033[92m"
+RED = "\033[91m"
+RESET = "\033[0m"
+BOLD = "\033[1m"
+
+class ColorTextTestResult(TextTestResult):
+    """Custom test result class that prints test names with colored PASS/FAIL indicators"""
+    
+    def startTest(self, test):
+        super().startTest(test)
+        test_name = self.getDescription(test)
+        sys.stdout.write(f"{test_name} ... ")
+        sys.stdout.flush()
+    
+    def addSuccess(self, test):
+        super().addSuccess(test)
+        sys.stdout.write(f"{GREEN}{BOLD}PASS{RESET}\n")
+    
+    def addError(self, test, err):
+        super().addError(test, err)
+        sys.stdout.write(f"{RED}{BOLD}ERROR{RESET}\n")
+    
+    def addFailure(self, test, err):
+        super().addFailure(test, err)
+        sys.stdout.write(f"{RED}{BOLD}FAIL{RESET}\n")
+    
+    def addSkip(self, test, reason):
+        super().addSkip(test, reason)
+        sys.stdout.write(f"{BOLD}SKIP{RESET} ({reason})\n")
+
+
+class ColorTextTestRunner(unittest.TextTestRunner):
+    """Custom test runner that uses ColorTextTestResult"""
+    
+    resultclass = ColorTextTestResult
+
+
+class ColoredTestRunner(DiscoverRunner):
+    """Custom Django test runner that uses ColorTextTestRunner"""
+    
+    test_runner = ColorTextTestRunner
+    
+    def run_suite(self, suite, **kwargs):
+        return self.test_runner(
+            verbosity=self.verbosity,
+            failfast=self.failfast,
+        ).run(suite)
 
 
 def run_tests_with_coverage(test_modules=None, include_dirs=None, exclude_dirs=None, html_report=True):
@@ -65,8 +119,8 @@ def run_tests_with_coverage(test_modules=None, include_dirs=None, exclude_dirs=N
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'whale_scale.settings')
     django.setup()
     
-    # Run tests
-    runner = DiscoverRunner(verbosity=1)
+    # Run tests with colored output
+    runner = ColoredTestRunner(verbosity=1)
     failures = runner.run_tests(test_modules)
     
     # Stop coverage and generate report
@@ -95,8 +149,8 @@ def run_tests_without_coverage(test_modules=None):
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'whale_scale.settings')
     django.setup()
     
-    # Run tests
-    runner = DiscoverRunner(verbosity=1)
+    # Run tests with colored output
+    runner = ColoredTestRunner(verbosity=1)
     failures = runner.run_tests(test_modules)
     
     return failures
