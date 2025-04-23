@@ -3,20 +3,9 @@ import React from "react"
 
 export default function Data({ formData, rulerData, manualCurveData, areaData, angleData, bodyConditionData, pixelDimension }) {
 
-  // Function to export data to CSV using Blob API
+  // Function to export data to CSV with multiple tables
   const exportDataToCSV = () => {
     console.log("Starting export function...");
-    
-    // Debug log for all data
-    console.log("Export data:", {
-      formData,
-      rulerData,
-      areaData,
-      manualCurveData,
-      angleData,
-      bodyConditionData,
-      pixelDimension
-    });
     
     // Check if any data exists to export
     if (!formData && !rulerData && !manualCurveData && !areaData && !angleData && !bodyConditionData) {
@@ -25,155 +14,196 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
     }
     
     try {
-      // Create a data object with all measurements
-      const dataObj = {};
+      // Initialize CSV rows array
+      let csvRows = [];
       
-      // Add form data
+      // Add Form Data Table
       if (formData) {
-        dataObj["Focal_Length"] = format(formData.focalLength);
-        dataObj["Altitude"] = format(formData.altitude);
-        dataObj["Altitude_Offset"] = format(formData.altitudeOffset);
-        dataObj["Image_Width"] = format(formData.imageWidth);
-        dataObj["Image_Height"] = format(formData.imageHeight);
-        dataObj["Field_of_View"] = format(formData.fov);
-        dataObj["Sensor_Width"] = format(formData.sensorWidth);
-        dataObj["Width_Segments"] = format(formData.widthSegments);
-        dataObj["Crosshair_Size"] = format(formData.crosshairSize);
-        dataObj["Crosshair_Opacity"] = format(formData.crosshairOpacity);
-        dataObj["Segment_Color"] = format(formData.segmentColor);
-        dataObj["Pixel_Dimension"] = format(pixelDimension);
+        csvRows.push("FORM DATA");
+        csvRows.push("Parameter,Value");
+        
+        csvRows.push(`Focal Length,${format(formData.focalLength)}`);
+        csvRows.push(`Altitude,${format(formData.altitude)}`);
+        csvRows.push(`Altitude Offset,${format(formData.altitudeOffset)}`);
+        csvRows.push(`Image Width,${format(formData.imageWidth)}`);
+        csvRows.push(`Image Height,${format(formData.imageHeight)}`);
+        csvRows.push(`Field of View,${format(formData.fov)}`);
+        csvRows.push(`Sensor Width,${format(formData.sensorWidth)}`);
+        csvRows.push(`Width Segments,${format(formData.widthSegments)}`);
+        csvRows.push(`Crosshair Size,${format(formData.crosshairSize)}`);
+        csvRows.push(`Crosshair Opacity,${format(formData.crosshairOpacity)}`);
+        csvRows.push(`Segment Color,${format(formData.segmentColor)}`);
+        csvRows.push(`Pixel Dimension,${format(pixelDimension)}`);
+        
+        // Add empty row as separator
+        csvRows.push("");
       }
       
-      // Add ruler data
+      // Add Ruler Measurements Table
       if (rulerData) {
-        dataObj["Ruler_Type"] = rulerData.type || "ruler";
-        dataObj["Ruler_Curve_Length"] = rulerData.curveLength !== undefined ? 
-          rulerData.curveLength.toFixed(2) + " m" : "None";
-        dataObj["Ruler_Segments"] = rulerData.segments || "None";
+        csvRows.push("RULER MEASUREMENTS");
+        csvRows.push("Parameter,Value");
         
-        // Add width segments data
-        if (rulerData.widthSegments && Array.isArray(rulerData.widthSegments)) {
+        csvRows.push(`Type,${rulerData.type || "ruler"}`);
+        csvRows.push(`Curve Length,${rulerData.curveLength.toFixed(2)} m`);
+        csvRows.push(`Segments,${rulerData.segments}`);
+        
+        // Add empty row as separator
+        csvRows.push("");
+        
+        // Add Width Segments Table
+        if (rulerData.widthSegments && Array.isArray(rulerData.widthSegments) && rulerData.widthSegments.length > 0) {
+          csvRows.push("WIDTH SEGMENTS");
+          csvRows.push("Segment,Length (m),X1,Y1,X2,Y2");
+          
           rulerData.widthSegments.forEach(seg => {
-            if (seg && seg.index !== undefined) {
-              dataObj[`Width_Segment_${seg.index}_Length`] = seg.length !== undefined ? 
-                seg.length + " m" : "None";
+            if (seg && seg.index !== undefined && seg.length !== undefined) {
+              let x1 = seg.coords?.x1 || "";
+              let y1 = seg.coords?.y1 || "";
+              let x2 = seg.coords?.x2 || "";
+              let y2 = seg.coords?.y2 || "";
               
-              // Add coordinates if available
-              if (seg.coords) {
-                dataObj[`Width_Segment_${seg.index}_X1`] = seg.coords.x1;
-                dataObj[`Width_Segment_${seg.index}_Y1`] = seg.coords.y1;
-                dataObj[`Width_Segment_${seg.index}_X2`] = seg.coords.x2;
-                dataObj[`Width_Segment_${seg.index}_Y2`] = seg.coords.y2;
-              }
+              csvRows.push(`${seg.index},${seg.length},${x1},${y1},${x2},${y2}`);
             }
           });
+          
+          // Add empty row as separator
+          csvRows.push("");
         }
       }
       
-      // Add area data
+      // Add Area Measurements Table
       if (areaData) {
-        dataObj["Area_Size"] = areaData.area !== undefined ? 
-          areaData.area.toFixed(2) + " m²" : "None";
+        csvRows.push("AREA MEASUREMENTS");
+        csvRows.push("Parameter,Value");
         
-        if (areaData.polygonPoints && Array.isArray(areaData.polygonPoints)) {
-          dataObj["Area_Points_Count"] = areaData.polygonPoints.length;
+        csvRows.push(`Area,${areaData.area.toFixed(2)} m²`);
+        csvRows.push(`Number of Points,${areaData.polygonPoints?.length || 0}`);
+        
+        // Add empty row as separator
+        csvRows.push("");
+        
+        // Add Area Points Table
+        if (areaData.polygonPoints && Array.isArray(areaData.polygonPoints) && areaData.polygonPoints.length > 0) {
+          csvRows.push("AREA POINTS");
+          csvRows.push("Point,X,Y");
           
-          // Add polygon points coordinates
-          areaData.polygonPoints.forEach((point, i) => {
+          areaData.polygonPoints.forEach((point, index) => {
             if (point && point.x !== undefined && point.y !== undefined) {
-              dataObj[`Area_Point_${i}_X`] = point.x;
-              dataObj[`Area_Point_${i}_Y`] = point.y;
+              csvRows.push(`${index + 1},${point.x},${point.y}`);
             }
           });
+          
+          // Add empty row as separator
+          csvRows.push("");
         }
       }
       
-      // Add manual curve data
+      // Add Manual Curve Table
       if (manualCurveData) {
-        dataObj["Manual_Curve_Length"] = manualCurveData.curveLength !== undefined ? 
-          manualCurveData.curveLength.toFixed(2) + " m" : "None";
+        csvRows.push("MANUAL CURVE MEASUREMENTS");
+        csvRows.push("Parameter,Value");
         
-        if (manualCurveData.curvePoints && Array.isArray(manualCurveData.curvePoints)) {
-          dataObj["Manual_Curve_Points_Count"] = manualCurveData.curvePoints.length;
+        csvRows.push(`Curve Length,${manualCurveData.curveLength.toFixed(2)} m`);
+        csvRows.push(`Number of Points,${manualCurveData.curvePoints?.length || 0}`);
+        
+        // Add empty row as separator
+        csvRows.push("");
+        
+        // Add Curve Points Table
+        if (manualCurveData.curvePoints && Array.isArray(manualCurveData.curvePoints) && manualCurveData.curvePoints.length > 0) {
+          csvRows.push("CURVE POINTS");
+          csvRows.push("Point,X,Y");
           
-          // Add curve points coordinates
-          manualCurveData.curvePoints.forEach((point, i) => {
+          manualCurveData.curvePoints.forEach((point, index) => {
             if (point && point.x !== undefined && point.y !== undefined) {
-              dataObj[`Manual_Curve_Point_${i}_X`] = point.x;
-              dataObj[`Manual_Curve_Point_${i}_Y`] = point.y;
+              csvRows.push(`${index + 1},${point.x},${point.y}`);
             }
           });
+          
+          // Add empty row as separator
+          csvRows.push("");
         }
       }
       
-      // Add angle data
+      // Add Angle Measurements Table
       if (angleData) {
-        dataObj["Angle_Value"] = angleData.angle !== undefined ? 
-          angleData.angle.toFixed(2) + "°" : "None";
+        csvRows.push("ANGLE MEASUREMENTS");
+        csvRows.push("Parameter,Value");
         
-        if (angleData.anglePoints && Array.isArray(angleData.anglePoints)) {
-          dataObj["Angle_Points_Count"] = angleData.anglePoints.length;
+        csvRows.push(`Angle,${angleData.angle.toFixed(2)}°`);
+        csvRows.push(`Number of Points,${angleData.anglePoints?.length || 0}`);
+        
+        // Add empty row as separator
+        csvRows.push("");
+        
+        // Add Angle Points Table
+        if (angleData.anglePoints && Array.isArray(angleData.anglePoints) && angleData.anglePoints.length > 0) {
+          csvRows.push("ANGLE POINTS");
+          csvRows.push("Point,X,Y");
           
-          // Add angle points coordinates
-          angleData.anglePoints.forEach((point, i) => {
+          angleData.anglePoints.forEach((point, index) => {
             if (point && point.x !== undefined && point.y !== undefined) {
-              dataObj[`Angle_Point_${i}_X`] = point.x;
-              dataObj[`Angle_Point_${i}_Y`] = point.y;
+              csvRows.push(`${index + 1},${point.x},${point.y}`);
             }
           });
+          
+          // Add empty row as separator
+          csvRows.push("");
         }
       }
       
-      // Add body condition data
+      // Add Body Condition Table
       if (bodyConditionData) {
+        csvRows.push("BODY CONDITION RESULTS");
+        csvRows.push("Parameter,Value");
+        
         if (bodyConditionData.volume !== undefined && !isNaN(bodyConditionData.volume)) {
-          dataObj["Body_Volume"] = bodyConditionData.volume.toFixed(2) + " m³";
+          csvRows.push(`Body Volume,${bodyConditionData.volume.toFixed(2)} m³`);
         }
         
         if (bodyConditionData.areaIndex !== undefined && !isNaN(bodyConditionData.areaIndex)) {
-          dataObj["Body_Area_Index"] = bodyConditionData.areaIndex.toFixed(2);
+          csvRows.push(`Body Area Index,${bodyConditionData.areaIndex.toFixed(2)}`);
         }
         
         if (bodyConditionData.surfaceArea !== undefined && !isNaN(bodyConditionData.surfaceArea)) {
-          dataObj["Surface_Area"] = bodyConditionData.surfaceArea.toFixed(2) + " m²";
+          csvRows.push(`Surface Area,${bodyConditionData.surfaceArea.toFixed(2)} m²`);
         }
         
         // Add additional body condition results
         if (bodyConditionData.fullResults) {
-          Object.entries(bodyConditionData.fullResults).forEach(([key, value]) => {
-            if (!['Image', 'Image_ID'].includes(key) && 
-                value !== null && 
-                !isNaN(value) &&
-                !key.startsWith('Length_w') &&
-                !key.startsWith('Width_')) {
-              dataObj[`BC_${key}`] = typeof value === 'number' ? value.toFixed(2) : value;
-            }
-          });
+          Object.entries(bodyConditionData.fullResults)
+            .filter(([key, value]) => 
+              !['Image', 'Image_ID'].includes(key) && 
+              value !== null && 
+              !isNaN(value) &&
+              !key.startsWith('Length_w') &&
+              !key.startsWith('Width_')
+            )
+            .forEach(([key, value]) => {
+              csvRows.push(`${key},${typeof value === 'number' ? value.toFixed(2) : value}`);
+            });
         }
+        
+        // Add empty row as separator
+        csvRows.push("");
       }
       
-      // Create CSV content using a more reliable method
-      let csvRows = [];
-      
-      // Get headers
-      const headers = Object.keys(dataObj);
-      csvRows.push(headers.join(','));
-      
-      // Prepare values with proper escaping
-      const values = headers.map(header => {
-        const val = dataObj[header];
-        // Handle escaping: wrap in quotes and escape existing quotes
-        if (val === undefined || val === null || val === "") {
-          return '';
-        } else {
-          // Escape quotes by doubling them and wrap in quotes
-          return `"${String(val).replace(/"/g, '""')}"`;
+      // Create the CSV content with escaped values
+      const csvContent = csvRows.map(row => {
+        // If the row contains a comma, escape any fields that need it
+        if (row.includes(',')) {
+          return row.split(',').map(field => {
+            // Check if the field needs to be escaped
+            if (field.includes('"') || field.includes(',') || field.includes('\n')) {
+              // Escape quotes by doubling them and wrap in quotes
+              return `"${field.replace(/"/g, '""')}"`;
+            }
+            return field;
+          }).join(',');
         }
-      });
-      csvRows.push(values.join(','));
-      
-      // Join rows with newlines
-      const csvString = csvRows.join('\n');
+        return row;
+      }).join('\n');
       
       // Create filename
       const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
@@ -181,15 +211,13 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
       const fileName = `whalescale_${formData ? (formData.widthSegments || "0") : "0"}_${getFileNameFromPath(imagePath)}_${date}.csv`;
       
       console.log("Creating download with filename:", fileName);
-      console.log("CSV Content (first 500 chars):", csvString.substring(0, 500));
+      console.log("CSV Content Preview (first 500 chars):", csvContent.substring(0, 500));
       
-      // Use Blob API for more reliable download
-      const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-      
-      // Create URL for the Blob
+      // Use Blob API for download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       
-      // Create a link element and trigger download
+      // Create link and trigger download
       const link = document.createElement('a');
       link.setAttribute('href', url);
       link.setAttribute('download', fileName);
@@ -198,7 +226,7 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
       link.click();
       document.body.removeChild(link);
       
-      // Clean up by revoking the object URL
+      // Clean up
       setTimeout(() => {
         URL.revokeObjectURL(url);
         console.log("Export completed successfully and object URL revoked");
