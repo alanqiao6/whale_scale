@@ -19,16 +19,16 @@ export default function HelpModal({ isOpen, onClose, mode = "docs", setHelpMode 
 
   const steps = [
     {
-      title: "📄 Upload an Image",
+      title: "1. 📄 Upload an Image",
       text: "Click the 'Add Image' button on the sidebar/cartoon whale or upload a file directly to the cartoon whale to upload your image.",
     },
     {
-      title: "🔧 Set Width Segments + Fill in Sidebar",
+      title: "2. 🔧 Set Width Segments + Fill in Sidebar",
       text: (
         <>
-          Once a picture is uploaded, the sidebar should automatically update with metadata pulled from the image. Check each field and update if any values look wrong or are missing.<br /><br />
+          Once a picture is uploaded, the sidebar should automatically update with metadata pulled from the image. Check fields and update if any values look wrong or are missing.<br /><br />
           <strong>Adjust <code># Width Segments</code></strong> to control how many cross-section measurements are generated along the spine.<br /><br />
-          <button className="collapsible-toggle" onClick={() => setShowSidebarDetails(prev => !prev)}>
+          <button className="help-controls-button" onClick={() => setShowSidebarDetails(prev => !prev)}>
             {showSidebarDetails ? "Hide Sidebar Field Definitions" : "Show Sidebar Field Definitions"}
           </button>
           {showSidebarDetails && (
@@ -49,15 +49,19 @@ export default function HelpModal({ isOpen, onClose, mode = "docs", setHelpMode 
       )
     },
     {
-      title: "📏 Use the Ruler Tool",
-      text: "Click the 📏 tool in the top bar, then click two points on the image to define the main line.",
+      title: "3. Submit",
+      text: "Submit the sidebar info!",
     },
     {
-      title: "📐 Other Tools",
-      text: "Use ✏️ to draw curves, 🔲 to measure areas, and 📐 to measure angles using 3 points.",
+      title: "4. 📏 Use the Ruler Tool",
+      text: "Click the 📏 tool in the top bar, then click two points on the image to define the main line. Move the crosshairs to the sides of the whale, then click finalize.",
     },
     {
-      title: "✅ Finalize & Export",
+      title: "5. 📐 Other Tools",
+      text: "Use ✏️ to draw curves by clicking points, 🔲 to measure areas by clicking points outlining an area, and 📐 to measure angles using 3 points.",
+    },
+    {
+      title: "6. ✅ Finalize & Export",
       text: "Once you finish a measurement, finalize it and export your results from the sidebar.",
     },
   ]
