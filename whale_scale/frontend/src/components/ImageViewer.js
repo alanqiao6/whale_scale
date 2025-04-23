@@ -1,22 +1,23 @@
-"use client"
 
+"use client"
 import React, { useState, useEffect, useRef } from "react"
 import "./ImageViewer.css"
 
 export default function ImageViewer({
   image,
-  widthSegments,
   activeTool,
   setActiveTool,
-  onMeasurementUpdate,
   onImageUpload,
-  onBackendResult,
   metadata,
-  segmentColor = "#FFFFC5",
-  crosshairSize = 10,
+  segmentColor,
+  crosshairSize,
+  numSegments,
   pixelDimension,
-  crosshairColor = "#FF0000",
+  onBackendResult,
+  subjectName,
+  formData
 }) {
+
   const canvasRef = useRef(null)
   const [points, setPoints] = useState([])
   const [mainLine, setMainLine] = useState(null)
@@ -29,6 +30,7 @@ export default function ImageViewer({
   const [polygonPoints, setPolygonPoints] = useState([])
   const [anglePoints, setAnglePoints] = useState([])
   const [angleLines, setAngleLines] = useState([])
+  const [imageScale, setImageScale] = useState(1);
 
   useEffect(() => {
     if (!image) return
@@ -40,10 +42,10 @@ export default function ImageViewer({
       if (!canvas) return
       const ctx = canvas.getContext("2d")
 
-      canvas.width = img.width
-      canvas.height = img.height
+      canvas.width = canvas.parentElement.clientWidth
+      canvas.height = canvas.parentElement.clientHeight
 
-      ctx.drawImage(img, 0, 0)
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
       setImgObj(img)
     }
     img.src = image
@@ -54,10 +56,21 @@ export default function ImageViewer({
     if (!canvas || !imgObj) return
     const ctx = canvas.getContext("2d")
 
+    canvas.width = canvas.parentElement.clientWidth
+    canvas.height = canvas.parentElement.clientHeight
+
     ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.drawImage(imgObj, 0, 0)
+    ctx.drawImage(imgObj, 0, 0, canvas.width, canvas.height)
     drawOverlay(ctx)
   }, [points, mainLine, segmentLines, crosshairs, imgObj, manualCurvePoints, polygonPoints, anglePoints, angleLines])
+
+  useEffect(() => {
+    if (imgObj && canvasRef.current) {
+      const canvas = canvasRef.current;
+      const scale = imgObj.naturalWidth / canvas.width;
+      setImageScale(scale - 0.5);
+    }
+  }, [imgObj]);
 
   useEffect(() => {
     if (points.length === 2) {
@@ -69,17 +82,9 @@ export default function ImageViewer({
       }
 
       setMainLine(line)
-      calculateSegmentLines(line, widthSegments)
+      calculateSegmentLines(line, numSegments)
 
       const length = Math.hypot(line.x2 - line.x1, line.y2 - line.y1)
-      if (onMeasurementUpdate) {
-        onMeasurementUpdate({
-          type: "length",
-          points,
-          length,
-          segments: widthSegments,
-        })
-      }
 
       setActiveTool(null)
     }
@@ -131,17 +136,17 @@ export default function ImageViewer({
     const x = (e.clientX - rect.left) * scaleX
     const y = (e.clientY - rect.top) * scaleY
 
-    if (activeTool === "pencil") {
+    if (activeTool === "Measure Curve") {
       setManualCurvePoints((prev) => [...prev, { x, y }])
       return
     }
 
-    if (activeTool === "area") {
+    if (activeTool === "Measure Area") {
       setPolygonPoints((prev) => [...prev, { x, y }])
       return
     }
     
-    if (activeTool === "angle") {
+    if (activeTool === "Measure Angle") {
       setAnglePoints((prev) => [...prev, { x, y }])
       return
     }
@@ -161,7 +166,7 @@ export default function ImageViewer({
   }
 
   const handleCanvasClick = (e) => {
-    if (activeTool !== "ruler") return
+    if (activeTool !== "Measure Widths") return
 
     const canvas = canvasRef.current
     const rect = canvas.getBoundingClientRect()
@@ -218,6 +223,7 @@ export default function ImageViewer({
     const perpAngle = angle + Math.PI / 2
     const perpLength = lineLength / 4
 
+    numSegments = parseInt(numSegments)
     for (let i = 1; i <= numSegments; i++) {
       const ratio = i / (numSegments + 1)
       const segX = x1 + (x2 - x1) * ratio
@@ -249,7 +255,7 @@ export default function ImageViewer({
 
   const handleFinalizeRuler = async () => {
     try {
-      // New payload format matching what the backend expects
+      // Request total curve length from backend
       const payload = {
         measurement_stack: [{
           measurement_type: "curve",
@@ -262,51 +268,88 @@ export default function ImageViewer({
           }))
         }],
         ...(pixelDimension && { pixel_dimension: pixelDimension })
-      };
-
+      }
+  
       const curveRes = await fetch("/api/morphometrix/calculate_curve/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       })
-
+  
       const curveResult = await curveRes.json()
       if (!curveRes.ok) {
         setBackendMessage(`❗ Ruler Curve error: ${curveResult.error}`)
         return
       }
-
-      const curveLength = curveResult.length
-      const curvePoints = curveResult.curve_points || []
-
-      const widths = crosshairs.map((pair, i) => {
+      console.log(imageScale)
+      const curveLength = curveResult.length * imageScale 
+      const lengthPixels = Math.hypot(mainLine.x2 - mainLine.x1, mainLine.y2 - mainLine.y1) * imageScale 
+  
+      // Send total TL measurement
+      onBackendResult({
+        subject_name: subjectName,
+        measurement_type: "TL",
+        user_image_path: image,
+        image_timestamp: metadata?.image_timestamp ?? new Date().toISOString(),
+        measurement_timestamp: new Date().toISOString(),
+        coordinate_data: crosshairs,
+        pixel_dimension: pixelDimension,
+        pixel_count: lengthPixels,
+        scaled_dimension: curveLength,
+        focal_length: metadata?.focalLength,
+        sensor_width: metadata?.sensorWidth,
+        image_width: metadata?.imageWidth,
+        image_height: metadata?.imageHeight,
+        field_of_view: metadata?.fieldOfView,
+        altitude: metadata?.altitude,
+        altitude_offset: formData.altitudeOffset,
+        gps_latitude: metadata?.gps_latitude,
+        gps_longitude: metadata?.gps_longitude,
+        camera_make: metadata?.camera_make,
+        camera_model: metadata?.camera_model,
+      })
+  
+      // Add per-segment results (TL_w{percent})
+      const interval = Math.round(100 / (crosshairs.length + 1))
+      const totalSegments = crosshairs.length
+      crosshairs.forEach((pair, i) => {
         const dx = pair.right.x - pair.left.x
         const dy = pair.right.y - pair.left.y
-        const length = Math.hypot(dx, dy)
-        return {
-          index: i + 1,
-          length: parseFloat((length * (pixelDimension || 1)).toFixed(4)),
-          coords: {
-            x1: pair.left.x,
-            y1: pair.left.y,
-            x2: pair.right.x,
-            y2: pair.right.y,
-          },
-        }
+        const pixelLength = Math.hypot(dx, dy) * imageScale 
+        const realLength = parseFloat((pixelLength * (pixelDimension || 1) * imageScale).toFixed(4)) 
+        const percent = interval * (i + 1)
+  
+        onBackendResult({
+          subject_name: subjectName,
+          measurement_type: `TL_w${percent.toFixed(2)}`,
+          user_image_path: image,
+          image_timestamp: metadata?.image_timestamp ?? new Date().toISOString(),
+          measurement_timestamp: new Date().toISOString(),
+          coordinate_data: pair,
+          pixel_dimension: pixelDimension,
+          pixel_count: pixelLength,
+          scaled_dimension: realLength,
+          focal_length: metadata?.focalLength,
+          sensor_width: metadata?.sensorWidth,
+          image_width: metadata?.imageWidth,
+          image_height: metadata?.imageHeight,
+          field_of_view: metadata?.fieldOfView,
+          altitude: metadata?.altitude,
+          altitude_offset: formData.altitudeOffset,
+          gps_latitude: metadata?.gps_latitude,
+          gps_longitude: metadata?.gps_longitude,
+          camera_make: metadata?.camera_make,
+          camera_model: metadata?.camera_model,
+        })
       })
-
-      setBackendMessage(`✅ Ruler Curve: ${curveLength.toFixed(2)} m`)
-
-      onBackendResult({
-        type: "ruler",
-        curveLength,
-        curvePoints,
-        widthSegments: widths,
-      })
+  
+      setBackendMessage(`✅ Entry Added to Data Tab With Name "${subjectName}"`)
     } catch (err) {
+      console.error("Ruler error:", err)
       setBackendMessage("❗ Error connecting to backend for ruler")
     }
   }
+  
 
   const handleFinalizeManualCurve = async () => {
       if (manualCurvePoints.length < 2) return
@@ -344,13 +387,40 @@ export default function ImageViewer({
           }
 
           const result = await response.json();
-          setBackendMessage(`✅ Manual Curve: ${result.length.toFixed(2)} m`);
+
+          const lengthPixels = manualCurvePoints.reduce((sum, p, i, arr) => {
+            if (i === 0) return 0
+            const dx = p.x - arr[i - 1].x
+            const dy = p.y - arr[i - 1].y
+            return sum + Math.hypot(dx, dy)
+          }, 0) * imageScale
+          const curveLength = result.length * imageScale
+
+          setBackendMessage(`✅ Entry Added to Data Tab With Name ${subjectName}`);
 
           onBackendResult({
-              type: "manual_curve",
-              length: result.length,
-              curvePoints: manualCurvePoints,
-          });
+            subject_name: subjectName,
+            measurement_type: "curve_length",
+            user_image_path: image,
+            image_timestamp: metadata?.image_timestamp ?? new Date().toISOString(),
+            measurement_timestamp: new Date().toISOString(),
+            coordinate_data: manualCurvePoints,
+            pixel_dimension: pixelDimension,
+            pixel_count: lengthPixels,
+            scaled_dimension: curveLength,
+            focal_length: metadata?.focalLength,
+            sensor_width: metadata?.sensorWidth,
+            image_width: metadata?.imageWidth,
+            image_height: metadata?.imageHeight,
+            field_of_view: metadata?.fieldOfView,
+            altitude: metadata?.altitude,
+            altitude_offset: formData.altitudeOffset,
+            gps_latitude: metadata?.gps_latitude,
+            gps_longitude: metadata?.gps_longitude,
+            camera_make: metadata?.camera_make,
+            camera_model: metadata?.camera_model,
+          })
+          
           setManualCurvePoints([]);
           setActiveTool(null);
       } catch (err) {
@@ -392,12 +462,29 @@ export default function ImageViewer({
         return
       }
   
-      setBackendMessage(`✅ Area: ${result.area.toFixed(2)} m²`)
+      setBackendMessage(`✅ Entry Added to Data Tab With Name ${subjectName}`)
   
       onBackendResult({
-        type: "area",
-        area: result.area,
-        polygonPoints: polygonPoints,
+        subject_name: subjectName,
+        measurement_type: "area",
+        user_image_path: image,
+        image_timestamp: metadata?.image_timestamp ?? new Date().toISOString(),
+        measurement_timestamp: new Date().toISOString(),
+        coordinate_data: polygonPoints,
+        pixel_dimension: pixelDimension,
+        pixel_count: null,
+        scaled_dimension: result.area * imageScale,
+        focal_length: metadata?.focalLength,
+        sensor_width: metadata?.sensorWidth,
+        image_width: metadata?.imageWidth,
+        image_height: metadata?.imageHeight,
+        field_of_view: metadata?.fieldOfView,
+        altitude: metadata?.altitude,
+        altitude_offset: formData.altitudeOffset,
+        gps_latitude: metadata?.gps_latitude,
+        gps_longitude: metadata?.gps_longitude,
+        camera_make: metadata?.camera_make,
+        camera_model: metadata?.camera_model,
       })
   
       setPolygonPoints([])
@@ -475,13 +562,29 @@ export default function ImageViewer({
         return
       }
 
-      setBackendMessage(`✅ Angle: ${result.angle.toFixed(2)}°`)
+      setBackendMessage(`✅ Entry Added to Data Tab With Name ${subjectName}`)
 
       onBackendResult({
-        type: "angle",
-        angle: result.angle,
-        anglePoints: anglePoints,
-        angleLines: angleLines
+        subject_name: subjectName,
+        measurement_type: "angle",
+        user_image_path: image,
+        image_timestamp: metadata?.image_timestamp ?? new Date().toISOString(),
+        measurement_timestamp: new Date().toISOString(),
+        coordinate_data: anglePoints,
+        pixel_dimension: pixelDimension,
+        pixel_count: null,
+        scaled_dimension: result.angle,
+        focal_length: metadata?.focalLength,
+        sensor_width: metadata?.sensorWidth,
+        image_width: metadata?.imageWidth,
+        image_height: metadata?.imageHeight,
+        field_of_view: metadata?.fieldOfView,
+        altitude: metadata?.altitude,
+        altitude_offset: formData.altitudeOffset,
+        gps_latitude: metadata?.gps_latitude,
+        gps_longitude: metadata?.gps_longitude,
+        camera_make: metadata?.camera_make,
+        camera_model: metadata?.camera_model,
       })
 
       setAnglePoints([])
@@ -494,22 +597,13 @@ export default function ImageViewer({
   }
 
   const drawOverlay = (ctx) => {
-    points.forEach((point) => {
-      ctx.beginPath()
-      ctx.arc(point.x, point.y, 36, 0, 2 * Math.PI)
-      ctx.fillStyle = "red"
-      ctx.strokeStyle = "white"
-      ctx.lineWidth = 30
-      ctx.fill()
-      ctx.stroke()
-    })
 
     if (mainLine) {
       ctx.beginPath()
       ctx.moveTo(mainLine.x1, mainLine.y1)
       ctx.lineTo(mainLine.x2, mainLine.y2)
       ctx.strokeStyle = segmentColor
-      ctx.lineWidth = 40
+      ctx.lineWidth = 15
       ctx.stroke()
     }
 
@@ -518,60 +612,22 @@ export default function ImageViewer({
       ctx.moveTo(pair.left.x, pair.left.y)
       ctx.lineTo(pair.right.x, pair.right.y)
       ctx.strokeStyle = segmentColor
-      ctx.lineWidth = 30
+      ctx.lineWidth = 10
       ctx.stroke()
     })
 
     crosshairs.forEach((pair) => {
       ["left", "right"].forEach((side) => {
-        const point = pair[side];
-        const size = crosshairSize * 2;
+        const point = pair[side]
+        ctx.beginPath()
+        const radius = crosshairSize
     
-        const outerRadius = size*1.3;
-        const armLength = size * 2;
-        const gap = size * 0.4;
-    
-        ctx.strokeStyle = crosshairColor;
-        ctx.fillStyle = crosshairColor;
-        ctx.lineWidth = size*0.2; // Increase this for thicker lines (try 5 or 6 if needed)
-    
-        // Outer ring only
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, outerRadius, 0, 2 * Math.PI);
-        ctx.stroke();
-    
-        // Center dot
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, size*0.2, 0, 2 * Math.PI);
-        ctx.fill();
-    
-        // Crosshair arms (lines)
-        // Top
-        ctx.beginPath();
-        ctx.moveTo(point.x, point.y - outerRadius - gap);
-        ctx.lineTo(point.x, point.y - outerRadius);
-        ctx.stroke();
-    
-        // Bottom
-        ctx.beginPath();
-        ctx.moveTo(point.x, point.y + outerRadius + gap);
-        ctx.lineTo(point.x, point.y + outerRadius);
-        ctx.stroke();
-    
-        // Left
-        ctx.beginPath();
-        ctx.moveTo(point.x - outerRadius - gap, point.y);
-        ctx.lineTo(point.x - outerRadius, point.y);
-        ctx.stroke();
-    
-        // Right
-        ctx.beginPath();
-        ctx.moveTo(point.x + outerRadius + gap, point.y);
-        ctx.lineTo(point.x + outerRadius, point.y);
-        ctx.stroke();
-      });
-    });
-    
+        ctx.arc(point.x, point.y, radius, 0, 2 * Math.PI)
+        ctx.strokeStyle = "black"
+        ctx.lineWidth = 6
+        ctx.stroke()
+      })
+    })
 
     if (manualCurvePoints.length > 0) {
       ctx.beginPath()
@@ -580,12 +636,12 @@ export default function ImageViewer({
         ctx.lineTo(manualCurvePoints[i].x, manualCurvePoints[i].y)
       }
       ctx.strokeStyle = "orange"
-      ctx.lineWidth = 20
+      ctx.lineWidth = 10
       ctx.stroke()
 
       manualCurvePoints.forEach((p) => {
         ctx.beginPath()
-        ctx.arc(p.x, p.y, 24, 0, 2 * Math.PI)
+        ctx.arc(p.x, p.y, 12, 0, 2 * Math.PI)
         ctx.fillStyle = "orange"
         ctx.fill()
       })
@@ -606,7 +662,7 @@ export default function ImageViewer({
       }
 
       ctx.strokeStyle = "magenta"
-      ctx.lineWidth = 20
+      ctx.lineWidth = 10
       ctx.stroke()
 
       // Fill with semi-transparent color
@@ -616,7 +672,7 @@ export default function ImageViewer({
       // Draw points
       polygonPoints.forEach((p) => {
         ctx.beginPath()
-        ctx.arc(p.x, p.y, 24, 0, 2 * Math.PI)
+        ctx.arc(p.x, p.y, 12, 0, 2 * Math.PI)
         ctx.fillStyle = "magenta"
         ctx.fill()
       })
@@ -627,12 +683,9 @@ export default function ImageViewer({
       // Draw the points
       anglePoints.forEach((point, index) => {
         ctx.beginPath()
-        ctx.arc(point.x, point.y, 36, 0, 2 * Math.PI)
-        ctx.fillStyle = index === 1 ? "yellow" : "red" // Middle point (vertex) is yellow
-        ctx.strokeStyle = "white"
-        ctx.lineWidth = 30
+        ctx.arc(point.x, point.y, 12, 0, 2 * Math.PI)
+        ctx.fillStyle = "red"
         ctx.fill()
-        ctx.stroke()
       })
 
       // Draw first line
@@ -641,7 +694,7 @@ export default function ImageViewer({
         ctx.moveTo(anglePoints[1].x, anglePoints[1].y) // Start from the middle point
         ctx.lineTo(anglePoints[0].x, anglePoints[0].y)
         ctx.strokeStyle = "red"
-        ctx.lineWidth = 30
+        ctx.lineWidth = 10
         ctx.stroke()
       }
 
@@ -651,21 +704,26 @@ export default function ImageViewer({
         ctx.moveTo(anglePoints[1].x, anglePoints[1].y) // Start from the middle point
         ctx.lineTo(anglePoints[2].x, anglePoints[2].y)
         ctx.strokeStyle = "red"
-        ctx.lineWidth = 30
+        ctx.lineWidth = 10
         ctx.stroke()
       }
     }
   }
 
   const handleClearMeasurement = () => {
-    setPoints([])
-    setMainLine(null)
-    setSegmentLines([])
-    setCrosshairs([])
-    setManualCurvePoints([])
-    setPolygonPoints([])
-    setAnglePoints([])
-    setAngleLines([])
+    if (activeTool === "Measure Area") {
+      setPolygonPoints([])
+    } else if (activeTool === "Measure Curve") {
+      setManualCurvePoints([])
+    } else if (activeTool === "Measure Angle") {
+      setAnglePoints([])
+      setAngleLines([])
+    } else if (activeTool === "Measure Widths" || (activeTool === null && crosshairs.length > 0)) {
+      setPoints([])
+      setMainLine(null)
+      setSegmentLines([])
+      setCrosshairs([])
+    }
     setBackendMessage("")
   }
   
@@ -687,14 +745,14 @@ export default function ImageViewer({
             }${points.length > 0 ? `, ${points.length} points placed` : ""}`}
           />
 
-          {manualCurvePoints.length > 0 && activeTool === "pencil" && (
+          {manualCurvePoints.length > 0 && activeTool === "Measure Curve" && (
             <button
               className="finalize-button"
               onClick={handleFinalizeManualCurve}
               style={{
                 position: "absolute",
-                bottom: 20,
-                left: "50%",
+                bottom: "3%",
+                left: "45%",
                 transform: "translateX(-50%)",
                 zIndex: 20,
                 padding: "10px 20px",
@@ -710,14 +768,14 @@ export default function ImageViewer({
             </button>
           )}
 
-          {polygonPoints.length > 2 && activeTool === "area" && (
+          {polygonPoints.length > 2 && activeTool === "Measure Area" && (
             <button
               className="finalize-button"
               onClick={handleFinalizeArea}
               style={{
                 position: "absolute",
-                bottom: 20,
-                left: "50%",
+                bottom: "3%",
+                left: "45%",
                 transform: "translateX(-50%)",
                 zIndex: 20,
                 padding: "10px 20px",
@@ -740,8 +798,8 @@ export default function ImageViewer({
                 onClick={handleFinalizeRuler}
                 style={{
                   position: "absolute",
-                  bottom: 70,
-                  left: "50%",
+                  bottom: "3%",
+                  left: "45%",
                   transform: "translateX(-50%)",
                   zIndex: 20,
                   padding: "10px 20px",
@@ -758,14 +816,14 @@ export default function ImageViewer({
             </>
           )}
 
-          {anglePoints.length === 3 && activeTool === "angle" && (
+          {anglePoints.length === 3 && activeTool === "Measure Angle" && (
             <button
               className="finalize-button"
               onClick={handleFinalizeAngle}
               style={{
                 position: "absolute",
-                bottom: 20,
-                left: "50%",
+                bottom: "3%",
+                left: "45%",
                 transform: "translateX(-50%)",
                 zIndex: 20,
                 padding: "10px 20px",
@@ -788,15 +846,16 @@ export default function ImageViewer({
               onClick={handleClearMeasurement}
               style={{
                 position: "absolute",
-                bottom: 20,
-                right: 20,
-                zIndex: 20,
+                bottom: "3%",
+                right: "15%",
+                maxWidth: "calc(100% - 20px)",
                 padding: "10px 20px",
                 background: "#b71c1c",
                 color: "white",
                 border: "none",
                 borderRadius: "6px",
                 cursor: "pointer",
+                zIndex: 20,
               }}
               aria-label="Clear all measurements"
             >
@@ -808,8 +867,8 @@ export default function ImageViewer({
             <p
               style={{
                 position: "absolute",
-                bottom: 120,
-                left: "50%",
+                bottom: "8%",
+                left: "45%",
                 transform: "translateX(-50%)",
                 zIndex: 20,
                 background: "rgba(0,0,0,0.75)",
@@ -870,21 +929,21 @@ export default function ImageViewer({
         </label>
       )}
 
-      {activeTool === "ruler" && (
+      {activeTool === "Measure Widths" && (
         <div className="drawing-instructions" role="status" aria-live="polite">
           {points.length === 0 ? "Click to place the first point" : "Click to place the second point"}
         </div>
       )}
 
-      {activeTool === "area" && (
+      {activeTool === "Measure Area" && polygonPoints.length === 0 && (
         <div className="drawing-instructions" role="status" aria-live="polite">Click to place points for area calculation. Need at least 3 points.</div>
       )}
 
-      {activeTool === "pencil" && (
-        <div className="drawing-instructions" role="status" aria-live="polite">Click to place points for curved length calculation.</div>
+      {activeTool === "Measure Curve" && manualCurvePoints.length === 0 && (
+        <div className="drawing-instructions" role="status" aria-live="polite">Click to place points for curved length calculation."</div>
       )}
 
-      {activeTool === "angle" && (
+      {activeTool === "Measure Angle" && anglePoints.length < 3 && (
         <div className="drawing-instructions" role="status" aria-live="polite">
           {anglePoints.length === 0
             ? "Click to place the first point"

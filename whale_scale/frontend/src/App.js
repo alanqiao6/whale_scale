@@ -1,11 +1,13 @@
 "use client"
-import React, { useState, useEffect } from "react"
-import Sidebar from "./components/Sidebar"
+import React, { useState } from "react"
 import TopBar from "./components/TopBar"
-import ImageViewer from "./components/ImageViewer"
-import Data from "./components/Data"
+import MeasurementSidebar from "./components/MeasurementSidebar"
+import StatisticsSidebar from "./components/StatisticsSidebar"
+import DataSidebar from "./components/DataSidebar"
+import Measurement from "./pages/Measurement"
+import Statistics from "./pages/Statistics"
+import Data from "./pages/Data"
 import "./App.css"
-import * as exifr from "exifr"
 
 // Utility function to get cookie value
 const getCookie = (name) => {
@@ -31,360 +33,230 @@ const getSessionId = () => {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("measure")
-  const [activeTool, setActiveTool] = useState(null)
-  const [image, setImage] = useState(null)
-  const [imageFile, setImageFile] = useState(null)
-  const [metadata, setMetadata] = useState({ focalLength: "", altitude: "" })
+
+  // Shared state (used by sidebar + main content)
   const [formData, setFormData] = useState({
-    focalLength: "",
     altitude: "",
     altitudeOffset: "",
     imageWidth: "",
     imageHeight: "",
-    fov: "",
+    focalLength: "",
+    fieldOfView: "",
     sensorWidth: "",
-    widthSegments: "",
-    crosshairSize: 50,
-    crosshairOpacity: 100,
-    segmentColor: "#FFFFC5",
-    crosshairColor: "#FF0000"
+    numSegments: "5",
+    crosshairSize: "10",
+    crosshairOpacity: "1",
+    segmentColor: "#ffa500"
   })
-  const [widthSegments, setWidthSegments] = useState(null)
-  const [rulerData, setRulerData] = useState(null)
-  const [manualCurveData, setManualCurveData] = useState(null)
-  const [areaData, setAreaData] = useState(null)
-  const [angleData, setAngleData] = useState(null)
-  const [bodyConditionData, setBodyConditionData] = useState(null)
-  const [backendResult, setBackendResult] = useState(null)
-  const [backendMessage, setBackendMessage] = useState("")
+  const [image, setImage] = useState(null)
+  const [metadata, setMetadata] = useState({})
   const [pixelDimension, setPixelDimension] = useState(null)
-  const [sidebarSubmitted, setSidebarSubmitted] = useState(false)
+  const [activeTool, setActiveTool] = useState("Measure Widths")
+  const [pixelStatusMessage, setPixelStatusMessage] = useState("")
+  const [measurementResults, setMeasurementResults] = useState(null)
+  const [subjectName, setSubjectName] = useState("")
+  const [originalFilePath, setOriginalFilePath] = useState("");
+  const [selectedData, setSelectedData] = useState([]);
 
-
-  // Handle real-time input changes from Sidebar
-  const handleInputChange = (name, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }))
-    if (name === "widthSegments") {
-      setWidthSegments(value !== "" ? Number.parseInt(value) : null)
-    }
-    if (["focalLength", "altitude", "altitudeOffset", "imageWidth", "imageHeight", "fov", "sensorWidth"].includes(name)) {
-      setMetadata(prev => ({
-        ...prev,
-        [name]: value
-      }))
-    }
-  }
-
-
-  const handleImageUpload = async (file) => {
-    if (file) {
-      const imageUrl = URL.createObjectURL(file)
-      setImage(imageUrl)
-      setImageFile(file)
-
-      try {
-        const formData = new FormData()
-        formData.append("image", file)
-
-        const response = await fetch("/api/collatrix/extract_metadata/", {
-          method: "POST",
-          body: formData,
-        })
-
-        if (response.ok) {
-          const backendMetadata = await response.json()
-          console.log("Backend Metadata:", backendMetadata)
-
-          const newMetadata = {
-            focalLength: backendMetadata.focal_length_mm || "",
-            altitude: backendMetadata.gps_altitude_m || "",
-            imageWidth: backendMetadata.image_width || "",
-            imageHeight: backendMetadata.image_height || "",
-            fov: backendMetadata.field_of_view_deg || "",
-            sensorWidth: backendMetadata.sensor_width || ""
-          }
-
-          setMetadata(newMetadata)
-          
-          // Also update these values in formData
-          setFormData(prev => ({
-            ...prev,
-            ...newMetadata
-          }))
-        } 
-      } catch (error) {
-        console.error("Error extracting metadata via backend:", error)
-        // Still try client-side extraction if server throws error
-      } 
-    }
-  }
-
-  const [measurementData, setMeasurementData] = useState(null)
-
-  const handleMeasurementUpdate = (data) => {
-    setMeasurementData(data)
-  }
-
-  const handleSubmit = async (dataFromSidebar) => {
-    // We already have updated formData from input changes, 
-    // but this ensures consistency
-    setFormData(dataFromSidebar)
-    setSidebarSubmitted(true)
-
-
-    if (dataFromSidebar.pixelDimension) {
-      setPixelDimension(dataFromSidebar.pixelDimension)
-    }
-    
-    // No need to set width segments here as it's already set via handleInputChange
-    // But we'll keep it for safety
-    if (dataFromSidebar.widthSegments !== formData.widthSegments) {
-      setWidthSegments(Number.parseInt(dataFromSidebar.widthSegments) || null)
-    }
-
-    // Update metadata with form data
-    setMetadata(prev => ({
-      ...prev,
-      ...dataFromSidebar
-    }))
-
-    // Submit measurement to backend
-    if (!measurementData || measurementData.points.length < 2) {
-      console.error("Not enough points to submit a measurement.")
-      return
-    }
-
-    try {
-      const response = await fetch("/api/morphometrix/calculate_length/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          measurement: {
-            measurement_type: "line",
-            measurement_name: "User Line",
-            objects_params: [
-              {
-                type: 1,
-                parms: {
-                  x1: measurementData.points[0].x,
-                  y1: measurementData.points[0].y,
-                  x2: measurementData.points[1].x,
-                  y2: measurementData.points[1].y,
-                  length: measurementData.length,
-                },
-              },
-            ],
-          },
-        }),
-      })
-
-      if (response.ok) {
-        const result = await response.json()
-        console.log("Line measurement result:", result)
-      } else {
-        console.error("Measurement submission failed:", response.statusText)
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
       }
-    } catch (error) {
-      console.error("Error submitting measurement:", error)
     }
+    return cookieValue;
   }
+  
 
   const handleBackendResult = (result) => {
-    setBackendResult(result)
+    const finalResult = {
+      ...result,
+      user_image_path: originalFilePath || image,  // fallback to blob URL if missing
+    };
+    setMeasurementResults(finalResult);
+  
+    fetch("/api/measurements/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCookie("csrftoken")  // Use your CSRF helper
+      },
+      credentials: "include",
+      body: JSON.stringify(finalResult),
+    })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error("Failed to save measurement");
+        }
+        return res.json();
+      })
+      .then((data) => {
+        console.log("Measurement saved:", data);
+      })
+      .catch((error) => {
+        console.error("Error saving measurement:", error);
+      });
+  };
+  
 
-    if (result.type === "manual_curve") {
-      setManualCurveData({
-        type: "manual_curve",
-        curveLength: result.length,
-        curvePoints: result.curvePoints,
+  const handleInputChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value })
+  }
+
+  const handleImageUpload = async (file) => {
+    if (!(file instanceof File)) {
+      console.error("handleImageUpload expected a File but got:", file)
+      return
+    }
+  
+    const imageUrl = URL.createObjectURL(file)
+    setImage(imageUrl)
+    setOriginalFilePath(file.name);
+  
+    try {
+      const formDataToSend = new FormData()
+      formDataToSend.append("image", file)
+  
+      const response = await fetch("/api/collatrix/extract_metadata/", {
+        method: "POST",
+        body: formDataToSend,
       })
-    } else if (result.type === "ruler") {
-      setRulerData({
-        type: "ruler",
-        curveLength: result.curveLength,
-        widthSegments: result.widthSegments ?? [],
-        // Use the user-specified number rather than array length
-        segments: Number.parseInt(formData.widthSegments) || result.widthSegments?.length || 0,
-      })
-    } else if (result.type === "area") {
-      setAreaData({
-        type: "area",
-        area: result.area,
-        polygonPoints: result.polygonPoints,
-      })
-    } else if (result.type === "angle") {
-      setAngleData({
-        type: "angle",
-        angle: result.angle,
-        anglePoints: result.anglePoints,
-      })
+  
+      if (response.ok) {
+        const backendMetadata = await response.json()
+        console.log("Backend Metadata:", backendMetadata)
+  
+        const newMetadata = {
+          focalLength: backendMetadata.focal_length_mm || "",
+          altitude: backendMetadata.gps_altitude_m || "",
+          imageWidth: backendMetadata.image_width || "",
+          imageHeight: backendMetadata.image_height || "",
+          fieldOfView: backendMetadata.field_of_view_deg || "",
+          sensorWidth: backendMetadata.sensor_width || "",
+        }
+  
+        setMetadata(newMetadata)
+  
+        setFormData((prev) => ({
+          ...prev,
+          focalLength: newMetadata.focalLength,
+          altitude: newMetadata.altitude,
+          imageWidth: newMetadata.imageWidth,
+          imageHeight: newMetadata.imageHeight,
+          fieldOfView: newMetadata.fieldOfView,
+          sensorWidth: newMetadata.sensorWidth,
+        }))
+
+        await computePixelDimension({ ...formData, ...newMetadata }, newMetadata)
+      } else {
+        console.error("Failed to extract metadata from backend")
+      }
+    } catch (err) {
+      console.error("Error calling extract_metadata:", err)
     }
   }
 
-  // Function to handle volume calculations using the ruler data
-  const handleVolumeCalculation = async () => {
-    if (!rulerData || !metadata.focalLength || !metadata.altitude) {
-      alert("Please complete a ruler measurement and provide focal length and altitude data first.")
-      return
-    }
-
+  const computePixelDimension = async (customFormData = formData, customMetadata = metadata) => {
     try {
-      // Generate width positions as percentages of total length (0%, 5%, 10%, etc.)
-      const interval = 5;
-      const maxPercentage = 30;
-      const widthColumns = {};
-      
-      // Create width columns with proper naming convention (Length_w0.00, Length_w5.00, etc.)
-      for (let i = 0; i <= maxPercentage; i += interval) {
-        // Format with 2 decimal places (0.00, 5.00, etc.)
-        const formattedPos = i.toFixed(2);
-        const columnName = `Length_w${formattedPos}`;
-        
-        // Find the closest width segment to this percentage position
-        const segmentIndex = Math.round((i / 100) * rulerData.widthSegments.length);
-        const segment = rulerData.widthSegments[segmentIndex < rulerData.widthSegments.length ? segmentIndex : rulerData.widthSegments.length - 1];
-        
-        // Use the width value from that segment or a default value
-        widthColumns[columnName] = segment ? parseFloat(segment.length) / 100 : 0;
+      if (!customFormData.altitudeOffset) {
+        customFormData.altitudeOffset = 0
       }
-
-      // Format the measurement data for the body condition API
-      const measurementData = {
-        measurements: [
-          {
-            Image_ID: imageFile?.name || "current_image",
-            Image: imageFile?.name || "current_image",
-            Length: rulerData.curveLength / 100, // Convert to realistic units
-            ...widthColumns
-          }
-        ],
-        bv_method: "Circle", // Method for body volume calculation
-        bai_method: "Parabola", // Method for body area index
-        tl_name: "Length", // Name of the total length measurement
-        interval: interval, // Width measurement interval
-        lower: 0, // Lower bound
-        upper: maxPercentage // Upper bound
-      };
-
-      console.log("Sending body condition data:", measurementData);
-
-      const response = await fetch("/api/collatrix/calculate_body_condition/", {
+      const payload = {
+        altitude: parseFloat(customFormData.altitude) + parseFloat(customFormData.altitudeOffset),
+        focal_length: parseFloat(customFormData.focalLength),
+        image_width: parseInt(customMetadata.image_width || customFormData.imageWidth),
+        fov: parseFloat(customMetadata.fov || customFormData.fieldOfView),
+        sensor_width: parseFloat(customFormData.sensorWidth),
+      }
+  
+      const response = await fetch("/api/collatrix/compute_pixel_dimension/", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(measurementData),
-      });
-
-      if (response.ok) {
-        const volumeResults = await response.json();
-        console.log("Volume calculation results:", volumeResults);
-        
-        // Check if we got valid results
-        if (volumeResults && volumeResults.length > 0) {
-          let resultMessage = "✅ Body condition results:";
-          
-          // Add BV (Body Volume) if available
-          if (volumeResults[0].BVcir) {
-            resultMessage += ` Volume: ${volumeResults[0].BVcir.toFixed(2)} units³`;
-          }
-          
-          // Add BAI (Body Area Index) if available
-          if (volumeResults[0].BAIpar) {
-            resultMessage += ` | Area Index: ${volumeResults[0].BAIpar.toFixed(2)}`;
-          }
-          
-          setBackendMessage(resultMessage);
-          
-          // Store the body condition results in state
-          setBodyConditionData({
-            type: "body_condition",
-            volume: volumeResults[0]?.BVcir,
-            areaIndex: volumeResults[0]?.BAIpar,
-            surfaceArea: volumeResults[0]?.SA,
-            fullResults: volumeResults[0]
-          });
-        } else {
-          setBackendMessage("⚠️ Volume calculation completed but no results returned");
-        }
-      } else {
-        const errorText = await response.text();
-        console.error("Volume calculation error:", errorText);
-        setBackendMessage("❗ Error calculating volume");
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+  
+      const result = await response.json()
+  
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to compute pixel dimension.")
       }
-    } catch (error) {
-      console.error("Error in volume calculation:", error);
-      setBackendMessage("❗ Error connecting to backend for volume calculation");
+  
+      setPixelDimension(result.pixel_dimension)
+      setPixelStatusMessage("✅ All Required Data Completed")
+    } catch (err) {
+      setPixelStatusMessage(`❗ ${err.message}`)
     }
-  };
+  }
+  
+
+  const handleSubmit = () => {
+    console.log("Form submitted:", formData)
+    computePixelDimension()
+  }
+
+  const renderSidebar = () => {
+    switch (activeTab) {
+      case "measure":
+        return (
+          <MeasurementSidebar
+            metadata={metadata}
+            formData={formData}
+            onImageUpload={handleImageUpload}
+            onInputChange={handleInputChange}
+            onSubmit={handleSubmit}
+            pixelStatusMessage={pixelStatusMessage}
+          />
+        )
+      case "statistics":
+        return <StatisticsSidebar />
+      case "data":
+        return <DataSidebar selectedData={selectedData} />
+      default:
+        return null
+    }
+  }
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case "measure":
+        return (
+          <Measurement
+            image={image}
+            activeTool={activeTool}
+            setActiveTool={setActiveTool}
+            onImageUpload={handleImageUpload}
+            metadata={metadata}
+            segmentColor={formData.segmentColor}
+            crosshairSize={parseInt(formData.crosshairSize) || 10}
+            numSegments={formData.numSegments}
+            pixelDimension={pixelDimension}
+            onBackendResult={handleBackendResult}
+            subjectName={subjectName}
+            setSubjectName={setSubjectName}
+            formData={formData}
+          />
+        )
+      case "statistics":
+        return <Statistics />
+      case "data":
+        return <Data onSelectedDataChange={setSelectedData} />
+      default:
+        return <h2>Page not found</h2>
+    }
+  }
 
   return (
     <div className="app-container">
-      <Sidebar 
-        metadata={metadata} 
-        formData={formData}
-        onImageUpload={handleImageUpload} 
-        onSubmit={handleSubmit}
-        onInputChange={handleInputChange}
-      />
-      <div className="main-content">
-        <TopBar
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          activeTool={activeTool}
-          setActiveTool={setActiveTool}
-          sidebarSubmitted={sidebarSubmitted}
-        />
-        <ImageViewer
-          image={image}
-          widthSegments={widthSegments}
-          activeTool={activeTool}
-          setActiveTool={setActiveTool}
-          onMeasurementUpdate={handleMeasurementUpdate}
-          onImageUpload={handleImageUpload}
-          onBackendResult={handleBackendResult}
-          metadata={metadata}
-          segmentColor={formData.segmentColor}
-          crosshairColor={formData.crosshairColor}
-          crosshairSize={parseInt(formData.crosshairSize) || 10}
-          pixelDimension={pixelDimension}
-        />
-        {backendMessage && (
-          <p style={{ textAlign: "center", color: "black", fontWeight: "bold", marginTop: "10px" }}>{backendMessage}</p>
-        )}
-
-        {rulerData && (
-          <button
-            onClick={handleVolumeCalculation}
-            style={{
-              margin: "10px auto",
-              display: "block",
-              padding: "8px 16px",
-              background: "#4CAF50",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-            }}
-          >
-            Calculate Body Volume from Ruler Data
-          </button>
-        )}
-
-        <Data 
-          formData={formData} 
-          rulerData={rulerData} 
-          manualCurveData={manualCurveData} 
-          areaData={areaData}
-          angleData={angleData}
-          bodyConditionData={bodyConditionData}
-          pixelDimension={pixelDimension}
-        />
+      {renderSidebar()}
+      <div className="content-container">
+        <TopBar activeTab={activeTab} setActiveTab={setActiveTab} />
+        <div className="main-content">{renderContent()}</div>
       </div>
     </div>
   )

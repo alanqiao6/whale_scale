@@ -3,9 +3,9 @@ from .constants import BiasTypes, MeasurementTypes, ObjectTypes
 
 def calculate_widths(measurement_stack, bias):
     """Calculates distance in pixels for width measurements."""
+    width_array = []
     for measurement in measurement_stack:
         if measurement.get_type() == MeasurementTypes.WIDTH:
-            width_array = []
             side_A_width = []
             side_B_width = []
 

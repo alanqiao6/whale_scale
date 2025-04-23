@@ -13,6 +13,9 @@ import traceback
 import platform
 import logging
 import math
+from django.contrib.auth.decorators import login_required
+from .serializers import MeasurementSerializer, BodyConditionSerializer
+from .models import Measurement, BodyCondition
 
 
 from MMI_CODEX.collatrix.body_condition.calculate_body_area_index import calculate_body_area_index
@@ -28,7 +31,7 @@ from MMI_CODEX.morphometrix.compute_angle_between_lines import compute_angle_bet
 from MMI_CODEX.morphometrix.compute_curve_length import compute_curve_length
 from MMI_CODEX.morphometrix.compute_polygon_area import compute_polygon_area
 from MMI_CODEX.morphometrix.constants import ObjectTypes
-from MMI_CODEX.morphometrix.measurement import Measurement
+from MMI_CODEX.morphometrix.measurement import Measurement as ExternalMeasurement
 
 from MMI_CODEX.xcertainty.parsers.combine_observations import combine_observations
 from MMI_CODEX.xcertainty.parsers.parse_observations import parse_observations
@@ -92,7 +95,7 @@ class MorphoMetrix(View):
 
         """
         data = json.loads(request.body)
-        measurement_stack = [Measurement(**m) for m in data.get("measurement_stack", [])]
+        measurement_stack = [ExternalMeasurement(**m) for m in data.get("measurement_stack", [])]
         pixel_dimension = data.get("pixel_dimension", 1)
 
         measurement = measurement_stack[-1]
@@ -149,7 +152,7 @@ class MorphoMetrix(View):
         except ValueError:
             return JsonResponse({"error": "Invalid pixel_dimension"}, status=400)
     
-        measurement = Measurement(
+        measurement = ExternalMeasurement(
             measurement_type=measurement_data.get("measurement_type"),
             name=measurement_data.get("measurement_name")
         )
@@ -184,7 +187,7 @@ class MorphoMetrix(View):
 
         try:
             data = json.loads(request.body)
-            measurement = Measurement(**data.get("measurement"))
+            measurement = ExternalMeasurement(**data.get("measurement"))
             lines = measurement.get_objects()
 
             if len(lines) < 2:
@@ -230,7 +233,7 @@ class MorphoMetrix(View):
         }).then(response => console.log(response.data));
         """
         data = json.loads(request.body)
-        measurement = Measurement(**data.get("measurement"))
+        measurement = ExternalMeasurement(**data.get("measurement"))
         pixel_dimension = data.get("pixel_dimension", 1)
 
         qpolygon = [obj["parms"] for obj in measurement.objects_params if obj["type"] == ObjectTypes.POLYGONITEM]
@@ -248,9 +251,10 @@ class MorphoMetrix(View):
 
         return JsonResponse({"area": measurement.measurement_value})
     
-    def calculate_widths(self, data):
+    def calculate_widths(self, request):
         """Compute width measurements."""
-        measurement_stack = [Measurement(**m) for m in data.get("measurement_stack", [])]
+        data = json.loads(request.body)
+        measurement_stack = [ExternalMeasurement(**m) for m in data.get("measurement_stack", [])]
         bias = data.get("bias", None)
         pixel_dimension = data.get("pixel_dimension", 1)
 
@@ -261,13 +265,13 @@ class MorphoMetrix(View):
                     if "length" in obj["parms"]:
                         obj["parms"]["length"] *= pixel_dimension
         except ValueError:
-            return {"success": False, "message": "Invalid pixel_dimension"}
+            return JsonResponse({"success": False, "message": "Invalid pixel_dimension"})
 
         widths = calculate_widths(measurement_stack, bias)
         if not widths:
-            return {"success": False, "message": "No valid width measurements found"}
+            return JsonResponse({"success": False, "message": "No valid width measurements found"})
 
-        return {"success": True, "widths": widths}
+        return JsonResponse(widths)
     
 
 # -------------------------
@@ -419,22 +423,26 @@ class CollatriX(View):
         """
         try:
             data = json.loads(request.body)
+            cleaned_data = {
+                k: v for k, v in data.items()
+                if v is not None and str(v).strip() != "" and str(v).lower() != "null"
+            }
 
             # Option A
-            if all(key in data for key in ("altitude", "fov", "image_width")):
-                altitude = float(data["altitude"])
-                fov_deg = float(data["fov"])
-                image_width = int(data["image_width"])
+            if all(key in cleaned_data for key in ("altitude", "fov", "image_width")):
+                altitude = float(cleaned_data["altitude"])
+                fov_deg = float(cleaned_data["fov"])
+                image_width = int(cleaned_data["image_width"])
                 fov_rad = math.radians(fov_deg)
                 scene_width_m = 2 * altitude * math.tan(fov_rad / 2)
                 pixel_dimension = scene_width_m / image_width
 
             # Option B
-            elif all(key in data for key in ("altitude", "focal_length", "sensor_width", "image_width")):
-                altitude = float(data["altitude"])
-                focal_length = float(data["focal_length"])  # in mm
-                sensor_width = float(data["sensor_width"])  # in mm
-                image_width = int(data["image_width"])
+            elif all(key in cleaned_data for key in ("altitude", "focal_length", "sensor_width", "image_width")):
+                altitude = float(cleaned_data["altitude"])
+                focal_length = float(cleaned_data["focal_length"])  # in mm
+                sensor_width = float(cleaned_data["sensor_width"])  # in mm
+                image_width = int(cleaned_data["image_width"])
                 pixel_dimension = (altitude / focal_length) * (sensor_width / image_width)
 
             else:
@@ -480,8 +488,9 @@ class CollatriX(View):
         upper = float(data.get("upper", 100))
 
         df_vol = calculate_body_volume(df, tl_name, interval, lower, upper, bv_method)
+        print(df_vol)
         df_bai = calculate_body_area_index(df, tl_name, interval, lower, upper, bai_method)
-
+        print(df_bai)
         if df_vol is not None and df_bai is not None:
             result = pd.merge(df_vol, df_bai, on=["Image_ID", "Image"], how="outer")
         elif df_vol is not None:
@@ -934,3 +943,103 @@ class Xcertainty(View):
             return JsonResponse(result, safe=False)
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
+        
+
+@method_decorator(csrf_exempt, name='dispatch')
+@method_decorator(login_required, name='dispatch')
+class MeasurementView(View):
+    def get(self, request):
+        measurements = Measurement.objects.filter(user=request.user)
+        serializer = MeasurementSerializer(measurements, many=True)
+        return JsonResponse(serializer.data, safe=False)
+
+    def post(self, request):
+        data = json.loads(request.body)
+        for key, value in data.items():
+            if value == "":
+                data[key] = None
+        if isinstance(data.get('pixel_count'), float):
+            data['pixel_count'] = int(data['pixel_count'])
+        data['user'] = request.user.id
+        serializer = MeasurementSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return JsonResponse(serializer.data, status=201)
+        return JsonResponse(serializer.errors, status=400)
+    def delete(self, request):
+        try:
+            data = json.loads(request.body)
+            ids_to_delete = data.get("ids", [])
+            Measurement.objects.filter(user=request.user, id__in=ids_to_delete).delete()
+            return JsonResponse({'message': 'Deleted successfully', 'deleted_ids': ids_to_delete})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+        
+    def put(self, request):
+        try:
+            data = json.loads(request.body)
+            pk = data.get("id")
+            if not pk:
+                return JsonResponse({'error': 'Missing id in request body'}, status=400)
+            measurement = Measurement.objects.get(pk=pk, user=request.user)
+            for key, value in data.items():
+                if value == "":
+                    data[key] = None
+            serializer = MeasurementSerializer(measurement, data=data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return JsonResponse(serializer.data)
+            return JsonResponse(serializer.errors, status=400)
+        except Measurement.DoesNotExist:
+            return JsonResponse({'error': 'Measurement not found'}, status=404)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+        
+@method_decorator(csrf_exempt, name='dispatch')
+@method_decorator(login_required, name='dispatch')
+class BodyConditionView(View):
+    def get(self, request):
+        conditions = BodyCondition.objects.filter(user=request.user)
+        serializer = BodyConditionSerializer(conditions, many=True)
+        return JsonResponse(serializer.data, safe=False)
+
+    def post(self, request):
+        data = json.loads(request.body)
+        for key, value in data.items():
+            if value == "":
+                data[key] = None
+        data['user'] = request.user.id
+        serializer = BodyConditionSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return JsonResponse(serializer.data, status=201)
+        return JsonResponse(serializer.errors, status=400)
+
+    def delete(self, request):
+        try:
+            data = json.loads(request.body)
+            ids_to_delete = data.get("ids", [])
+            BodyCondition.objects.filter(user=request.user, id__in=ids_to_delete).delete()
+            return JsonResponse({'message': 'Deleted successfully', 'deleted_ids': ids_to_delete})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+
+    def put(self, request):
+        try:
+            data = json.loads(request.body)
+            pk = data.get("id")
+            if not pk:
+                return JsonResponse({'error': 'Missing id in request body'}, status=400)
+            instance = BodyCondition.objects.get(pk=pk, user=request.user)
+            for key, value in data.items():
+                if value == "":
+                    data[key] = None
+            serializer = BodyConditionSerializer(instance, data=data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return JsonResponse(serializer.data)
+            return JsonResponse(serializer.errors, status=400)
+        except BodyCondition.DoesNotExist:
+            return JsonResponse({'error': 'BodyCondition not found'}, status=404)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
