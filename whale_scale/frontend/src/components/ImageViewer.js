@@ -636,12 +636,12 @@ export default function ImageViewer({
         ctx.lineTo(manualCurvePoints[i].x, manualCurvePoints[i].y)
       }
       ctx.strokeStyle = "orange"
-      ctx.lineWidth = 20
+      ctx.lineWidth = 10
       ctx.stroke()
 
       manualCurvePoints.forEach((p) => {
         ctx.beginPath()
-        ctx.arc(p.x, p.y, 24, 0, 2 * Math.PI)
+        ctx.arc(p.x, p.y, 12, 0, 2 * Math.PI)
         ctx.fillStyle = "orange"
         ctx.fill()
       })
@@ -662,7 +662,7 @@ export default function ImageViewer({
       }
 
       ctx.strokeStyle = "magenta"
-      ctx.lineWidth = 20
+      ctx.lineWidth = 10
       ctx.stroke()
 
       // Fill with semi-transparent color
@@ -672,7 +672,7 @@ export default function ImageViewer({
       // Draw points
       polygonPoints.forEach((p) => {
         ctx.beginPath()
-        ctx.arc(p.x, p.y, 24, 0, 2 * Math.PI)
+        ctx.arc(p.x, p.y, 12, 0, 2 * Math.PI)
         ctx.fillStyle = "magenta"
         ctx.fill()
       })
@@ -683,12 +683,9 @@ export default function ImageViewer({
       // Draw the points
       anglePoints.forEach((point, index) => {
         ctx.beginPath()
-        ctx.arc(point.x, point.y, 36, 0, 2 * Math.PI)
-        ctx.fillStyle = index === 1 ? "yellow" : "red" // Middle point (vertex) is yellow
-        ctx.strokeStyle = "white"
-        ctx.lineWidth = 30
+        ctx.arc(point.x, point.y, 12, 0, 2 * Math.PI)
+        ctx.fillStyle = "red"
         ctx.fill()
-        ctx.stroke()
       })
 
       // Draw first line
@@ -697,7 +694,7 @@ export default function ImageViewer({
         ctx.moveTo(anglePoints[1].x, anglePoints[1].y) // Start from the middle point
         ctx.lineTo(anglePoints[0].x, anglePoints[0].y)
         ctx.strokeStyle = "red"
-        ctx.lineWidth = 30
+        ctx.lineWidth = 10
         ctx.stroke()
       }
 
@@ -707,7 +704,7 @@ export default function ImageViewer({
         ctx.moveTo(anglePoints[1].x, anglePoints[1].y) // Start from the middle point
         ctx.lineTo(anglePoints[2].x, anglePoints[2].y)
         ctx.strokeStyle = "red"
-        ctx.lineWidth = 30
+        ctx.lineWidth = 10
         ctx.stroke()
       }
     }
@@ -938,15 +935,15 @@ export default function ImageViewer({
         </div>
       )}
 
-      {activeTool === "Measure Area" && (
+      {activeTool === "Measure Area" && polygonPoints.length === 0 && (
         <div className="drawing-instructions" role="status" aria-live="polite">Click to place points for area calculation. Need at least 3 points.</div>
       )}
 
-      {activeTool === "Measure Curve" && (
-        <div className="drawing-instructions" role="status" aria-live="polite">Click to place points for curved length calculation.</div>
+      {activeTool === "Measure Curve" && manualCurvePoints.length === 0 && (
+        <div className="drawing-instructions" role="status" aria-live="polite">Click to place points for curved length calculation."</div>
       )}
 
-      {activeTool === "Measure Angle" && (
+      {activeTool === "Measure Angle" && anglePoints.length < 3 && (
         <div className="drawing-instructions" role="status" aria-live="polite">
           {anglePoints.length === 0
             ? "Click to place the first point"
