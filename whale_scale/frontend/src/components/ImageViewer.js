@@ -795,6 +795,10 @@ export default function ImageViewer({
         <div className="drawing-instructions">Click to place points for area calculation. Need at least 3 points.</div>
       )}
 
+      {activeTool === "pencil" && (
+        <div className="drawing-instructions">Click to place points for curved length calculation.</div>
+      )}
+
       {activeTool === "angle" && (
         <div className="drawing-instructions">
           {anglePoints.length === 0
