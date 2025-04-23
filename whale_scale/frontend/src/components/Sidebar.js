@@ -11,9 +11,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
   const handleImageUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
-      // Store the file path (only filename available due to security)
-      const imagePath = file.name;
-      onImageUpload(file, imagePath); // Pass the file name to App.js
+      onImageUpload(file); // Calls the function from App.js
       setError("");
     }
   };
@@ -72,13 +70,23 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
     }
   };
   
-  // Function to handle export button click
+  // Enhanced export function with detailed debugging
   const handleExport = () => {
-    // Call the export function exposed by the Data component
-    if (window.exportDataToCSV) {
-      window.exportDataToCSV();
+    console.log("Export button clicked");
+    
+    // Check if the export function exists
+    if (typeof window.exportDataToCSV === 'function') {
+      console.log("Export function found, executing...");
+      try {
+        window.exportDataToCSV();
+        console.log("Export function executed successfully");
+      } catch (err) {
+        console.error("Error during export:", err);
+        setError(`❌ Export error: ${err.message}`);
+      }
     } else {
-      setError("⚠️ Export function not available yet. Please submit data first.");
+      console.error("Export function not found on window object");
+      setError("⚠️ Export function not available. Please submit data first.");
     }
   };
 
@@ -116,7 +124,6 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       {mode === "extract" && !metadata.focalLength && (
         <p className="warning-text">⚠️ Please upload an image</p>
       )}
-
 
       {renderInput("Altitude (m)", "altitude", mode === "extract")}
       {renderInput("Altitude Offset (m)", "altitudeOffset", false)}
@@ -190,7 +197,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
 
       {error && (
         <p style={{ color: "red", fontWeight: "bold" }}>
-          ❌ Error: {error}
+          {error}
         </p>
       )}
 
