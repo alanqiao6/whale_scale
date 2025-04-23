@@ -11,7 +11,9 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
   const handleImageUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
-      onImageUpload(file); // Calls the function from App.js
+      // Store the file path (only filename available due to security)
+      const imagePath = file.name;
+      onImageUpload(file, imagePath); // Pass the file name to App.js
       setError("");
     }
   };
@@ -70,7 +72,15 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
     }
   };
   
-  
+  // Function to handle export button click
+  const handleExport = () => {
+    // Call the export function exposed by the Data component
+    if (window.exportDataToCSV) {
+      window.exportDataToCSV();
+    } else {
+      setError("⚠️ Export function not available yet. Please submit data first.");
+    }
+  };
 
   const renderInput = (label, name, disabled = false) => (
     <div className="input-group">
@@ -187,7 +197,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       <button className="submit-button" onClick={handleSubmit}>
         Submit
       </button>
-      <button className="export-button">Export 📤</button>
+      <button className="export-button" onClick={handleExport}>Export 📤</button>
     </div>
   );
-} 
+}

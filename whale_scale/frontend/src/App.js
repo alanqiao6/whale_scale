@@ -60,6 +60,12 @@ export default function App() {
       setImage(imageUrl)
       setImageFile(file)
 
+      // Store image path in formData for CSV export
+      setFormData(prev => ({
+        ...prev,
+        imagePath: file.name
+      }))
+
       try {
         const formData = new FormData()
         formData.append("image", file)
