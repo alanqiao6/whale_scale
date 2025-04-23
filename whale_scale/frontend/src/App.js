@@ -44,7 +44,7 @@ export default function App() {
     fieldOfView: "",
     sensorWidth: "",
     numSegments: "5",
-    crosshairSize: "10",
+    crosshairSize: "7",
     crosshairOpacity: "1",
     segmentColor: "#ffa500"
   })
