@@ -2,32 +2,25 @@
 import React, { useState, useEffect } from "react"
 import "./HelpModal.css"
 
-export default function HelpModal({ isOpen, onClose, mode = "docs", setHelpMode }) {
+export default function HelpModal({ isOpen, onClose, mode = "docs", setHelpMode, setShowHelp }) {
   const [step, setStep] = useState(0)
-  const [internalIsOpen, setInternalIsOpen] = useState(isOpen)
   const [showSidebarDetails, setShowSidebarDetails] = useState(false)
-
-  useEffect(() => {
-    if (mode === "onboarding") {
-      setInternalIsOpen(true)
-    } else {
-      setInternalIsOpen(isOpen)
-    }
-  }, [isOpen, mode])
 
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "Escape") {
-        setInternalIsOpen(false)
+        onClose()
       }
     }
-  
-    window.addEventListener("keydown", handleKeyDown)
+
+    if (isOpen) {
+      window.addEventListener("keydown", handleKeyDown)
+    }
+
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [])
+  }, [isOpen, onClose])
 
-  if (!internalIsOpen) return null
-
+  if (!isOpen) return null
   const steps = [
     {
       title: "1. 📄 Upload an Image",
@@ -86,7 +79,7 @@ export default function HelpModal({ isOpen, onClose, mode = "docs", setHelpMode 
             <div className="help-step-text">{steps[step].text}</div>
             <div className="help-controls">
               <button disabled={step === 0} onClick={() => setStep(s => s - 1)}>← Back</button>
-              <button onClick={() => setInternalIsOpen(false)}>Close</button>
+              <button onClick={onClose}>Close</button>
               <button disabled={step === steps.length - 1} onClick={() => setStep(s => s + 1)}>Next →</button>
             </div>
           </>
@@ -99,10 +92,14 @@ export default function HelpModal({ isOpen, onClose, mode = "docs", setHelpMode 
               ))}
             </ul>
             <div className="help-controls">
-              {setHelpMode && <button onClick={() => {
-                setHelpMode("onboarding")
-                onClose()
-              }}>Restart Tutorial</button>}
+            <button onClick={() => {
+              setHelpMode("onboarding");
+              setShowHelp(true);
+            }}>
+              Restart Tutorial
+            </button>
+
+
               <button onClick={onClose}>Close</button>
             </div>
           </>
