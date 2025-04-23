@@ -17,7 +17,7 @@ function getCookie(name) {
   return cookieValue;
 }
 
-// Use window.location.origin to determine the base URL dynamically
+// Use window.location.origin to determine the base URL dynamically change
 const API_BASE_URL = window.location.origin;
 
 const AuthModal = ({ isOpen, onClose, onAuthSuccess }) => {
