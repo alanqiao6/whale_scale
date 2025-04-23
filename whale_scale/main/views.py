@@ -14,8 +14,8 @@ import platform
 import logging
 import math
 from django.contrib.auth.decorators import login_required
-from .serializers import MeasurementSerializer
-from .models import Measurement
+from .serializers import MeasurementSerializer, BodyConditionSerializer
+from .models import Measurement, BodyCondition
 
 
 from MMI_CODEX.collatrix.body_condition.calculate_body_area_index import calculate_body_area_index
@@ -488,8 +488,9 @@ class CollatriX(View):
         upper = float(data.get("upper", 100))
 
         df_vol = calculate_body_volume(df, tl_name, interval, lower, upper, bv_method)
+        print(df_vol)
         df_bai = calculate_body_area_index(df, tl_name, interval, lower, upper, bai_method)
-
+        print(df_bai)
         if df_vol is not None and df_bai is not None:
             result = pd.merge(df_vol, df_bai, on=["Image_ID", "Image"], how="outer")
         elif df_vol is not None:
@@ -971,5 +972,74 @@ class MeasurementView(View):
             ids_to_delete = data.get("ids", [])
             Measurement.objects.filter(user=request.user, id__in=ids_to_delete).delete()
             return JsonResponse({'message': 'Deleted successfully', 'deleted_ids': ids_to_delete})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+        
+    def put(self, request):
+        try:
+            data = json.loads(request.body)
+            pk = data.get("id")
+            if not pk:
+                return JsonResponse({'error': 'Missing id in request body'}, status=400)
+            measurement = Measurement.objects.get(pk=pk, user=request.user)
+            for key, value in data.items():
+                if value == "":
+                    data[key] = None
+            serializer = MeasurementSerializer(measurement, data=data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return JsonResponse(serializer.data)
+            return JsonResponse(serializer.errors, status=400)
+        except Measurement.DoesNotExist:
+            return JsonResponse({'error': 'Measurement not found'}, status=404)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+        
+@method_decorator(csrf_exempt, name='dispatch')
+@method_decorator(login_required, name='dispatch')
+class BodyConditionView(View):
+    def get(self, request):
+        conditions = BodyCondition.objects.filter(user=request.user)
+        serializer = BodyConditionSerializer(conditions, many=True)
+        return JsonResponse(serializer.data, safe=False)
+
+    def post(self, request):
+        data = json.loads(request.body)
+        for key, value in data.items():
+            if value == "":
+                data[key] = None
+        data['user'] = request.user.id
+        serializer = BodyConditionSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return JsonResponse(serializer.data, status=201)
+        return JsonResponse(serializer.errors, status=400)
+
+    def delete(self, request):
+        try:
+            data = json.loads(request.body)
+            ids_to_delete = data.get("ids", [])
+            BodyCondition.objects.filter(user=request.user, id__in=ids_to_delete).delete()
+            return JsonResponse({'message': 'Deleted successfully', 'deleted_ids': ids_to_delete})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+
+    def put(self, request):
+        try:
+            data = json.loads(request.body)
+            pk = data.get("id")
+            if not pk:
+                return JsonResponse({'error': 'Missing id in request body'}, status=400)
+            instance = BodyCondition.objects.get(pk=pk, user=request.user)
+            for key, value in data.items():
+                if value == "":
+                    data[key] = None
+            serializer = BodyConditionSerializer(instance, data=data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return JsonResponse(serializer.data)
+            return JsonResponse(serializer.errors, status=400)
+        except BodyCondition.DoesNotExist:
+            return JsonResponse({'error': 'BodyCondition not found'}, status=404)
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)

@@ -91,7 +91,7 @@ export default function TopBar({ activeTab, setActiveTab }) {
     }
   };
 
-  const tabs = ["measure", "statistics", "data"];
+  const tabs = ["measure", "data"];
 
   return (
     <div className="top-bar">

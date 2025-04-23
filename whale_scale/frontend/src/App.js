@@ -32,8 +32,9 @@ export default function App() {
   const [activeTool, setActiveTool] = useState("Measure Widths")
   const [pixelStatusMessage, setPixelStatusMessage] = useState("")
   const [measurementResults, setMeasurementResults] = useState(null)
-  const [measurementName, setMeasurementName] = useState("")
+  const [subjectName, setSubjectName] = useState("")
   const [originalFilePath, setOriginalFilePath] = useState("");
+  const [selectedData, setSelectedData] = useState([]);
 
   function getCookie(name) {
     let cookieValue = null;
@@ -193,7 +194,7 @@ export default function App() {
       case "statistics":
         return <StatisticsSidebar />
       case "data":
-        return <DataSidebar />
+        return <DataSidebar selectedData={selectedData} />
       default:
         return null
     }
@@ -214,15 +215,15 @@ export default function App() {
             numSegments={formData.numSegments}
             pixelDimension={pixelDimension}
             onBackendResult={handleBackendResult}
-            measurementName={measurementName}
-            setMeasurementName={setMeasurementName}
+            subjectName={subjectName}
+            setSubjectName={setSubjectName}
             formData={formData}
           />
         )
       case "statistics":
         return <Statistics />
       case "data":
-        return <Data />
+        return <Data onSelectedDataChange={setSelectedData} />
       default:
         return <h2>Page not found</h2>
     }

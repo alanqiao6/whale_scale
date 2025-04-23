@@ -3,10 +3,13 @@ import { CSVLink } from "react-csv";
 import axios from "axios";
 import "../App.css";
 
-export default function Data() {
+export default function Data({ onSelectedDataChange }) {
   const [results, setResults] = useState([]);
   const [selectedRows, setSelectedRows] = useState([]);
   const [selectedColumns, setSelectedColumns] = useState([]);
+  const [editedResults, setEditedResults] = useState({});
+  const [bodyConditions, setBodyConditions] = useState([]);
+  const [selectedBCRows, setSelectedBCRows] = useState([]);
 
   function getCookie(name) {
     let cookieValue = null;
@@ -23,18 +26,41 @@ export default function Data() {
     return cookieValue;
   }
 
+  const defaultColumns = [
+    "subject_name",
+    "id",
+    "measurement_type",
+    "user_image_path",
+    "scaled_dimension",
+    "pixel_count",
+    "pixel_dimension"
+  ];
+
   useEffect(() => {
     axios.get("/api/measurements/")
       .then(response => {
         setResults(response.data);
         if (response.data.length > 0) {
-          setSelectedColumns(Object.keys(response.data[0]));
+          const allKeys = Object.keys(response.data[0]);
+          const filtered = defaultColumns.filter(col => allKeys.includes(col));
+          setSelectedColumns(filtered); // Only select the defaults, in order
         }
       })
       .catch(error => {
         console.error("Error fetching measurement data:", error);
       });
+      axios.get("/api/body_conditions/")
+      .then(response => setBodyConditions(response.data))
+      .catch(error => console.error("Error fetching body condition data:", error));
   }, []);
+
+  useEffect(() => {
+    const selected = selectedRows.map(index => ({
+      ...results[index],
+      ...(editedResults[index] || {})
+    }));
+    onSelectedDataChange(selected);
+  }, [selectedRows, editedResults, results, onSelectedDataChange]);
 
   if (!results || results.length === 0) {
     return (
@@ -45,6 +71,49 @@ export default function Data() {
       </div>
     );
   }
+
+  const handleInputChange = (index, key, value) => {
+    setEditedResults(prev => ({
+      ...prev,
+      [index]: {
+        ...prev[index],
+        [key]: value
+      }
+    }));
+  };
+
+  const handleSave = async () => {
+    try {
+      const csrftoken = getCookie("csrftoken") || getCookie("dev_csrftoken") || getCookie("prod_csrftoken");
+      const updates = Object.entries(editedResults);
+
+      for (const [index, updatesForRow] of updates) {
+        const rowId = results[index].id;
+        const updatedRow = { ...results[index], ...updatesForRow };
+
+        await fetch(`/api/measurements/`, {
+          method: "PUT",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrftoken
+          },
+          body: JSON.stringify(updatedRow)
+        });
+      }
+
+      // Refresh data after save
+      const updated = results.map((row, index) => ({
+        ...row,
+        ...(editedResults[index] || {})
+      }));
+      setResults(updated);
+      setEditedResults({});
+      alert("Changes saved successfully.");
+    } catch (error) {
+      console.error("Failed to save changes:", error);
+    }
+  };
 
   const handleRowSelect = (index) => {
     setSelectedRows((prev) =>
@@ -96,6 +165,35 @@ export default function Data() {
     }
   };
 
+  const handleBCDelete = async () => {
+    if (selectedBCRows.length === 0) {
+      alert("No body condition rows selected for deletion.");
+      return;
+    }
+
+    const idsToDelete = selectedBCRows.map(index => bodyConditions[index].id);
+
+    try {
+      const csrftoken = getCookie("csrftoken") || getCookie("dev_csrftoken") || getCookie("prod_csrftoken");
+      const response = await fetch("/api/body_conditions/", {
+        method: "DELETE",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrftoken,
+        },
+        body: JSON.stringify({ ids: idsToDelete }),
+      });
+
+      if (!response.ok) throw new Error("Delete request failed");
+
+      setBodyConditions(prev => prev.filter(bc => !idsToDelete.includes(bc.id)));
+      setSelectedBCRows([]);
+    } catch (error) {
+      console.error("Error deleting body condition rows:", error);
+    }
+  };
+
   const headers = selectedColumns.map((col) => ({ label: col, key: col }));
   const csvData = selectedRows.map((index) => {
     const row = results[index];
@@ -129,6 +227,7 @@ export default function Data() {
               <button>Export Selected to CSV</button>
             </CSVLink>
             <button onClick={handleDelete} style={{ marginLeft: 10 }}>Delete Selected</button>
+            <button onClick={handleSave} style={{ marginLeft: 10 }}>Save Changes</button>
           </div>
         </div>
 
@@ -153,18 +252,71 @@ export default function Data() {
                     />
                   </td>
                   {selectedColumns.map((col) => (
-                    <td key={col} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", border: "1px solid #ccc", padding: "0px" }}>
-                      {col === "coordinate_data"
-                        ? JSON.stringify(row[col]).slice(0, 100) + "…"
-                        : typeof row[col] === "object" && row[col] !== null
-                        ? JSON.stringify(row[col]).slice(0, 100) + "…"
-                        : row[col] ?? "None"}
+                    <td key={col} style={{ maxWidth: 180, border: "1px solid #ccc", padding: "4px" }}>
+                      {col === "id" ? (
+                        <span>{row[col]}</span>
+                      ) : (
+                        <input
+                          type="text"
+                          value={editedResults[index]?.[col] ?? row[col] ?? ""}
+                          onChange={(e) => handleInputChange(index, col, e.target.value)}
+                          style={{ width: "100%", border: "none", background: "transparent" }}
+                        />
+                      )}
                     </td>
                   ))}
                 </tr>
               ))}
             </tbody>
           </table>
+
+        {/* Body Condition Table */}
+        <h2 style={{ marginTop: "40px" }}>Body Condition Table</h2>
+        {bodyConditions.length === 0 ? (
+          <p>No body condition entries yet.</p>
+        ) : (
+          <div style={{ overflowX: "auto", margin: "0 0", maxWidth: "90%" }}>
+            <table className="data-table" style={{ tableLayout: "auto", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th>Select</th>
+                  <th>Image</th>
+                  <th>Surface Area</th>
+                  <th>Volume</th>
+                  <th>BAI</th>
+                  <th>Increment</th>
+                  <th>Measurement IDs</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bodyConditions.map((row, index) => (
+                  <tr key={index}>
+                    <td style={{ textAlign: "center" }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedBCRows.includes(index)}
+                        onChange={() =>
+                          setSelectedBCRows(prev =>
+                            prev.includes(index)
+                              ? prev.filter(i => i !== index)
+                              : [...prev, index]
+                          )
+                        }
+                      />
+                    </td>
+                    <td>{row.image}</td>
+                    <td>{row.surface_area.toFixed(3)}</td>
+                    <td>{row.body_volume.toFixed(3)}</td>
+                    <td>{row.body_area_index.toFixed(2)}</td>
+                    <td>{row.increment}</td>
+                    <td>{row.measurement_ids.join(", ")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <button onClick={handleBCDelete} style={{ marginTop: 10 }}>Delete Selected Body Condition Rows</button>
+          </div>
+        )}
         </div>
       </div>
     </div>

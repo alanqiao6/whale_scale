@@ -11,14 +11,14 @@ const toolLabels = {
 
 const tools = Object.keys(toolLabels);
 
-export default function ToolBar({ activeTool, setActiveTool, measurementName, setMeasurementName }) {
+export default function ToolBar({ activeTool, setActiveTool, subjectName, setSubjectName }) {
   return (
     <div className="tool-bar">
       <input
         type="text"
-        placeholder="Enter measurement name"
-        value={measurementName}
-        onChange={(e) => setMeasurementName(e.target.value)}
+        placeholder="Enter a subject name"
+        value={subjectName}
+        onChange={(e) => setSubjectName(e.target.value)}
         style={{
           padding: "6px",
           marginRight: "10px",

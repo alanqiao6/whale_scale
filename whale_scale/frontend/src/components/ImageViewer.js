@@ -14,7 +14,7 @@ export default function ImageViewer({
   numSegments,
   pixelDimension,
   onBackendResult,
-  measurementName,
+  subjectName,
   formData
 }) {
 
@@ -30,6 +30,7 @@ export default function ImageViewer({
   const [polygonPoints, setPolygonPoints] = useState([])
   const [anglePoints, setAnglePoints] = useState([])
   const [angleLines, setAngleLines] = useState([])
+  const [imageScale, setImageScale] = useState(1);
 
   useEffect(() => {
     if (!image) return
@@ -62,6 +63,14 @@ export default function ImageViewer({
     ctx.drawImage(imgObj, 0, 0, canvas.width, canvas.height)
     drawOverlay(ctx)
   }, [points, mainLine, segmentLines, crosshairs, imgObj, manualCurvePoints, polygonPoints, anglePoints, angleLines])
+
+  useEffect(() => {
+    if (imgObj && canvasRef.current) {
+      const canvas = canvasRef.current;
+      const scale = imgObj.naturalWidth / canvas.width;
+      setImageScale(scale - 0.5);
+    }
+  }, [imgObj]);
 
   useEffect(() => {
     if (points.length === 2) {
@@ -244,13 +253,13 @@ export default function ImageViewer({
         setBackendMessage(`❗ Ruler Curve error: ${curveResult.error}`)
         return
       }
-  
-      const curveLength = curveResult.length
-      const lengthPixels = Math.hypot(mainLine.x2 - mainLine.x1, mainLine.y2 - mainLine.y1)
+      console.log(imageScale)
+      const curveLength = curveResult.length * imageScale 
+      const lengthPixels = Math.hypot(mainLine.x2 - mainLine.x1, mainLine.y2 - mainLine.y1) * imageScale 
   
       // Send total TL measurement
       onBackendResult({
-        measurement_name: measurementName,
+        subject_name: subjectName,
         measurement_type: "TL",
         user_image_path: image,
         image_timestamp: metadata?.image_timestamp ?? new Date().toISOString(),
@@ -273,17 +282,18 @@ export default function ImageViewer({
       })
   
       // Add per-segment results (TL_w{percent})
+      const interval = Math.round(100 / (crosshairs.length + 1))
       const totalSegments = crosshairs.length
       crosshairs.forEach((pair, i) => {
         const dx = pair.right.x - pair.left.x
         const dy = pair.right.y - pair.left.y
-        const pixelLength = Math.hypot(dx, dy)
-        const realLength = parseFloat((pixelLength * (pixelDimension || 1)).toFixed(4))
-        const percent = Math.round(((i + 1) / (totalSegments + 1)) * 100)
+        const pixelLength = Math.hypot(dx, dy) * imageScale 
+        const realLength = parseFloat((pixelLength * (pixelDimension || 1) * imageScale).toFixed(4)) 
+        const percent = interval * (i + 1)
   
         onBackendResult({
-          measurement_name: measurementName,
-          measurement_type: `TL_w${percent}`,
+          subject_name: subjectName,
+          measurement_type: `TL_w${percent.toFixed(2)}`,
           user_image_path: image,
           image_timestamp: metadata?.image_timestamp ?? new Date().toISOString(),
           measurement_timestamp: new Date().toISOString(),
@@ -305,7 +315,7 @@ export default function ImageViewer({
         })
       })
   
-      setBackendMessage(`✅ Entry Added to Data Tab With Name "${measurementName}"`)
+      setBackendMessage(`✅ Entry Added to Data Tab With Name "${subjectName}"`)
     } catch (err) {
       console.error("Ruler error:", err)
       setBackendMessage("❗ Error connecting to backend for ruler")
@@ -355,14 +365,13 @@ export default function ImageViewer({
             const dx = p.x - arr[i - 1].x
             const dy = p.y - arr[i - 1].y
             return sum + Math.hypot(dx, dy)
-          }, 0)
-          
-          const curveLength = result.length
+          }, 0) * imageScale
+          const curveLength = result.length * imageScale
 
-          setBackendMessage(`✅ Entry Added to Data Tab With Name ${measurementName}`);
+          setBackendMessage(`✅ Entry Added to Data Tab With Name ${subjectName}`);
 
           onBackendResult({
-            measurement_name: measurementName,
+            subject_name: subjectName,
             measurement_type: "curve_length",
             user_image_path: image,
             image_timestamp: metadata?.image_timestamp ?? new Date().toISOString(),
@@ -425,10 +434,10 @@ export default function ImageViewer({
         return
       }
   
-      setBackendMessage(`✅ Entry Added to Data Tab With Name ${measurementName}`)
+      setBackendMessage(`✅ Entry Added to Data Tab With Name ${subjectName}`)
   
       onBackendResult({
-        measurement_name: measurementName,
+        subject_name: subjectName,
         measurement_type: "area",
         user_image_path: image,
         image_timestamp: metadata?.image_timestamp ?? new Date().toISOString(),
@@ -436,7 +445,7 @@ export default function ImageViewer({
         coordinate_data: polygonPoints,
         pixel_dimension: pixelDimension,
         pixel_count: null,
-        scaled_dimension: result.area,
+        scaled_dimension: result.area * imageScale,
         focal_length: metadata?.focalLength,
         sensor_width: metadata?.sensorWidth,
         image_width: metadata?.imageWidth,
@@ -525,10 +534,10 @@ export default function ImageViewer({
         return
       }
 
-      setBackendMessage(`✅ Entry Added to Data Tab With Name ${measurementName}`)
+      setBackendMessage(`✅ Entry Added to Data Tab With Name ${subjectName}`)
 
       onBackendResult({
-        measurement_name: measurementName,
+        subject_name: subjectName,
         measurement_type: "angle",
         user_image_path: image,
         image_timestamp: metadata?.image_timestamp ?? new Date().toISOString(),

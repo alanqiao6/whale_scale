@@ -14,14 +14,14 @@ export default function Measurement({
   numSegments,
   pixelDimension,
   onBackendResult,
-  measurementName,
-  setMeasurementName,
+  subjectName,
+  setSubjectName,
   formData
 }) {
   return (
     <div className="app-container">
       <div className="main-content">
-        <ToolBar activeTool={activeTool} setActiveTool={setActiveTool} measurementName={measurementName} setMeasurementName={setMeasurementName}/>
+        <ToolBar activeTool={activeTool} setActiveTool={setActiveTool} subjectName={subjectName} setSubjectName={setSubjectName}/>
         <ImageViewer
           image={image}
           activeTool={activeTool}
@@ -33,7 +33,7 @@ export default function Measurement({
           numSegments={numSegments}
           pixelDimension={pixelDimension}
           onBackendResult={onBackendResult}
-          measurementName={measurementName}
+          subjectName={subjectName}
           formData={formData}
         />
       </div>
