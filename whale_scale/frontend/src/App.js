@@ -33,6 +33,7 @@ export default function App() {
   const [pixelStatusMessage, setPixelStatusMessage] = useState("")
   const [measurementResults, setMeasurementResults] = useState(null)
   const [measurementName, setMeasurementName] = useState("")
+  const [originalFilePath, setOriginalFilePath] = useState("");
 
   function getCookie(name) {
     let cookieValue = null;
@@ -51,8 +52,11 @@ export default function App() {
   
 
   const handleBackendResult = (result) => {
-    console.log("Received measurement result:", result);
-    setMeasurementResults(result);
+    const finalResult = {
+      ...result,
+      user_image_path: originalFilePath || image,  // fallback to blob URL if missing
+    };
+    setMeasurementResults(finalResult);
   
     fetch("/api/measurements/", {
       method: "POST",
@@ -61,7 +65,7 @@ export default function App() {
         "X-CSRFToken": getCookie("csrftoken")  // Use your CSRF helper
       },
       credentials: "include",
-      body: JSON.stringify(result),
+      body: JSON.stringify(finalResult),
     })
       .then((res) => {
         if (!res.ok) {
@@ -90,6 +94,7 @@ export default function App() {
   
     const imageUrl = URL.createObjectURL(file)
     setImage(imageUrl)
+    setOriginalFilePath(file.name);
   
     try {
       const formDataToSend = new FormData()

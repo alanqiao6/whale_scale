@@ -154,6 +154,19 @@ export default function TopBar({ activeTab, setActiveTab }) {
         setHelpMode={setHelpMode}
         setShowHelp={setShowHelp}
       />
+      <HelpModal
+        isOpen={showHelp}
+        onClose={() => {
+          setShowHelp(false);  // Always close the modal
+          setHelpMode("docs"); // Reset mode so it doesn’t auto-reopen
+        }}
+        mode={helpMode}
+        setHelpMode={setHelpMode}
+        setShowHelp={setShowHelp}
+      />
+
+
+
     </div>
   );
 }

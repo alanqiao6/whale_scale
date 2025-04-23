@@ -1,7 +1,7 @@
 /* Container that holds the viewer or upload area */
 .image-container {
   height: 100%;
-  width: 100%;
+  width: 90%;
   display: flex;
   position: relative;
   align-items: center;
@@ -28,7 +28,7 @@
 
 /* Drop area styling */
 .upload-area {
-  width: 100%;
+  width: 90%;
   height: 100%;
   max-width: 100%;
   overflow: hidden;

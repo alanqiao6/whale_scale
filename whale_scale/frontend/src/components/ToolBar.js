@@ -1,12 +1,15 @@
 import React from "react";
 import "./ToolBar.css";
 
-const tools = [
-  "Measure Widths",
-  "Measure Area",
-  "Measure Angle",
-  "Measure Curve",
-];
+// Tool value → Emoji label
+const toolLabels = {
+  "Measure Widths": "📏 Measure Widths",
+  "Measure Area": "🔲 Measure Area",
+  "Measure Angle": "📐 Measure Angle",
+  "Measure Curve": "✏️ Measure Curve",
+};
+
+const tools = Object.keys(toolLabels);
 
 export default function ToolBar({ activeTool, setActiveTool, measurementName, setMeasurementName }) {
   return (
@@ -29,7 +32,7 @@ export default function ToolBar({ activeTool, setActiveTool, measurementName, se
           className={activeTool === tool ? "active" : ""}
           onClick={() => setActiveTool(tool)}
         >
-          {tool}
+          {toolLabels[tool]}
         </button>
       ))}
     </div>

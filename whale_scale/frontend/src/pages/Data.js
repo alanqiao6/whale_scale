@@ -8,6 +8,21 @@ export default function Data() {
   const [selectedRows, setSelectedRows] = useState([]);
   const [selectedColumns, setSelectedColumns] = useState([]);
 
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
   useEffect(() => {
     axios.get("/api/measurements/")
       .then(response => {
@@ -43,8 +58,42 @@ export default function Data() {
     );
   };
 
-  const handleDelete = () => {
-    alert("Simulated deletion. Connect to backend to persist changes.");
+  const handleDelete = async () => {
+    if (selectedRows.length === 0) {
+      alert("No rows selected for deletion.");
+      return;
+    }
+  
+    const idsToDelete = selectedRows.map(index => results[index].id);
+  
+    try {
+      const csrftoken = getCookie("csrftoken") || getCookie("dev_csrftoken") || getCookie("prod_csrftoken");
+  
+      const response = await fetch("/api/measurements/", {
+        method: "DELETE",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrftoken,
+        },
+        body: JSON.stringify({ ids: idsToDelete }),
+      });
+  
+      if (!response.ok) {
+        throw new Error("Delete request failed");
+      }
+  
+      const deletedIds = await response.json();
+  
+      // Filter out deleted rows from local state
+      const remaining = results.filter((item) => !idsToDelete.includes(item.id));
+      setResults(remaining);
+      setSelectedRows([]);
+  
+      console.log("Deleted:", deletedIds);
+    } catch (error) {
+      console.error("Error deleting measurements:", error);
+    }
   };
 
   const headers = selectedColumns.map((col) => ({ label: col, key: col }));
@@ -58,19 +107,24 @@ export default function Data() {
   return (
     <div className="app-container">
       <div className="main-content">
-        <div className="controls">
+        <div className="controls" style={{ textAlign: "left" }}>
           <h3>Column Selector</h3>
-          {Object.keys(results[0]).map((key) => (
-            <label key={key} style={{ marginRight: 10 }}>
-              <input
-                type="checkbox"
-                checked={selectedColumns.includes(key)}
-                onChange={() => handleColumnToggle(key)}
-              />
-              {key}
-            </label>
-          ))}
-          <div style={{ marginTop: 10 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "left", maxWidth: "90%", margin: "0 auto" }}>
+            {Object.keys(results[0]).map((key, index) => (
+              <label
+                key={key}
+                style={{ margin: "4px 2px", width: `${100 / 10}%` }} // Roughly 10 columns per row = 3 rows
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedColumns.includes(key)}
+                  onChange={() => handleColumnToggle(key)}
+                />
+                {key}
+              </label>
+            ))}
+          </div>
+          <div style={{ marginTop: 20, marginBottom: 20 }}>
             <CSVLink data={csvData} headers={headers} filename="selected_measurements.csv">
               <button>Export Selected to CSV</button>
             </CSVLink>
@@ -78,32 +132,40 @@ export default function Data() {
           </div>
         </div>
 
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Select</th>
-              {selectedColumns.map((col) => (
-                <th key={col}>{col}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {results.map((row, index) => (
-              <tr key={index}>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={selectedRows.includes(index)}
-                    onChange={() => handleRowSelect(index)}
-                  />
-                </td>
+        <div style={{ overflowX: "auto", margin: "0 0", maxWidth: "90%" }}>
+          <table className="data-table" style={{ tableLayout: "auto", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={{ whiteSpace: "nowrap" }}>Select</th>
                 {selectedColumns.map((col) => (
-                  <td key={col}>{row[col] ?? "None"}</td>
+                  <th key={col} style={{ whiteSpace: "nowrap", padding: "4px", border: "1px solid #ccc" }}>{col}</th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {results.map((row, index) => (
+                <tr key={index}>
+                  <td style={{ textAlign: "center", border: "1px solid #ccc" }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedRows.includes(index)}
+                      onChange={() => handleRowSelect(index)}
+                    />
+                  </td>
+                  {selectedColumns.map((col) => (
+                    <td key={col} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", border: "1px solid #ccc", padding: "0px" }}>
+                      {col === "coordinate_data"
+                        ? JSON.stringify(row[col]).slice(0, 100) + "…"
+                        : typeof row[col] === "object" && row[col] !== null
+                        ? JSON.stringify(row[col]).slice(0, 100) + "…"
+                        : row[col] ?? "None"}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

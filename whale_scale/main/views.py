@@ -15,6 +15,7 @@ import logging
 import math
 from django.contrib.auth.decorators import login_required
 from .serializers import MeasurementSerializer
+from .models import Measurement
 
 
 from MMI_CODEX.collatrix.body_condition.calculate_body_area_index import calculate_body_area_index
@@ -30,7 +31,7 @@ from MMI_CODEX.morphometrix.compute_angle_between_lines import compute_angle_bet
 from MMI_CODEX.morphometrix.compute_curve_length import compute_curve_length
 from MMI_CODEX.morphometrix.compute_polygon_area import compute_polygon_area
 from MMI_CODEX.morphometrix.constants import ObjectTypes
-from MMI_CODEX.morphometrix.measurement import Measurement
+from MMI_CODEX.morphometrix.measurement import Measurement as ExternalMeasurement
 
 from MMI_CODEX.xcertainty.parsers.combine_observations import combine_observations
 from MMI_CODEX.xcertainty.parsers.parse_observations import parse_observations
@@ -94,7 +95,7 @@ class MorphoMetrix(View):
 
         """
         data = json.loads(request.body)
-        measurement_stack = [Measurement(**m) for m in data.get("measurement_stack", [])]
+        measurement_stack = [ExternalMeasurement(**m) for m in data.get("measurement_stack", [])]
         pixel_dimension = data.get("pixel_dimension", 1)
 
         measurement = measurement_stack[-1]
@@ -151,7 +152,7 @@ class MorphoMetrix(View):
         except ValueError:
             return JsonResponse({"error": "Invalid pixel_dimension"}, status=400)
     
-        measurement = Measurement(
+        measurement = ExternalMeasurement(
             measurement_type=measurement_data.get("measurement_type"),
             name=measurement_data.get("measurement_name")
         )
@@ -186,7 +187,7 @@ class MorphoMetrix(View):
 
         try:
             data = json.loads(request.body)
-            measurement = Measurement(**data.get("measurement"))
+            measurement = ExternalMeasurement(**data.get("measurement"))
             lines = measurement.get_objects()
 
             if len(lines) < 2:
@@ -232,7 +233,7 @@ class MorphoMetrix(View):
         }).then(response => console.log(response.data));
         """
         data = json.loads(request.body)
-        measurement = Measurement(**data.get("measurement"))
+        measurement = ExternalMeasurement(**data.get("measurement"))
         pixel_dimension = data.get("pixel_dimension", 1)
 
         qpolygon = [obj["parms"] for obj in measurement.objects_params if obj["type"] == ObjectTypes.POLYGONITEM]
@@ -253,7 +254,7 @@ class MorphoMetrix(View):
     def calculate_widths(self, request):
         """Compute width measurements."""
         data = json.loads(request.body)
-        measurement_stack = [Measurement(**m) for m in data.get("measurement_stack", [])]
+        measurement_stack = [ExternalMeasurement(**m) for m in data.get("measurement_stack", [])]
         bias = data.get("bias", None)
         pixel_dimension = data.get("pixel_dimension", 1)
 
@@ -953,9 +954,22 @@ class MeasurementView(View):
 
     def post(self, request):
         data = json.loads(request.body)
+        for key, value in data.items():
+            if value == "":
+                data[key] = None
+        if isinstance(data.get('pixel_count'), float):
+            data['pixel_count'] = int(data['pixel_count'])
         data['user'] = request.user.id
         serializer = MeasurementSerializer(data=data)
         if serializer.is_valid():
             serializer.save()
             return JsonResponse(serializer.data, status=201)
         return JsonResponse(serializer.errors, status=400)
+    def delete(self, request):
+        try:
+            data = json.loads(request.body)
+            ids_to_delete = data.get("ids", [])
+            Measurement.objects.filter(user=request.user, id__in=ids_to_delete).delete()
+            return JsonResponse({'message': 'Deleted successfully', 'deleted_ids': ids_to_delete})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
