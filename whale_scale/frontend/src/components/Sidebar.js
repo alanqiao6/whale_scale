@@ -3,7 +3,6 @@ import React, { useState, useEffect } from "react";
 import "./Sidebar.css";
 
 export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, onInputChange }) {
-  const [mode, setMode] = useState("extract");
   const [error, setError] = useState("");
   const [inputConflict, setInputConflict] = useState(false);
   
@@ -21,11 +20,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
     // Notify parent component of the change
     onInputChange(name, value);
 
-    if (mode === "manual" && metadata[name] && value !== "" && value !== metadata[name].toString()) {
-      setInputConflict(true);
-    } else {
-      setInputConflict(false);
-    }
+    setInputConflict(false);
   };
 
   const handleSubmit = async () => {
@@ -105,11 +100,6 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
   return (
     <div className="sidebar">
       <div className="upload-section">
-        <label>📁 Mode:</label>
-        <select value={mode} onChange={(e) => setMode(e.target.value)}>
-          <option value="extract">Extract Metadata</option>
-          <option value="manual">Manual Entry</option>
-        </select>
         <label className="upload-button" htmlFor="image-upload" tabIndex="0" aria-label="Upload an image" onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             document.getElementById("image-upload").click(); // Trigger file input click
@@ -121,17 +111,13 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
         <p id="upload-help" className="sr-only">Choose an image to upload for processing.</p>
       </div>
 
-      {mode === "extract" && !metadata.focalLength && (
-        <p className="warning-text">⚠️ Please upload an image</p>
-      )}
-
-      {renderInput("Altitude (m)", "altitude", mode === "extract")}
+      {renderInput("Altitude (m)", "altitude", false)}
       {renderInput("Altitude Offset (m)", "altitudeOffset", false)}
-      {renderInput("Image Width (px)", "imageWidth", mode === "extract")}
-      {renderInput("Image Height (px)", "imageHeight", mode === "extract")}
-      {renderInput("Focal Length (mm)", "focalLength", mode === "extract")}
-      {renderInput("Field of View (°)", "fov", mode === "extract")}
-      {renderInput("Sensor Width (mm)", "sensorWidth", mode === "extract")}
+      {renderInput("Image Width (px)", "imageWidth", false)}
+      {renderInput("Image Height (px)", "imageHeight", false)}
+      {renderInput("Focal Length (mm)", "focalLength", false)}
+      {renderInput("Field of View (°)", "fov", false)}
+      {renderInput("Sensor Width (mm)", "sensorWidth", false)}
 
       <div className="input-group">
       <label>
@@ -201,6 +187,9 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       <button className="submit-button" onClick={handleSubmit}>
         Submit
       </button>
+      <p style={{ fontSize: "0.8em", color: "#555", marginTop: "4px", marginBottom: "12px" }}>
+        ⚠️ required field
+      </p>
       <button className="export-button" onClick={handleExport}>Export 📤</button>
     </div>
   );
