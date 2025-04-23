@@ -628,7 +628,7 @@ export default function ImageViewer({
       anglePoints.forEach((point, index) => {
         ctx.beginPath()
         ctx.arc(point.x, point.y, 36, 0, 2 * Math.PI)
-        ctx.fillStyle = index === 1 ? "yellow" : "blue" // Middle point (vertex) is yellow
+        ctx.fillStyle = index === 1 ? "yellow" : "red" // Middle point (vertex) is yellow
         ctx.strokeStyle = "white"
         ctx.lineWidth = 30
         ctx.fill()
@@ -640,7 +640,7 @@ export default function ImageViewer({
         ctx.beginPath()
         ctx.moveTo(anglePoints[1].x, anglePoints[1].y) // Start from the middle point
         ctx.lineTo(anglePoints[0].x, anglePoints[0].y)
-        ctx.strokeStyle = "blue"
+        ctx.strokeStyle = "red"
         ctx.lineWidth = 30
         ctx.stroke()
       }
@@ -650,7 +650,7 @@ export default function ImageViewer({
         ctx.beginPath()
         ctx.moveTo(anglePoints[1].x, anglePoints[1].y) // Start from the middle point
         ctx.lineTo(anglePoints[2].x, anglePoints[2].y)
-        ctx.strokeStyle = "blue"
+        ctx.strokeStyle = "red"
         ctx.lineWidth = 30
         ctx.stroke()
       }
@@ -769,7 +769,7 @@ export default function ImageViewer({
                 transform: "translateX(-50%)",
                 zIndex: 20,
                 padding: "10px 20px",
-                background: "#3939aa",
+                background: "#FF0000",
                 color: "white",
                 border: "none",
                 borderRadius: "6px",
