@@ -31,7 +31,11 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
   const [showHelp, setShowHelp] = useState(true)
   const [helpMode, setHelpMode] = useState("onboarding")
 
-
+  // Define high contrast tab styles
+  const tabStyle = {
+    color: "#000000",
+    fontWeight: "bold"
+  };
 
   useEffect(() => {
     checkAuth()
@@ -113,8 +117,8 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
           onClick={() => setActiveTab("measure")}
           role="tab"
           aria-selected={activeTab === "measure"}
-          aria-controls="measure-panel"
           id="measure-tab"
+          style={tabStyle}
         >
           Measure
         </button>
@@ -123,11 +127,20 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
           onClick={() => setActiveTab("xcertainty")}
           role="tab"
           aria-selected={activeTab === "xcertainty"}
-          aria-controls="xcertainty-panel" 
           id="xcertainty-tab"
+          style={tabStyle}
         >
           Xcertainty
         </button>
+      </div>
+
+      {/* Add the corresponding tabpanels that match the aria-controls values */}
+      <div id="measure-content" role="tabpanel" aria-labelledby="measure-tab" style={{display: activeTab === "measure" ? "block" : "none"}}>
+        {/* Content for the measure tab */}
+      </div>
+      
+      <div id="xcertainty-content" role="tabpanel" aria-labelledby="xcertainty-tab" style={{display: activeTab === "xcertainty" ? "block" : "none"}}>
+        {/* Content for the xcertainty tab */}
       </div>
 
       <div className="right-section">

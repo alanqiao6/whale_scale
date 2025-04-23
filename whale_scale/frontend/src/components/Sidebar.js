@@ -85,9 +85,15 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
     }
   };
 
+  // Define a style for labels to ensure proper contrast
+  const labelStyle = {
+    color: "#000000", // Black text for maximum contrast
+    fontWeight: "bold"
+  };
+
   const renderInput = (label, name, disabled = false) => (
     <div className="input-group">
-      <label htmlFor={`input-${name}`}>{label}</label>
+      <label htmlFor={`input-${name}`} style={labelStyle}>{label}</label>
       <input
         type="number"
         id={`input-${name}`}
@@ -124,7 +130,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       {renderInput("Sensor Width (mm)", "sensorWidth", false)}
 
       <div className="input-group">
-      <label htmlFor="width-segments">
+      <label htmlFor="width-segments" style={labelStyle}>
         # Width Segments <span aria-hidden="true">⚠️</span>
         <span className="sr-only">required field</span>
       </label>
@@ -141,7 +147,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       </div>
 
       <div className="input-group">
-        <label htmlFor="crosshair-size">Crosshair Size</label>
+        <label htmlFor="crosshair-size" style={labelStyle}>Crosshair Size</label>
         <input
           type="range"
           id="crosshair-size"
@@ -158,7 +164,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       </div>
 
       <div className="input-group">
-        <label htmlFor="crosshair-color">Crosshair Color</label>
+        <label htmlFor="crosshair-color" style={labelStyle}>Crosshair Color</label>
         <input
           type="color"
           id="crosshair-color"
@@ -172,7 +178,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
 
 
       <div className="input-group">
-        <label htmlFor="segment-color">Segment Color</label>
+        <label htmlFor="segment-color" style={labelStyle}>Segment Color</label>
         <input
           type="color"
           id="segment-color"
@@ -203,8 +209,8 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       >
         Submit
       </button>
-      <p style={{ fontSize: "0.8em", color: "#333", marginTop: "4px", marginBottom: "12px" }}>
-        <span aria-hidden="true">⚠️</span> <span>required field</span>
+      <p style={{ fontSize: "0.8em", color: "#000000", marginTop: "4px", marginBottom: "12px" }}>
+        <span aria-hidden="true">⚠️</span> <span style={{ fontWeight: "bold" }}>required field</span>
       </p>
       <button 
         className="export-button" 
