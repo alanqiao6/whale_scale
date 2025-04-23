@@ -14,12 +14,12 @@ export default function App() {
 
   // Shared state (used by sidebar + main content)
   const [formData, setFormData] = useState({
-    altitude: "20",
-    altitudeOffset: "1",
-    imageWidth: "8064",
-    imageHeight: "6048",
-    focalLength: "19.35",
-    fieldOfView: "28.842",
+    altitude: "",
+    altitudeOffset: "",
+    imageWidth: "",
+    imageHeight: "",
+    focalLength: "",
+    fieldOfView: "",
     sensorWidth: "",
     numSegments: "5",
     crosshairSize: "10",
@@ -30,19 +30,146 @@ export default function App() {
   const [metadata, setMetadata] = useState({})
   const [pixelDimension, setPixelDimension] = useState(null)
   const [activeTool, setActiveTool] = useState("Measure Widths")
+  const [pixelStatusMessage, setPixelStatusMessage] = useState("")
+  const [measurementResults, setMeasurementResults] = useState(null)
+  const [measurementName, setMeasurementName] = useState("")
+
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+  
+
+  const handleBackendResult = (result) => {
+    console.log("Received measurement result:", result);
+    setMeasurementResults(result);
+  
+    fetch("/api/measurements/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCookie("csrftoken")  // Use your CSRF helper
+      },
+      credentials: "include",
+      body: JSON.stringify(result),
+    })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error("Failed to save measurement");
+        }
+        return res.json();
+      })
+      .then((data) => {
+        console.log("Measurement saved:", data);
+      })
+      .catch((error) => {
+        console.error("Error saving measurement:", error);
+      });
+  };
+  
 
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
   }
 
-  const handleImageUpload = (file) => {
-    const reader = new FileReader()
-    reader.onload = () => setImage(reader.result)
-    reader.readAsDataURL(file)
+  const handleImageUpload = async (file) => {
+    if (!(file instanceof File)) {
+      console.error("handleImageUpload expected a File but got:", file)
+      return
+    }
+  
+    const imageUrl = URL.createObjectURL(file)
+    setImage(imageUrl)
+  
+    try {
+      const formDataToSend = new FormData()
+      formDataToSend.append("image", file)
+  
+      const response = await fetch("/api/collatrix/extract_metadata/", {
+        method: "POST",
+        body: formDataToSend,
+      })
+  
+      if (response.ok) {
+        const backendMetadata = await response.json()
+        console.log("Backend Metadata:", backendMetadata)
+  
+        const newMetadata = {
+          focalLength: backendMetadata.focal_length_mm || "",
+          altitude: backendMetadata.gps_altitude_m || "",
+          imageWidth: backendMetadata.image_width || "",
+          imageHeight: backendMetadata.image_height || "",
+          fieldOfView: backendMetadata.field_of_view_deg || "",
+          sensorWidth: backendMetadata.sensor_width || "",
+        }
+  
+        setMetadata(newMetadata)
+  
+        setFormData((prev) => ({
+          ...prev,
+          focalLength: newMetadata.focalLength,
+          altitude: newMetadata.altitude,
+          imageWidth: newMetadata.imageWidth,
+          imageHeight: newMetadata.imageHeight,
+          fieldOfView: newMetadata.fieldOfView,
+          sensorWidth: newMetadata.sensorWidth,
+        }))
+
+        await computePixelDimension({ ...formData, ...newMetadata }, newMetadata)
+      } else {
+        console.error("Failed to extract metadata from backend")
+      }
+    } catch (err) {
+      console.error("Error calling extract_metadata:", err)
+    }
   }
+
+  const computePixelDimension = async (customFormData = formData, customMetadata = metadata) => {
+    try {
+      if (!customFormData.altitudeOffset) {
+        customFormData.altitudeOffset = 0
+      }
+      const payload = {
+        altitude: parseFloat(customFormData.altitude) + parseFloat(customFormData.altitudeOffset),
+        focal_length: parseFloat(customFormData.focalLength),
+        image_width: parseInt(customMetadata.image_width || customFormData.imageWidth),
+        fov: parseFloat(customMetadata.fov || customFormData.fieldOfView),
+        sensor_width: parseFloat(customFormData.sensorWidth),
+      }
+  
+      const response = await fetch("/api/collatrix/compute_pixel_dimension/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+  
+      const result = await response.json()
+  
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to compute pixel dimension.")
+      }
+  
+      setPixelDimension(result.pixel_dimension)
+      setPixelStatusMessage("✅ All Required Data Completed")
+    } catch (err) {
+      setPixelStatusMessage(`❗ ${err.message}`)
+    }
+  }
+  
 
   const handleSubmit = () => {
     console.log("Form submitted:", formData)
+    computePixelDimension()
   }
 
   const renderSidebar = () => {
@@ -55,6 +182,7 @@ export default function App() {
             onImageUpload={handleImageUpload}
             onInputChange={handleInputChange}
             onSubmit={handleSubmit}
+            pixelStatusMessage={pixelStatusMessage}
           />
         )
       case "statistics":
@@ -78,7 +206,12 @@ export default function App() {
             metadata={metadata}
             segmentColor={formData.segmentColor}
             crosshairSize={parseInt(formData.crosshairSize) || 10}
+            numSegments={formData.numSegments}
             pixelDimension={pixelDimension}
+            onBackendResult={handleBackendResult}
+            measurementName={measurementName}
+            setMeasurementName={setMeasurementName}
+            formData={formData}
           />
         )
       case "statistics":

@@ -1,33 +1,40 @@
-import React from "react";
-import "./Sidebar.css";
+import React from "react"
+import "./Sidebar.css"
 
-export default function MeasurementSidebar({ metadata, formData, onImageUpload, onInputChange, onSubmit }) {
+export default function MeasurementSidebar({ metadata, formData, onImageUpload, onInputChange, onSubmit, pixelStatusMessage }) {
+  const labels = {
+    altitude: "Altitude (m)",
+    altitudeOffset: "Altitude Offset (m)",
+    imageWidth: "Image Width (px)",
+    imageHeight: "Image Height (px)",
+    focalLength: "Focal Length (mm)",
+    fieldOfView: "Field of View (deg)",
+    sensorWidth: "Sensor Width (mm)",
+    numSegments: "Segment Count",
+    crosshairSize: "Crosshair Size",
+    crosshairOpacity: "Crosshair Opacity",
+  }
+
   return (
     <div className="sidebar">
       <h2>Measure</h2>
-      <button onClick={() => document.getElementById("image-upload").click()}>Upload Image</button>
+      <button onClick={() => document.getElementById("image-upload").click()}>
+        Upload Image
+      </button>
       <input
         id="image-upload"
         type="file"
         accept="image/*"
         style={{ display: "none" }}
-        onChange={onImageUpload}
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) onImageUpload(file)
+        }}
       />
 
-      {[
-        "altitude",
-        "altitudeOffset",
-        "imageWidth",
-        "imageHeight",
-        "focalLength",
-        "fieldOfView",
-        "sensorWidth",
-        "numSegments",
-        "crosshairSize",
-        "crosshairOpacity"
-      ].map((key) => (
+      {Object.keys(labels).map((key) => (
         <div key={key}>
-          <label>{key.replace(/([A-Z])/g, " $1")} ({key === "sensorWidth" ? "optional" : ""})</label>
+          <label>{labels[key]}</label>
           <input
             type="text"
             name={key}
@@ -46,6 +53,11 @@ export default function MeasurementSidebar({ metadata, formData, onImageUpload, 
       />
 
       <button className="update-button" onClick={onSubmit}>Update</button>
+      {pixelStatusMessage && (
+        <p style={{ marginTop: "1rem", color: pixelStatusMessage.startsWith("✅") ? "green" : "red" }}>
+          {pixelStatusMessage}
+        </p>
+      )}
     </div>
-  );
+  )
 }

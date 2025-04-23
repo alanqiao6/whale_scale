@@ -11,12 +11,17 @@ export default function Measurement({
   metadata,
   segmentColor,
   crosshairSize,
-  pixelDimension
+  numSegments,
+  pixelDimension,
+  onBackendResult,
+  measurementName,
+  setMeasurementName,
+  formData
 }) {
   return (
     <div className="app-container">
       <div className="main-content">
-        <ToolBar activeTool={activeTool} setActiveTool={setActiveTool} />
+        <ToolBar activeTool={activeTool} setActiveTool={setActiveTool} measurementName={measurementName} setMeasurementName={setMeasurementName}/>
         <ImageViewer
           image={image}
           activeTool={activeTool}
@@ -25,7 +30,11 @@ export default function Measurement({
           metadata={metadata}
           segmentColor={segmentColor}
           crosshairSize={crosshairSize}
+          numSegments={numSegments}
           pixelDimension={pixelDimension}
+          onBackendResult={onBackendResult}
+          measurementName={measurementName}
+          formData={formData}
         />
       </div>
     </div>
