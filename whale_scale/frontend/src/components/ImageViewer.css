@@ -1,7 +1,7 @@
 /* Container that holds the viewer or upload area */
 .image-container {
   height: 100%;
-  width: 90%;
+  width: 100%;
   display: flex;
   position: relative;
   align-items: center;

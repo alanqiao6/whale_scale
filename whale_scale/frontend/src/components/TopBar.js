@@ -107,7 +107,43 @@ export default function TopBar({ activeTab, setActiveTab }) {
         ))}
       </div>
 
-      <div className="right-section">
+      <div
+        className="topbar-title"
+        style={{
+          position: "absolute",
+          left: "50%",
+          transform: "translateX(-50%)",
+          fontSize: "20px",
+          fontWeight: "bold",
+          transformOrigin: "center center"
+        }}
+      >
+        Whale Scale
+      </div>
+
+      <div className="right-section" style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+        {user ? (
+          <div className="user-info" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span className="username" style={{ fontWeight: 500 }}>Hi, {user.username}</span>
+            <button
+              className="logout-button"
+              onClick={handleLogout}
+              aria-label="Log out of your account"
+              style={{ background: "#ff4d4d", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", cursor: "pointer" }}
+            >
+              Logout
+            </button>
+          </div>
+        ) : (
+          <button
+            className="login-button"
+            onClick={() => setShowAuthModal(true)}
+            aria-label="Log in to your account"
+            style={{ background: "#0077cc", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", cursor: "pointer" }}
+          >
+            Login
+          </button>
+        )}
         <button
           className="tool-button"
           title="Help"
@@ -115,24 +151,10 @@ export default function TopBar({ activeTab, setActiveTab }) {
             setShowHelp(true);
             setHelpMode("docs");
           }}
+          style={{ background: "#0077cc", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", cursor: "pointer" }}
         >
-          ❓
+          ❓ Help
         </button>
-
-        <div className="auth-section">
-          {user ? (
-            <div className="user-info">
-              <span className="username">Hi, {user.username}</span>
-              <button className="logout-button" onClick={handleLogout}>
-                Logout
-              </button>
-            </div>
-          ) : (
-            <button className="login-button" onClick={() => setShowAuthModal(true)}>
-              Login
-            </button>
-          )}
-        </div>
       </div>
 
       <AuthModal
@@ -158,7 +180,7 @@ export default function TopBar({ activeTab, setActiveTab }) {
         isOpen={showHelp}
         onClose={() => {
           setShowHelp(false);  // Always close the modal
-          setHelpMode("docs"); // Reset mode so it doesn’t auto-reopen
+          setHelpMode("docs"); // Reset mode so it doesn't auto-reopen
         }}
         mode={helpMode}
         setHelpMode={setHelpMode}

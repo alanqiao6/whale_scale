@@ -3,7 +3,6 @@ import React, { useState, useEffect } from "react";
 import "./Sidebar.css";
 
 export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, onInputChange }) {
-  const [mode, setMode] = useState("extract");
   const [error, setError] = useState("");
   const [inputConflict, setInputConflict] = useState(false);
   
@@ -21,11 +20,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
     // Notify parent component of the change
     onInputChange(name, value);
 
-    if (mode === "manual" && metadata[name] && value !== "" && value !== metadata[name].toString()) {
-      setInputConflict(true);
-    } else {
-      setInputConflict(false);
-    }
+    setInputConflict(false);
   };
 
   const handleSubmit = async () => {
@@ -90,26 +85,31 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
     }
   };
 
+  // Define a style for labels to ensure proper contrast
+  const labelStyle = {
+    color: "#FFFFFF", // Black text for maximum contrast
+    fontWeight: "bold"
+  };
+
   const renderInput = (label, name, disabled = false) => (
     <div className="input-group">
-      <label>{label}</label>
+      <label htmlFor={`input-${name}`} style={labelStyle}>{label}</label>
       <input
         type="number"
+        id={`input-${name}`}
+        name={name}
         value={formData[name]}
         disabled={disabled}
         onChange={(e) => handleChange(name, e.target.value)}
+        aria-describedby={`${name}-help`}
       />
+      <span id={`${name}-help`} className="sr-only">Enter the {label.toLowerCase()}</span>
     </div>
   );
 
   return (
-    <div className="sidebar">
+    <div className="sidebar" role="complementary" aria-label="Configuration controls">
       <div className="upload-section">
-        <label>📁 Mode:</label>
-        <select value={mode} onChange={(e) => setMode(e.target.value)}>
-          <option value="extract">Extract Metadata</option>
-          <option value="manual">Manual Entry</option>
-        </select>
         <label className="upload-button" htmlFor="image-upload" tabIndex="0" aria-label="Upload an image" onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             document.getElementById("image-upload").click(); // Trigger file input click
@@ -121,35 +121,37 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
         <p id="upload-help" className="sr-only">Choose an image to upload for processing.</p>
       </div>
 
-      {mode === "extract" && !metadata.focalLength && (
-        <p className="warning-text">⚠️ Please upload an image</p>
-      )}
-
-      {renderInput("Altitude (m)", "altitude", mode === "extract")}
+      {renderInput("Altitude (m)", "altitude", false)}
       {renderInput("Altitude Offset (m)", "altitudeOffset", false)}
-      {renderInput("Image Width (px)", "imageWidth", mode === "extract")}
-      {renderInput("Image Height (px)", "imageHeight", mode === "extract")}
-      {renderInput("Focal Length (mm)", "focalLength", mode === "extract")}
-      {renderInput("Field of View (°)", "fov", mode === "extract")}
-      {renderInput("Sensor Width (mm)", "sensorWidth", mode === "extract")}
+      {renderInput("Image Width (px)", "imageWidth", false)}
+      {renderInput("Image Height (px)", "imageHeight", false)}
+      {renderInput("Focal Length (mm)", "focalLength", false)}
+      {renderInput("Field of View (°)", "fov", false)}
+      {renderInput("Sensor Width (mm)", "sensorWidth", false)}
 
       <div className="input-group">
-      <label>
-        # Width Segments ⚠️
+      <label htmlFor="width-segments" style={labelStyle}>
+        # Width Segments <span aria-hidden="true">⚠️</span>
+        <span className="sr-only">required field</span>
       </label>
         <input 
           type="number" 
           id="width-segments" 
+          name="widthSegments"
           value={formData.widthSegments} 
           onChange={(e) => handleChange("widthSegments", e.target.value)} 
+          aria-required="true"
+          aria-describedby="width-segments-help"
         />
+        <span id="width-segments-help" className="sr-only">Enter the number of width segments. This field is required.</span>
       </div>
 
       <div className="input-group">
-        <label>Crosshair Size</label>
+        <label htmlFor="crosshair-size" style={labelStyle}>Crosshair Size</label>
         <input
           type="range"
           id="crosshair-size"
+          name="crosshairSize"
           min="0"
           max="100"
           value={formData.crosshairSize}
@@ -162,26 +164,25 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       </div>
 
       <div className="input-group">
-        <label htmlFor="crosshair-opacity">Crosshair Opacity</label>
+        <label htmlFor="crosshair-color" style={labelStyle}>Crosshair Color</label>
         <input
-          type="range"
-          id="crosshair-opacity"
-          min="0"
-          max="100"
-          value={formData.crosshairOpacity}
-          onChange={(e) => handleChange("crosshairOpacity", e.target.value)}
-          aria-valuenow={formData.crosshairOpacity}
-          aria-valuemin="0"
-          aria-valuemax="100"
-          aria-label="Adjust crosshair opacity"
+          type="color"
+          id="crosshair-color"
+          name="crosshairColor"
+          value={formData.crosshairColor || "#FF0000"}
+          onChange={(e) => handleChange("crosshairColor", e.target.value)}
+          className="color-picker"
+          aria-label="Select crosshair color"
         />
       </div>
 
+
       <div className="input-group">
-        <label htmlFor="segment-color">Segment Color</label>
+        <label htmlFor="segment-color" style={labelStyle}>Segment Color</label>
         <input
           type="color"
           id="segment-color"
+          name="segmentColor"
           value={formData.segmentColor}
           onChange={(e) => handleChange("segmentColor", e.target.value)}
           className="color-picker"
@@ -190,21 +191,34 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       </div>
 
       {inputConflict && (
-        <p style={{ color: "orange", fontWeight: "bold" }}>
+        <p style={{ color: "#cc7000", fontWeight: "bold" }} role="alert">
           ⚠️ Your input does not match extracted metadata.
         </p>
       )}
 
       {error && (
-        <p style={{ color: "#e52e2e", fontWeight: "bold" }}>
+        <p style={{ color: "#d32f2f", fontWeight: "bold" }} role="alert" aria-live="assertive">
           {error}
         </p>
       )}
 
-      <button className="submit-button" onClick={handleSubmit}>
+      <button 
+        className="submit-button" 
+        onClick={handleSubmit}
+        aria-label="Submit configuration"
+      >
         Submit
       </button>
-      <button className="export-button" onClick={handleExport}>Export 📤</button>
+      <p style={{ fontSize: "0.8em", color: "#000000", marginTop: "4px", marginBottom: "12px" }}>
+        <span aria-hidden="true">⚠️</span> <span style={{ fontWeight: "bold" }}>required field</span>
+      </p>
+      <button 
+        className="export-button" 
+        onClick={handleExport}
+        aria-label="Export data to CSV"
+      >
+        Export 📤
+      </button>
     </div>
   );
 }

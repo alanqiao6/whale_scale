@@ -185,6 +185,34 @@ export default function ImageViewer({
     }
   }
 
+  // Support keyboard handling for canvas
+  const handleKeyDown = (e) => {
+    // If user presses enter or space with an active tool, simulate a click in the center
+    if ((e.key === "Enter" || e.key === " ") && activeTool && canvasRef.current) {
+      e.preventDefault();
+      const canvas = canvasRef.current;
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      
+      if (activeTool === "ruler") {
+        if (points.length === 2) {
+          setPoints([{ x: centerX, y: centerY }]);
+          setMainLine(null);
+          setSegmentLines([]);
+          setCrosshairs([]);
+        } else {
+          setPoints((prev) => [...prev, { x: centerX, y: centerY }]);
+        }
+      } else if (activeTool === "pencil") {
+        setManualCurvePoints((prev) => [...prev, { x: centerX, y: centerY }]);
+      } else if (activeTool === "area") {
+        setPolygonPoints((prev) => [...prev, { x: centerX, y: centerY }]);
+      } else if (activeTool === "angle") {
+        setAnglePoints((prev) => [...prev, { x: centerX, y: centerY }]);
+      }
+    }
+  };
+
   const calculateSegmentLines = (line, numSegments) => {
     if (!line || numSegments < 2) return
 
@@ -656,7 +684,7 @@ export default function ImageViewer({
       anglePoints.forEach((point, index) => {
         ctx.beginPath()
         ctx.arc(point.x, point.y, 36, 0, 2 * Math.PI)
-        ctx.fillStyle = index === 1 ? "yellow" : "blue" // Middle point (vertex) is yellow
+        ctx.fillStyle = index === 1 ? "yellow" : "red" // Middle point (vertex) is yellow
         ctx.strokeStyle = "white"
         ctx.lineWidth = 30
         ctx.fill()
@@ -668,7 +696,7 @@ export default function ImageViewer({
         ctx.beginPath()
         ctx.moveTo(anglePoints[1].x, anglePoints[1].y) // Start from the middle point
         ctx.lineTo(anglePoints[0].x, anglePoints[0].y)
-        ctx.strokeStyle = "blue"
+        ctx.strokeStyle = "red"
         ctx.lineWidth = 30
         ctx.stroke()
       }
@@ -678,7 +706,7 @@ export default function ImageViewer({
         ctx.beginPath()
         ctx.moveTo(anglePoints[1].x, anglePoints[1].y) // Start from the middle point
         ctx.lineTo(anglePoints[2].x, anglePoints[2].y)
-        ctx.strokeStyle = "blue"
+        ctx.strokeStyle = "red"
         ctx.lineWidth = 30
         ctx.stroke()
       }
@@ -711,7 +739,13 @@ export default function ImageViewer({
             ref={canvasRef}
             onClick={handleCanvasClick}
             onMouseDown={handleMouseDown}
+            onKeyDown={handleKeyDown}
             className={`image-canvas ${activeTool ? `${activeTool}-active` : ""}`}
+            tabIndex="0"
+            role="img"
+            aria-label={`Image with ${
+              activeTool ? activeTool + " tool active" : "no active tool"
+            }${points.length > 0 ? `, ${points.length} points placed` : ""}`}
           />
 
           {manualCurvePoints.length > 0 && activeTool === "Measure Curve" && (
@@ -725,14 +759,15 @@ export default function ImageViewer({
                 transform: "translateX(-50%)",
                 zIndex: 20,
                 padding: "10px 20px",
-                background: "orange",
+                background: "#c25500",
                 color: "white",
                 border: "none",
                 borderRadius: "6px",
                 cursor: "pointer",
               }}
+              aria-label="Finalize curve measurement"
             >
-              ✏️ Finalize Curve
+              <span aria-hidden="true">✏️</span> Finalize Curve
             </button>
           )}
 
@@ -747,14 +782,15 @@ export default function ImageViewer({
                 transform: "translateX(-50%)",
                 zIndex: 20,
                 padding: "10px 20px",
-                background: "purple",
+                background: "#8b008b",
                 color: "white",
                 border: "none",
                 borderRadius: "6px",
                 cursor: "pointer",
               }}
+              aria-label="Calculate area from selected points"
             >
-              🔲 Calculate Area
+              <span aria-hidden="true">🔲</span> Calculate Area
             </button>
           )}
 
@@ -770,14 +806,15 @@ export default function ImageViewer({
                   transform: "translateX(-50%)",
                   zIndex: 20,
                   padding: "10px 20px",
-                  background: "#0077cc",
+                  background: "#0056b3",
                   color: "white",
                   border: "none",
                   borderRadius: "6px",
                   cursor: "pointer",
                 }}
+                aria-label="Finalize ruler measurement"
               >
-                ✅ Finalize Ruler
+                <span aria-hidden="true">✅</span> Finalize Ruler
               </button>
             </>
           )}
@@ -793,14 +830,15 @@ export default function ImageViewer({
                 transform: "translateX(-50%)",
                 zIndex: 20,
                 padding: "10px 20px",
-                background: "#5555FF",
+                background: "#FF0000",
                 color: "white",
                 border: "none",
                 borderRadius: "6px",
                 cursor: "pointer",
               }}
+              aria-label="Calculate angle from selected points"
             >
-              📐 Calculate Angle
+              <span aria-hidden="true">📐</span> Calculate Angle
             </button>
           )}
 
@@ -815,15 +853,16 @@ export default function ImageViewer({
                 right: "15%",
                 maxWidth: "calc(100% - 20px)",
                 padding: "10px 20px",
-                background: "#ff3333",
+                background: "#b71c1c",
                 color: "white",
                 border: "none",
                 borderRadius: "6px",
                 cursor: "pointer",
                 zIndex: 20,
               }}
+              aria-label="Clear all measurements"
             >
-              🗑️ Clear
+              <span aria-hidden="true">🗑️</span> Clear
             </button>
           )}
 
@@ -835,12 +874,14 @@ export default function ImageViewer({
                 left: "45%",
                 transform: "translateX(-50%)",
                 zIndex: 20,
-                background: "rgba(0,0,0,0.6)",
+                background: "rgba(0,0,0,0.75)",
                 color: "white",
                 padding: "8px 16px",
                 borderRadius: "4px",
                 fontWeight: "bold",
               }}
+              role="status"
+              aria-live="polite"
             >
               {backendMessage}
             </p>
@@ -866,15 +907,24 @@ export default function ImageViewer({
               const file = e.dataTransfer.files[0]
               if (file) onImageUpload(file)
             }}
+            role="button"
+            tabIndex="0"
+            aria-label="Upload an image. Click or drag and drop a file here."
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                document.getElementById("image-upload").click();
+              }
+            }}
           >
             <img
               src="https://png.pngtree.com/png-clipart/20221117/ourmid/pngtree-cute-cartoon-whale-png-image_6461281.png"
-              alt="Upload Preview"
+              alt="Cute cartoon whale"
               className="upload-placeholder"
             />
             <img
               src="https://static-00.iconduck.com/assets.00/upload-icon-2048x2048-eu9n5hco.png"
-              alt="Upload"
+              alt="Upload icon"
               className="second-image"
             />
             <p className="upload-text">Upload image here or drag file here</p>
@@ -883,17 +933,21 @@ export default function ImageViewer({
       )}
 
       {activeTool === "Measure Widths" && (
-        <div className="drawing-instructions">
+        <div className="drawing-instructions" role="status" aria-live="polite">
           {points.length === 0 ? "Click to place the first point" : "Click to place the second point"}
         </div>
       )}
 
       {activeTool === "Measure Area" && (
-        <div className="drawing-instructions">Click to place points for area calculation. Need at least 3 points.</div>
+        <div className="drawing-instructions" role="status" aria-live="polite">Click to place points for area calculation. Need at least 3 points.</div>
+      )}
+
+      {activeTool === "Measure Curve" && (
+        <div className="drawing-instructions" role="status" aria-live="polite">Click to place points for curved length calculation.</div>
       )}
 
       {activeTool === "Measure Angle" && (
-        <div className="drawing-instructions">
+        <div className="drawing-instructions" role="status" aria-live="polite">
           {anglePoints.length === 0
             ? "Click to place the first point"
             : anglePoints.length === 1

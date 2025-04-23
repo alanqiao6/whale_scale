@@ -9,6 +9,28 @@ import Statistics from "./pages/Statistics"
 import Data from "./pages/Data"
 import "./App.css"
 
+// Utility function to get cookie value
+const getCookie = (name) => {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+};
+
+// Get the session ID from cookies
+const getSessionId = () => {
+  return getCookie('sessionid') || getCookie('dev_sessionid') || getCookie('prod_sessionid');
+};
+
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("measure")
 
