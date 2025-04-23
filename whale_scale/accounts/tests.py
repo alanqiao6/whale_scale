@@ -270,8 +270,7 @@ class CheckAuthTests(AccountsAPITestCase):
         self.assertEqual(response_data['error'], 'Not authenticated')
 
     @patch('accounts.views.logger.exception')
-    # Change this method:
-    def test_check_auth_server_error(self):
+    def test_check_auth_server_error(self, mock_logger):
         """Test auth check handling of server errors"""
         # Mock the check_auth view function
         with patch('accounts.views.check_auth') as mock_view:

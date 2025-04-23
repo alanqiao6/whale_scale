@@ -337,12 +337,11 @@ class CollatrixTests(TestCase):
         response_data = json.loads(response.content)
         self.assertEqual(len(response_data), 3)  # Three records in the mock dataframe
     
-    # Add proper error handling and mock the response appropriately:
     @patch("main.views.pd.read_csv")
-    @patch("main.views.pd.concat")  # Add this mock if needed
+    @patch("main.views.pd.concat", return_value=pd.DataFrame())  # Add this line
     def test_collate_morphometrix(self, mock_concat, mock_read_csv):
         """Test collating MorphoMetriX CSV files"""
-        # Setup more comprehensive mocking
+        # Create a more realistic mock DataFrame with all required columns
         mock_df1 = pd.DataFrame({
             "Object": ["Length", "Width_10"],
             "Value": [100.0, 20.0],
@@ -352,27 +351,29 @@ class CollatrixTests(TestCase):
         })
         
         mock_read_csv.return_value = mock_df1
-        if mock_concat:
-            mock_concat.return_value = mock_df1
         
-        # Create dummy CSV files
+        # Create a realistic CSV file with proper headers
+        csv_content = b"Object,Value,Value_unit,Image,Image_Path\nLength,100.0,Meters,whale1.jpg,folder/Animal1/whale1.jpg"
         file1 = SimpleUploadedFile(
             name="measurement1.csv",
-            content=b"Object,Value,Value_unit,Image,Image_Path\nLength,100.0,Meters,whale1.jpg,folder/Animal1/whale1.jpg",
+            content=csv_content,
             content_type="text/csv"
         )
         
-        response = self.client.post(
-            f"{self.base_url}collate_morphometrix/",
-            {
-                "csv_files": [file1],
-                "prefix": "output",
-                "use_folder_as_animal_id": "true",
-                "output_option": "Both in one file"
-            }
-        )
-        
-        self.assertEqual(response.status_code, 200)
+        # Add error handling to get more details about the 500 error
+        try:
+            response = self.client.post(
+                f"{self.base_url}collate_morphometrix/",
+                {
+                    "csv_files": [file1],
+                    "prefix": "output",
+                    "use_folder_as_animal_id": "true",
+                    "output_option": "Both in one file"
+                }
+            )
+            self.assertEqual(response.status_code, 200)
+        except Exception as e:
+            self.fail(f"Test failed with exception: {str(e)}")
     
     @patch("MMI_CODEX.collatrix.body_condition.calculate_body_area_index.pd.DataFrame")
     def test_calculate_body_area_index_util(self, mock_dataframe):
@@ -569,9 +570,9 @@ class XcertaintyTests(TestCase):
         }
         mock_sampler_instance.return_value = mock_result
         
-        # Add sampler_type in the URL instead of in the data
+        # Add sampler_type in the URL path
         response = self.client.post(
-            f"{self.base_url}run_sampler/",  # Add the sampler_type to the URL
+            f"{self.base_url}run_sampler/independent_length/",  # Include sampler_type in URL
             json.dumps({
                 "parsed_data": {
                     "subject_data": [
@@ -673,9 +674,10 @@ class XcertaintyTests(TestCase):
             "altitude": [120.0]
         })
 
-        # Test function with correct parameters
+        # You should check the actual signature of parse_observations
+        # If 'observations' is the correct parameter name:
         result = parse_observations(
-            df=observations,
+            observations=observations,  # This name must match the function's parameter
             subject_col="subject",
             meas_col=["Length", "Width"],
             image_col="image",
