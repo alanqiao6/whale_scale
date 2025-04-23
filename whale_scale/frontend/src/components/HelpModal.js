@@ -41,6 +41,46 @@ export default function HelpModal({ isOpen, onClose, mode = "docs", setHelpMode,
 
   if (!isOpen) return null
 
+  // Higher contrast styles
+  const buttonStyles = {
+    background: "#0056b3",
+    color: "white",
+    border: "none",
+    padding: "8px 16px",
+    borderRadius: "4px",
+    cursor: "pointer",
+    margin: "0 5px",
+    fontWeight: "bold"
+  };
+
+  const disabledButtonStyles = {
+    ...buttonStyles,
+    background: "#6c757d",
+    cursor: "not-allowed",
+    opacity: 0.7
+  };
+
+  const toggleButtonStyles = {
+    background: "#2e7d32",
+    color: "white",
+    border: "none",
+    padding: "8px 16px",
+    borderRadius: "4px",
+    cursor: "pointer",
+    fontWeight: "bold"
+  };
+
+  const modalTitleStyles = {
+    color: "#222222",
+    borderBottom: "2px solid #0056b3",
+    paddingBottom: "10px"
+  };
+
+  const contentTextStyles = {
+    color: "#333333",
+    lineHeight: "1.6"
+  };
+
   const steps = [
     {
       title: "1. 📄 Upload an Image",
@@ -57,11 +97,12 @@ export default function HelpModal({ isOpen, onClose, mode = "docs", setHelpMode,
             onClick={() => setShowSidebarDetails(prev => !prev)}
             aria-expanded={showSidebarDetails}
             aria-controls="sidebar-details"
+            style={toggleButtonStyles}
           >
             {showSidebarDetails ? "Hide Sidebar Field Definitions" : "Show Sidebar Field Definitions"}
           </button>
           {showSidebarDetails && (
-            <ul style={{ paddingLeft: "20px" }} id="sidebar-details">
+            <ul style={{ paddingLeft: "20px", color: "#333333" }} id="sidebar-details">
               <li><strong>Altitude</strong>: Drone height when the image was taken (in meters).</li>
               <li><strong>Altitude Offset</strong>: Manual adjustment added to altitude for calibration.</li>
               <li><strong>Image Width</strong>: Width of the image in pixels.</li>
@@ -104,19 +145,21 @@ export default function HelpModal({ isOpen, onClose, mode = "docs", setHelpMode,
       <div className="help-modal">
         {mode === "onboarding" ? (
           <>
-            <h2 id="help-modal-title">{steps[step].title}</h2>
-            <div className="help-step-text" aria-live="polite">{steps[step].text}</div>
+            <h2 id="help-modal-title" style={modalTitleStyles}>{steps[step].title}</h2>
+            <div className="help-step-text" aria-live="polite" style={contentTextStyles}>{steps[step].text}</div>
             <div className="help-controls" role="group" aria-label="Tutorial navigation">
               <button 
                 disabled={step === 0} 
                 onClick={() => setStep(s => s - 1)}
                 aria-label="Previous step"
+                style={step === 0 ? disabledButtonStyles : buttonStyles}
               >
                 ← Back
               </button>
               <button 
                 onClick={onClose}
                 aria-label="Close tutorial"
+                style={buttonStyles}
               >
                 Close
               </button>
@@ -124,6 +167,7 @@ export default function HelpModal({ isOpen, onClose, mode = "docs", setHelpMode,
                 disabled={step === steps.length - 1} 
                 onClick={() => setStep(s => s + 1)}
                 aria-label="Next step"
+                style={step === steps.length - 1 ? disabledButtonStyles : buttonStyles}
               >
                 Next →
               </button>
@@ -131,8 +175,8 @@ export default function HelpModal({ isOpen, onClose, mode = "docs", setHelpMode,
           </>
         ) : (
           <>
-            <h2 id="help-modal-title">📘 How to Use WhaleScale</h2>
-            <ul className="help-list">
+            <h2 id="help-modal-title" style={modalTitleStyles}>📘 How to Use WhaleScale</h2>
+            <ul className="help-list" style={contentTextStyles}>
               {steps.map((s, idx) => (
                 <li key={idx}><strong>{s.title}</strong>: <div className="help-step-text">{s.text}</div></li>
               ))}
@@ -144,14 +188,15 @@ export default function HelpModal({ isOpen, onClose, mode = "docs", setHelpMode,
                 setShowHelp(true);
               }}
               aria-label="Start tutorial from beginning"
+              style={buttonStyles}
             >
               Restart Tutorial
             </button>
 
-
               <button 
                 onClick={onClose}
                 aria-label="Close help"
+                style={buttonStyles}
               >
                 Close
               </button>

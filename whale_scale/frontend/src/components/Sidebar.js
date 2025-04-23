@@ -185,13 +185,13 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       </div>
 
       {inputConflict && (
-        <p style={{ color: "orange", fontWeight: "bold" }} role="alert">
+        <p style={{ color: "#cc7000", fontWeight: "bold" }} role="alert">
           ⚠️ Your input does not match extracted metadata.
         </p>
       )}
 
       {error && (
-        <p style={{ color: "#e52e2e", fontWeight: "bold" }} role="alert" aria-live="assertive">
+        <p style={{ color: "#d32f2f", fontWeight: "bold" }} role="alert" aria-live="assertive">
           {error}
         </p>
       )}
@@ -203,7 +203,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       >
         Submit
       </button>
-      <p style={{ fontSize: "0.8em", color: "#555", marginTop: "4px", marginBottom: "12px" }}>
+      <p style={{ fontSize: "0.8em", color: "#333", marginTop: "4px", marginBottom: "12px" }}>
         <span aria-hidden="true">⚠️</span> <span>required field</span>
       </p>
       <button 
