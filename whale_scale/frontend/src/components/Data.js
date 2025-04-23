@@ -7,6 +7,17 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
   const exportDataToCSV = () => {
     console.log("Starting export function...");
     
+    // Debug log for all data
+    console.log("Export data:", {
+      formData,
+      rulerData,
+      areaData,
+      manualCurveData,
+      angleData,
+      bodyConditionData,
+      pixelDimension
+    });
+    
     // Check if any data exists to export
     if (!formData && !rulerData && !manualCurveData && !areaData && !angleData && !bodyConditionData) {
       alert("No data to export");
@@ -14,153 +25,156 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
     }
     
     try {
-      // Initialize CSV content with a single header row
-      let csvContent = "data:text/csv;charset=utf-8,";
+      // Create a data object with all measurements
+      const dataObj = {};
       
-      // Create a master data object to hold all values
-      const masterData = {
-        // Form data section
-        "Focal_Length": formData ? format(formData.focalLength) : "None",
-        "Altitude": formData ? format(formData.altitude) : "None",
-        "Altitude_Offset": formData ? format(formData.altitudeOffset) : "None",
-        "Image_Width": formData ? format(formData.imageWidth) : "None",
-        "Image_Height": formData ? format(formData.imageHeight) : "None",
-        "Field_of_View": formData ? format(formData.fov) : "None",
-        "Sensor_Width": formData ? format(formData.sensorWidth) : "None",
-        "Width_Segments": formData ? format(formData.widthSegments) : "None",
-        "Crosshair_Size": formData ? format(formData.crosshairSize) : "None",
-        "Crosshair_Opacity": formData ? format(formData.crosshairOpacity) : "None",
-        "Segment_Color": formData ? format(formData.segmentColor) : "None",
-        "Pixel_Dimension": format(pixelDimension),
-        
-        // Ruler data section
-        "Ruler_Type": rulerData ? (rulerData.type || "ruler") : "None",
-        "Ruler_Curve_Length": rulerData && rulerData.curveLength !== undefined ? 
-          rulerData.curveLength.toFixed(2) + " m" : "None",
-        "Ruler_Segments": rulerData ? format(rulerData.segments) : "None"
-      };
-      
-      // Add ruler width segments data
-      if (rulerData && rulerData.widthSegments && Array.isArray(rulerData.widthSegments)) {
-        rulerData.widthSegments.forEach((seg, i) => {
-          if (seg && seg.length !== undefined) {
-            masterData[`Width_Segment_${seg.index}_Length`] = seg.length + " m";
-            
-            // Add coordinates if available
-            if (seg.coords) {
-              masterData[`Width_Segment_${seg.index}_X1`] = seg.coords.x1;
-              masterData[`Width_Segment_${seg.index}_Y1`] = seg.coords.y1;
-              masterData[`Width_Segment_${seg.index}_X2`] = seg.coords.x2;
-              masterData[`Width_Segment_${seg.index}_Y2`] = seg.coords.y2;
-            }
-          }
-        });
+      // Add form data
+      if (formData) {
+        dataObj["Focal_Length"] = format(formData.focalLength);
+        dataObj["Altitude"] = format(formData.altitude);
+        dataObj["Altitude_Offset"] = format(formData.altitudeOffset);
+        dataObj["Image_Width"] = format(formData.imageWidth);
+        dataObj["Image_Height"] = format(formData.imageHeight);
+        dataObj["Field_of_View"] = format(formData.fov);
+        dataObj["Sensor_Width"] = format(formData.sensorWidth);
+        dataObj["Width_Segments"] = format(formData.widthSegments);
+        dataObj["Crosshair_Size"] = format(formData.crosshairSize);
+        dataObj["Crosshair_Opacity"] = format(formData.crosshairOpacity);
+        dataObj["Segment_Color"] = format(formData.segmentColor);
+        dataObj["Pixel_Dimension"] = format(pixelDimension);
       }
       
-      // Area data section
-      if (areaData) {
-        masterData["Area_Size"] = areaData.area !== undefined ? 
-          areaData.area.toFixed(2) + " m²" : "None";
-        masterData["Area_Points_Count"] = areaData.polygonPoints && Array.isArray(areaData.polygonPoints) ? 
-          areaData.polygonPoints.length : "None";
+      // Add ruler data
+      if (rulerData) {
+        dataObj["Ruler_Type"] = rulerData.type || "ruler";
+        dataObj["Ruler_Curve_Length"] = rulerData.curveLength !== undefined ? 
+          rulerData.curveLength.toFixed(2) + " m" : "None";
+        dataObj["Ruler_Segments"] = rulerData.segments || "None";
         
-        // Add polygon points
+        // Add width segments data
+        if (rulerData.widthSegments && Array.isArray(rulerData.widthSegments)) {
+          rulerData.widthSegments.forEach(seg => {
+            if (seg && seg.index !== undefined) {
+              dataObj[`Width_Segment_${seg.index}_Length`] = seg.length !== undefined ? 
+                seg.length + " m" : "None";
+              
+              // Add coordinates if available
+              if (seg.coords) {
+                dataObj[`Width_Segment_${seg.index}_X1`] = seg.coords.x1;
+                dataObj[`Width_Segment_${seg.index}_Y1`] = seg.coords.y1;
+                dataObj[`Width_Segment_${seg.index}_X2`] = seg.coords.x2;
+                dataObj[`Width_Segment_${seg.index}_Y2`] = seg.coords.y2;
+              }
+            }
+          });
+        }
+      }
+      
+      // Add area data
+      if (areaData) {
+        dataObj["Area_Size"] = areaData.area !== undefined ? 
+          areaData.area.toFixed(2) + " m²" : "None";
+        
         if (areaData.polygonPoints && Array.isArray(areaData.polygonPoints)) {
+          dataObj["Area_Points_Count"] = areaData.polygonPoints.length;
+          
+          // Add polygon points coordinates
           areaData.polygonPoints.forEach((point, i) => {
             if (point && point.x !== undefined && point.y !== undefined) {
-              masterData[`Area_Point_${i}_X`] = point.x;
-              masterData[`Area_Point_${i}_Y`] = point.y;
+              dataObj[`Area_Point_${i}_X`] = point.x;
+              dataObj[`Area_Point_${i}_Y`] = point.y;
             }
           });
         }
       }
       
-      // Manual curve data section
+      // Add manual curve data
       if (manualCurveData) {
-        masterData["Manual_Curve_Length"] = manualCurveData.curveLength !== undefined ? 
+        dataObj["Manual_Curve_Length"] = manualCurveData.curveLength !== undefined ? 
           manualCurveData.curveLength.toFixed(2) + " m" : "None";
-        masterData["Manual_Curve_Points_Count"] = manualCurveData.curvePoints && Array.isArray(manualCurveData.curvePoints) ? 
-          manualCurveData.curvePoints.length : "None";
         
-        // Add curve points
         if (manualCurveData.curvePoints && Array.isArray(manualCurveData.curvePoints)) {
+          dataObj["Manual_Curve_Points_Count"] = manualCurveData.curvePoints.length;
+          
+          // Add curve points coordinates
           manualCurveData.curvePoints.forEach((point, i) => {
             if (point && point.x !== undefined && point.y !== undefined) {
-              masterData[`Manual_Curve_Point_${i}_X`] = point.x;
-              masterData[`Manual_Curve_Point_${i}_Y`] = point.y;
+              dataObj[`Manual_Curve_Point_${i}_X`] = point.x;
+              dataObj[`Manual_Curve_Point_${i}_Y`] = point.y;
             }
           });
         }
       }
       
-      // Angle data section
+      // Add angle data
       if (angleData) {
-        masterData["Angle_Value"] = angleData.angle !== undefined ? 
+        dataObj["Angle_Value"] = angleData.angle !== undefined ? 
           angleData.angle.toFixed(2) + "°" : "None";
-        masterData["Angle_Points_Count"] = angleData.anglePoints && Array.isArray(angleData.anglePoints) ? 
-          angleData.anglePoints.length : "None";
         
-        // Add angle points
         if (angleData.anglePoints && Array.isArray(angleData.anglePoints)) {
+          dataObj["Angle_Points_Count"] = angleData.anglePoints.length;
+          
+          // Add angle points coordinates
           angleData.anglePoints.forEach((point, i) => {
             if (point && point.x !== undefined && point.y !== undefined) {
-              masterData[`Angle_Point_${i}_X`] = point.x;
-              masterData[`Angle_Point_${i}_Y`] = point.y;
+              dataObj[`Angle_Point_${i}_X`] = point.x;
+              dataObj[`Angle_Point_${i}_Y`] = point.y;
             }
           });
         }
       }
       
-      // Body condition data section
+      // Add body condition data
       if (bodyConditionData) {
         if (bodyConditionData.volume !== undefined && !isNaN(bodyConditionData.volume)) {
-          masterData["Body_Volume"] = bodyConditionData.volume.toFixed(2) + " m³";
+          dataObj["Body_Volume"] = bodyConditionData.volume.toFixed(2) + " m³";
         }
         
         if (bodyConditionData.areaIndex !== undefined && !isNaN(bodyConditionData.areaIndex)) {
-          masterData["Body_Area_Index"] = bodyConditionData.areaIndex.toFixed(2);
+          dataObj["Body_Area_Index"] = bodyConditionData.areaIndex.toFixed(2);
         }
         
         if (bodyConditionData.surfaceArea !== undefined && !isNaN(bodyConditionData.surfaceArea)) {
-          masterData["Surface_Area"] = bodyConditionData.surfaceArea.toFixed(2) + " m²";
+          dataObj["Surface_Area"] = bodyConditionData.surfaceArea.toFixed(2) + " m²";
         }
         
         // Add additional body condition results
         if (bodyConditionData.fullResults) {
-          try {
-            Object.entries(bodyConditionData.fullResults)
-              .filter(([key, value]) => 
-                !['Image', 'Image_ID'].includes(key) && 
+          Object.entries(bodyConditionData.fullResults).forEach(([key, value]) => {
+            if (!['Image', 'Image_ID'].includes(key) && 
                 value !== null && 
                 !isNaN(value) &&
                 !key.startsWith('Length_w') &&
-                !key.startsWith('Width_')
-              )
-              .forEach(([key, value]) => {
-                masterData[`BC_${key}`] = typeof value === 'number' ? value.toFixed(2) : value;
-              });
-          } catch (err) {
-            console.error("Error processing body condition results:", err);
-          }
+                !key.startsWith('Width_')) {
+              dataObj[`BC_${key}`] = typeof value === 'number' ? value.toFixed(2) : value;
+            }
+          });
         }
       }
       
-      // Create header row from all keys
-      const headers = Object.keys(masterData);
+      // Convert to CSV
+      let csvContent = "data:text/csv;charset=utf-8,";
+      
+      // Add headers
+      const headers = Object.keys(dataObj);
       csvContent += headers.join(",") + "\n";
       
-      // Create data row from all values
+      // Add values (properly handle commas and quotes)
       const values = headers.map(header => {
-        const value = masterData[header];
-        // Escape commas and quotes in the value
-        if (value !== undefined && value !== null && value !== "") {
-          return `"${String(value).replace(/"/g, '""')}"`;
-        }
-        return "";
+        const value = dataObj[header];
+        if (value === undefined || value === null || value === "") return '""';
+        // Escape quotes and wrap in quotes
+        return `"${String(value).replace(/"/g, '""')}"`;
       });
+      
       csvContent += values.join(",");
       
-      // Create filename with width segments and current date
+      // Log to verify CSV content
+      console.log("Data object:", dataObj);
+      console.log("Headers:", headers);
+      console.log("Values:", values);
+      
+      // Create filename
       const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
       const imagePath = formData && formData.imagePath ? formData.imagePath : "image";
       const fileName = `whalescale_${formData ? (formData.widthSegments || "0") : "0"}_${getFileNameFromPath(imagePath)}_${date}.csv`;
