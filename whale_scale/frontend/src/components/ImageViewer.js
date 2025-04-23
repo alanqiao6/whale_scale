@@ -652,16 +652,54 @@ export default function ImageViewer({
 
     crosshairs.forEach((pair) => {
       ["left", "right"].forEach((side) => {
-        const point = pair[side]
-        ctx.beginPath()
-        const radius = crosshairSize
+        const point = pair[side];
+        const size = crosshairSize * 2;
     
-        ctx.arc(point.x, point.y, radius, 0, 2 * Math.PI)
-        ctx.strokeStyle = "black"
-        ctx.lineWidth = 6
-        ctx.stroke()
-      })
-    })
+        const outerRadius = size*1.3;
+        const armLength = size * 2;
+        const gap = size * 0.4;
+    
+        ctx.strokeStyle = "red";
+        ctx.fillStyle = "red";
+        ctx.lineWidth = size*0.2; // Increase this for thicker lines (try 5 or 6 if needed)
+    
+        // Outer ring only
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, outerRadius, 0, 2 * Math.PI);
+        ctx.stroke();
+    
+        // Center dot
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, size*0.3, 0, 2 * Math.PI);
+        ctx.fill();
+    
+        // Crosshair arms (lines)
+        // Top
+        ctx.beginPath();
+        ctx.moveTo(point.x, point.y - outerRadius - gap);
+        ctx.lineTo(point.x, point.y - outerRadius);
+        ctx.stroke();
+    
+        // Bottom
+        ctx.beginPath();
+        ctx.moveTo(point.x, point.y + outerRadius + gap);
+        ctx.lineTo(point.x, point.y + outerRadius);
+        ctx.stroke();
+    
+        // Left
+        ctx.beginPath();
+        ctx.moveTo(point.x - outerRadius - gap, point.y);
+        ctx.lineTo(point.x - outerRadius, point.y);
+        ctx.stroke();
+    
+        // Right
+        ctx.beginPath();
+        ctx.moveTo(point.x + outerRadius + gap, point.y);
+        ctx.lineTo(point.x + outerRadius, point.y);
+        ctx.stroke();
+      });
+    });
+
 
     if (manualCurvePoints.length > 0) {
       ctx.beginPath()
