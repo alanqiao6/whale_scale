@@ -23,9 +23,25 @@ const getCookie = (name) => {
   return cookieValue;
 };
 
-// Get the session ID from cookies
+// Improved session ID detection with debugging
 const getSessionId = () => {
-  return getCookie('sessionid') || getCookie('dev_sessionid') || getCookie('prod_sessionid');
+  // Check all possible Django session cookie names
+  const possibleCookieNames = ['sessionid', 'dev_sessionid', 'prod_sessionid', 'csrftoken', 'dev_csrftoken', 'prod_csrftoken'];
+  
+  // Log all cookies for debugging (name only, not values)
+  console.log("Available cookies:", document.cookie.split(';').map(c => c.trim().split('=')[0]));
+  
+  // Try each cookie name
+  for (const cookieName of possibleCookieNames) {
+    const cookieValue = getCookie(cookieName);
+    if (cookieValue) {
+      console.log(`Found session cookie: ${cookieName}`);
+      return cookieValue;
+    }
+  }
+  
+  console.warn("No session cookie found");
+  return null;
 };
 
 export default function App() {
@@ -59,10 +75,25 @@ export default function App() {
   const [pixelDimension, setPixelDimension] = useState(null)
   const [user, setUser] = useState(null) // Add user state
 
+  // Simple string hashing function
+  const hashString = (str) => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash).toString(16);
+  };
+
   // Function to save state to localStorage using session cookie
   const saveStateToStorage = () => {
     const sessionId = getSessionId();
     if (!sessionId) return; // Only save if there's a valid session
+    
+    // Create a hash of the session ID for storage
+    const sessionHash = hashString(sessionId);
+    console.log(`Saving data with session hash: ${sessionHash}`);
     
     try {
       const dataToSave = {
@@ -78,7 +109,7 @@ export default function App() {
         savedAt: new Date().toISOString(),
       };
       
-      localStorage.setItem(`whalescale_data_${sessionId}`, JSON.stringify(dataToSave));
+      localStorage.setItem(`whalescale_data_${sessionHash}`, JSON.stringify(dataToSave));
       console.log("Measurement data saved for session");
     } catch (err) {
       console.error("Error saving state to localStorage:", err);
@@ -90,12 +121,19 @@ export default function App() {
     const sessionId = getSessionId();
     if (!sessionId) return false; // No session, no data to load
     
+    // Create a hash of the session ID for storage
+    const sessionHash = hashString(sessionId);
+    console.log(`Looking for data with session hash: ${sessionHash}`);
+    
     try {
-      const savedData = localStorage.getItem(`whalescale_data_${sessionId}`);
-      if (!savedData) return false;
+      const savedData = localStorage.getItem(`whalescale_data_${sessionHash}`);
+      if (!savedData) {
+        console.log("No saved data found with this session hash");
+        return false;
+      }
       
+      console.log("Found saved data, loading...");
       const data = JSON.parse(savedData);
-      console.log("Loaded saved measurement data for session");
       
       // Restore state from saved data
       if (data.formData) setFormData(data.formData);
@@ -136,9 +174,12 @@ export default function App() {
     const sessionId = getSessionId();
     if (!sessionId) return;
     
+    // Create a hash of the session ID for storage (same as in saveStateToStorage)
+    const sessionHash = hashString(sessionId);
+    
     try {
-      localStorage.removeItem(`whalescale_data_${sessionId}`);
-      console.log("Cleared saved measurement data for session");
+      localStorage.removeItem(`whalescale_data_${sessionHash}`);
+      console.log(`Cleared saved measurement data for session hash: ${sessionHash}`);
     } catch (err) {
       console.error("Error clearing saved state:", err);
     }
