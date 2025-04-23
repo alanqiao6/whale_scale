@@ -25,7 +25,7 @@ function getCookie(name) {
 // Use window.location.origin to determine the base URL dynamically
 const API_BASE_URL = window.location.origin;
 
-export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveTool }) {
+export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveTool, sidebarSubmitted }) {
   const [user, setUser] = useState(null)
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showHelp, setShowHelp] = useState(true)
@@ -124,11 +124,23 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
         <div className="tools">
           <button
             className={`tool-button ${activeTool === "ruler" ? "active" : ""}`}
-            onClick={() => setActiveTool(activeTool === "ruler" ? null : "ruler")}
-            title="Measure Length"
+            onClick={() => {
+              if (!sidebarSubmitted) {
+                alert("📏 You must submit the sidebar first.");
+              } else {
+                setActiveTool(activeTool === "ruler" ? null : "ruler");
+              }
+            }}
+            title={sidebarSubmitted ? "Measure Length" : "📏 (Must Submit)"}
+            disabled={!sidebarSubmitted}
+            style={{
+              opacity: sidebarSubmitted ? 1 : 0.5,
+              cursor: sidebarSubmitted ? "pointer" : "not-allowed",
+            }}
           >
             📏
           </button>
+
           <button
             className={`tool-button ${activeTool === "angle" ? "active" : ""}`}
             onClick={() => setActiveTool(activeTool === "angle" ? null : "angle")}

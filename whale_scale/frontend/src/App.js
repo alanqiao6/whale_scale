@@ -58,6 +58,8 @@ export default function App() {
   const [backendMessage, setBackendMessage] = useState("")
   const [pixelDimension, setPixelDimension] = useState(null)
   const [user, setUser] = useState(null) // Add user state
+  const [sidebarSubmitted, setSidebarSubmitted] = useState(false);
+
 
   // Function to save state to localStorage using session cookie
   const saveStateToStorage = () => {
@@ -261,6 +263,7 @@ export default function App() {
     // We already have updated formData from input changes, 
     // but this ensures consistency
     setFormData(dataFromSidebar);
+    setSidebarSubmitted(true);
 
     if (dataFromSidebar.pixelDimension) {
       setPixelDimension(dataFromSidebar.pixelDimension);
@@ -465,6 +468,7 @@ export default function App() {
           setActiveTab={setActiveTab}
           activeTool={activeTool}
           setActiveTool={setActiveTool}
+          sidebarSubmitted={sidebarSubmitted}
         />
         <ImageViewer
           image={image}
