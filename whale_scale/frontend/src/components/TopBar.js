@@ -106,22 +106,32 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
   }
 
   return (
-    <div className="top-bar">
-      {/* Rest of your component remains the same */}
-      <div className="tabs">
-        <button className={`tab ${activeTab === "measure" ? "active" : ""}`} onClick={() => setActiveTab("measure")}>
+    <div className="top-bar" role="navigation" aria-label="Main navigation">
+      <div className="tabs" role="tablist">
+        <button 
+          className={`tab ${activeTab === "measure" ? "active" : ""}`} 
+          onClick={() => setActiveTab("measure")}
+          role="tab"
+          aria-selected={activeTab === "measure"}
+          aria-controls="measure-panel"
+          id="measure-tab"
+        >
           Measure
         </button>
         <button
           className={`tab ${activeTab === "xcertainty" ? "active" : ""}`}
           onClick={() => setActiveTab("xcertainty")}
+          role="tab"
+          aria-selected={activeTab === "xcertainty"}
+          aria-controls="xcertainty-panel" 
+          id="xcertainty-tab"
         >
           Xcertainty
         </button>
       </div>
 
       <div className="right-section">
-        <div className="tools">
+        <div className="tools" role="toolbar" aria-label="Measurement tools">
           <button
             className={`tool-button ${activeTool === "ruler" ? "active" : ""}`}
             onClick={() => {
@@ -137,30 +147,38 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
               opacity: sidebarSubmitted ? 1 : 0.5,
               cursor: sidebarSubmitted ? "pointer" : "not-allowed",
             }}
+            aria-pressed={activeTool === "ruler"}
+            aria-label="Ruler tool for measuring length"
           >
-            📏
+            <span aria-hidden="true">📏</span>
           </button>
 
           <button
             className={`tool-button ${activeTool === "angle" ? "active" : ""}`}
             onClick={() => setActiveTool(activeTool === "angle" ? null : "angle")}
             title="Measure Angle"
+            aria-pressed={activeTool === "angle"}
+            aria-label="Angle tool for measuring angles"
           >
-            📐
+            <span aria-hidden="true">📐</span>
           </button>
           <button
             className={`tool-button ${activeTool === "pencil" ? "active" : ""}`}
             onClick={() => setActiveTool(activeTool === "pencil" ? null : "pencil")}
             title="Draw"
+            aria-pressed={activeTool === "pencil"}
+            aria-label="Pencil tool for drawing curves"
           >
-            ✏️
+            <span aria-hidden="true">✏️</span>
           </button>
           <button
             className={`tool-button ${activeTool === "area" ? "active" : ""}`}
             onClick={() => setActiveTool(activeTool === "area" ? null : "area")}
             title="Measure Area"
+            aria-pressed={activeTool === "area"}
+            aria-label="Area tool for measuring areas"
           >
-            🔲
+            <span aria-hidden="true">🔲</span>
           </button>
           <button 
             className="tool-button" 
@@ -169,22 +187,31 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
               setShowHelp(true)
               setHelpMode("docs")
             }}
+            aria-label="Help and documentation"
           >
-            ❓
+            <span aria-hidden="true">❓</span>
           </button>
 
         </div>
 
         <div className="auth-section">
           {user ? (
-            <div className="user-info">
+            <div className="user-info" role="status" aria-live="polite">
               <span className="username">Hi, {user.username}</span>
-              <button className="logout-button" onClick={handleLogout}>
+              <button 
+                className="logout-button" 
+                onClick={handleLogout}
+                aria-label="Log out of your account"
+              >
                 Logout
               </button>
             </div>
           ) : (
-            <button className="login-button" onClick={() => setShowAuthModal(true)}>
+            <button 
+              className="login-button" 
+              onClick={() => setShowAuthModal(true)}
+              aria-label="Log in to your account"
+            >
               Login
             </button>
           )}
@@ -203,7 +230,7 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
         isOpen={showHelp}
         onClose={() => {
           setShowHelp(false);  // Always close the modal
-          setHelpMode("docs"); // Reset mode so it doesn’t auto-reopen
+          setHelpMode("docs"); // Reset mode so it doesn't auto-reopen
         }}
         mode={helpMode}
         setHelpMode={setHelpMode}
