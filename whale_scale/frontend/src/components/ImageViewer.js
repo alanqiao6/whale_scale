@@ -592,21 +592,17 @@ export default function ImageViewer({
   }
 
   const handleClearMeasurement = () => {
-    if (activeTool === "area") {
-      setPolygonPoints([])
-    } else if (activeTool === "pencil") {
-      setManualCurvePoints([])
-    } else if (activeTool === "angle") {
-      setAnglePoints([])
-      setAngleLines([])
-    } else if (activeTool === "ruler" || (activeTool === null && crosshairs.length > 0)) {
-      setPoints([])
-      setMainLine(null)
-      setSegmentLines([])
-      setCrosshairs([])
-    }
+    setPoints([])
+    setMainLine(null)
+    setSegmentLines([])
+    setCrosshairs([])
+    setManualCurvePoints([])
+    setPolygonPoints([])
+    setAnglePoints([])
+    setAngleLines([])
     setBackendMessage("")
-  }  
+  }
+  
 
   return (
     <div className="image-container">
@@ -709,7 +705,8 @@ export default function ImageViewer({
             </button>
           )}
 
-          {(manualCurvePoints.length > 0 || polygonPoints.length > 0 || points.length > 0) && (
+          {(points.length > 0 || segmentLines.length > 0 || crosshairs.length > 0 ||
+            manualCurvePoints.length > 0 || polygonPoints.length > 0 || anglePoints.length > 0) && (
             <button
               className="clear-button"
               onClick={handleClearMeasurement}
