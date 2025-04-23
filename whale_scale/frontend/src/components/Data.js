@@ -3,7 +3,7 @@ import React from "react"
 
 export default function Data({ formData, rulerData, manualCurveData, areaData, angleData, bodyConditionData, pixelDimension }) {
 
-  // Function to export data to CSV with a single table format
+  // Function to export data to CSV using Blob API
   const exportDataToCSV = () => {
     console.log("Starting export function...");
     
@@ -152,27 +152,28 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
         }
       }
       
-      // Convert to CSV
-      let csvContent = "data:text/csv;charset=utf-8,";
+      // Create CSV content using a more reliable method
+      let csvRows = [];
       
-      // Add headers
+      // Get headers
       const headers = Object.keys(dataObj);
-      csvContent += headers.join(",") + "\n";
+      csvRows.push(headers.join(','));
       
-      // Add values (properly handle commas and quotes)
+      // Prepare values with proper escaping
       const values = headers.map(header => {
-        const value = dataObj[header];
-        if (value === undefined || value === null || value === "") return '""';
-        // Escape quotes and wrap in quotes
-        return `"${String(value).replace(/"/g, '""')}"`;
+        const val = dataObj[header];
+        // Handle escaping: wrap in quotes and escape existing quotes
+        if (val === undefined || val === null || val === "") {
+          return '';
+        } else {
+          // Escape quotes by doubling them and wrap in quotes
+          return `"${String(val).replace(/"/g, '""')}"`;
+        }
       });
+      csvRows.push(values.join(','));
       
-      csvContent += values.join(",");
-      
-      // Log to verify CSV content
-      console.log("Data object:", dataObj);
-      console.log("Headers:", headers);
-      console.log("Values:", values);
+      // Join rows with newlines
+      const csvString = csvRows.join('\n');
       
       // Create filename
       const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
@@ -180,18 +181,28 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
       const fileName = `whalescale_${formData ? (formData.widthSegments || "0") : "0"}_${getFileNameFromPath(imagePath)}_${date}.csv`;
       
       console.log("Creating download with filename:", fileName);
-      console.log("CSV Content Preview (first 500 chars):", csvContent.substring(0, 500));
+      console.log("CSV Content (first 500 chars):", csvString.substring(0, 500));
       
-      // Create download link and trigger download
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", fileName);
+      // Use Blob API for more reliable download
+      const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+      
+      // Create URL for the Blob
+      const url = URL.createObjectURL(blob);
+      
+      // Create a link element and trigger download
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', fileName);
+      link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       
-      console.log("Export completed successfully");
+      // Clean up by revoking the object URL
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        console.log("Export completed successfully and object URL revoked");
+      }, 100);
     } catch (err) {
       console.error("Error during export:", err);
       alert(`Export failed: ${err.message}`);
