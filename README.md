@@ -42,6 +42,11 @@ By integrating these tools, WhaleScale provides precise measurement capabilities
 - web-vitals 4.2.4
 - cra-template 1.2.0
 
+MMI CODEX
+- MorphoMetriX-V2 2.2.1 (last accessed 4/30/2025)
+- CollatriX 2.0.0 (last accessed 4/30/2025)
+- Xcertainty (No release) (last accessed 4/30/2025) Last commit: e3cffc6
+
 
 💻 LOCAL DEVELOPMENT SETUP
 --------------------------
