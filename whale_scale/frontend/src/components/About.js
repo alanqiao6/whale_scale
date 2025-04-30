@@ -7,6 +7,7 @@ import React from 'react';
 import './About.css';
 
 const About = () => {
+  // Team member data structure containing information about each developer
   const teamMembers = [
     {
       name: "Jason Fitzpatrick",
@@ -33,7 +34,8 @@ const About = () => {
   return (
     <div className="about-container">
       <h1>About Whale Scale</h1>
-      
+
+      {/* Background section explaining the context and importance of the project */}     
       <section className="background-section">
         <h2>Background</h2>
         <p>
@@ -44,6 +46,7 @@ const About = () => {
         </p>
       </section>
 
+      {/* Project scope section detailing the tool's capabilities and features */}
       <section className="scope-section">
         <h2>Project Scope</h2>
         <p>
@@ -68,6 +71,7 @@ const About = () => {
         </div>
       </section>
 
+      {/* Client section featuring information about David Johnston, can add his team */}
       <section className="client-section">
         <h2>Researchers</h2>
         <div className="client-info">
@@ -82,6 +86,7 @@ const About = () => {
         </div>
       </section>
 
+      {/* Team section displaying information about our Whale Scale dev team */}
       <section className="team-section">
         <h2>Development Team</h2>
         <div className="team-grid">
