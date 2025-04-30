@@ -1,3 +1,4 @@
+// Author: Jason Fitzpatrick
 import React from "react"
 import "./Sidebar.css"
 

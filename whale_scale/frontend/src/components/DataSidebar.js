@@ -1,4 +1,4 @@
-// components/DataSidebar.js
+// Author: Jason Fitzpatrick
 "use client";
 
 import React, { useState } from "react";
