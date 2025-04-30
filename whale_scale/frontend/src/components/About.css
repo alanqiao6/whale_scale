@@ -1,3 +1,17 @@
+/**
+ * File: About.css
+ * Author: August Hao
+ * 
+ * Purpose: This stylesheet defines the visual presentation of the About component.
+ * It includes styles for:
+ * - Main container layout and typography
+ * - Section-specific styling (background, scope, client, team)
+ * - Responsive design for different screen sizes
+ * - Card-based layouts for team members
+ * - Image styling and hover effects
+ */
+
+/* Main container styling */
 .about-container {
   max-width: 1200px;
   margin: 0 auto;
@@ -5,6 +19,7 @@
   color: var(--text-color);
 }
 
+/* Main heading styling */
 .about-container h1 {
   text-align: center;
   color: var(--primary-blue);
@@ -12,6 +27,7 @@
   font-size: 2.5rem;
 }
 
+/* Common section styling for all content blocks */
 .background-section,
 .scope-section,
 .client-section,
@@ -23,6 +39,7 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+/* Section heading styling */
 .background-section h2,
 .scope-section h2,
 .client-section h2,
@@ -32,6 +49,7 @@
   font-size: 1.8rem;
 }
 
+/* Text content styling for background and scope sections */
 .background-section p,
 .scope-section p {
   color: #666;
@@ -41,6 +59,7 @@
   margin-bottom: 1rem;
 }
 
+/* Styling for the scope list items */
 .scope-list {
   color: #666;
   line-height: 1.6;
@@ -53,6 +72,7 @@
   margin-bottom: 0.5rem;
 }
 
+/* Image container styling in scope section */
 .scope-image {
   margin-top: 2rem;
   text-align: center;
@@ -65,6 +85,7 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+/* Client information section styling */
 .client-info {
   text-align: center;
   display: flex;
@@ -93,12 +114,14 @@
   font-size: 1.1rem;
 }
 
+/* Team section grid layout */
 .team-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 2rem;
 }
 
+/* Individual team member card styling */
 .team-member {
   background: #f8f9fa;
   padding: 1.5rem;
@@ -123,6 +146,7 @@
   font-size: 1rem;
 }
 
+/* Responsive design adjustments for mobile devices */
 @media (max-width: 768px) {
   .about-container {
     padding: 1rem;
