@@ -49,6 +49,7 @@ WHAT EXISTS ON DEV THAT ISN'T ON PROD?
 - Updated frontend with better image viewing that scales to fit your screen
 - More modular frontend buit to accomodate future XCertainty integration
 - More accurate MorphometriX values
+- MorphometriX allows user to input "Altitude Offset", which is added to the altitude data. This represents launch height for more accurate altitude.
 - Database that stores user data. Note, this does not include the actual image files, as 8k we did not have the space available to support storage of 8k resolution images, especially without any limitations to who can sign up.
 - View for seeing user data in a table view (separate tables for morphometrix and body condition). Table rows can be toggled for computation or export, and columns can be toggles for visibility.
 - User can delete or modify stored data, and users have the ability to include new metrics such as group name, whale age, actual measurement, etc.
