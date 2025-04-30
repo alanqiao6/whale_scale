@@ -1,0 +1,15 @@
+Inside this folder are two demos on how to use the two different versions on the website.
+
+We made these in addition to the instructions already included in both the pop-up when loading the website and the help menu in the top-right.
+
+Note that for these demos, the screen share prevented from seeing anything not on that tab.
+    1. The image upload comes directly from your laptop
+    2. The export downloads a CSV you can then open using your preferred method.
+
+The features available can be found accross any of the help button, help tutorial, and the videos.
+
+FAQs:
+    1. Yes, the website is one page. You can tab over to different parts, but this was done for the sake of simplicity.
+    2. You will have to hit update/submit if you are changes values in the sidebar so our servers can toggle new updates.
+    3. To use the ruler tool, you must ensure your side-bar is correctly filled out.
+    4. For the dev implementation, you must be logged in for data to save.
