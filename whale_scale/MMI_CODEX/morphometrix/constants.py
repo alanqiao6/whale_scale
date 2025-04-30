@@ -1,3 +1,10 @@
+'''
+The following is a Python file adapted from the MMI-CODEX/MorphometriX repository
+https://github.com/MMI-CODEX/MorphometriX
+
+Author: Jason Fitzpatrick
+'''
+
 class MeasurementTypes:
     LENGTH = 1
     AREA = 2

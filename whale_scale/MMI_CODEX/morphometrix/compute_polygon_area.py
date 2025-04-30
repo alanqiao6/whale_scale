@@ -1,3 +1,10 @@
+'''
+The following is a Python file adapted from the MMI-CODEX/MorphometriX repository
+https://github.com/MMI-CODEX/MorphometriX
+
+Author: Jason Fitzpatrick
+'''
+
 def compute_polygon_area(qpolygon):
     """Computes area using the Shoelace formula."""
     S1 = sum(

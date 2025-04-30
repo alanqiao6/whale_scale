@@ -23,7 +23,7 @@ WhaleScale is a web-based tool for measuring and analyzing whale dimensions from
 
 🐞 KNOWN BUGS / INCOMPLETE FEATURES
 -----------------------------------
-- ❌ **Xcertainty** integration is not fully implemented in this version; measurement uncertainty is not currently visualized.
+- ❌ **Xcertainty** integration is not fully implemented in this version; Starter code is in whale_scale/MMI_CODEX/xcertainty, though it may not work as intended. Measurement uncertainty is not currently visualized.
 
 
 ⚠️ ASSUMPTIONS & LIMITATIONS

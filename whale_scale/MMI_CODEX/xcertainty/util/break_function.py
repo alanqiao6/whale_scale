@@ -1,6 +1,8 @@
 '''
 The following is a Python file adapted from the following breakFun.R file in the MMI-CODEX
 https://github.com/MMI-CODEX/Xcertainty/blob/main/R/breakFun.R
+
+Author: Jason Fitzpatrick
 '''
 
 def break_fun(B: float, delta: float) -> int:

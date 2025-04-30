@@ -1,3 +1,6 @@
+# This file defines the process taken by GitLab after a merge to a protected branch
+# Author: Jason Fitzpatrick
+
 image: docker:24.0.5
 
 stages:

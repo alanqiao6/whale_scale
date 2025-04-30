@@ -1,6 +1,8 @@
 '''
 The following is a Python file adapted from the following body_condition.R file in the MMI-CODEX
 https://github.com/MMI-CODEX/Xcertainty/blob/main/R/body_condition.R
+
+Author: Jason Fitzpatrick
 '''
 
 import numpy as np

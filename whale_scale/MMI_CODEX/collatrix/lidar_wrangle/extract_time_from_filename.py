@@ -1,3 +1,10 @@
+'''
+The following is a Python file adapted from the MMI-CODEX/CollatriX repository
+https://github.com/MMI-CODEX/CollatriX
+
+Author: Jason Fitzpatrick
+'''
+
 def extract_time_from_filename(filename, delimiter, indices):
     """
     Extract time from file name based on index positions.
