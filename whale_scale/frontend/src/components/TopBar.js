@@ -132,6 +132,16 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
         >
           Xcertainty
         </button>
+        <button
+          className={`tab ${activeTab === "about" ? "active" : ""}`}
+          onClick={() => setActiveTab("about")}
+          role="tab"
+          aria-selected={activeTab === "about"}
+          id="about-tab"
+          style={tabStyle}
+        >
+          About
+        </button>
       </div>
 
       {/* Add the corresponding tabpanels that match the aria-controls values */}
@@ -141,6 +151,10 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
       
       <div id="xcertainty-content" role="tabpanel" aria-labelledby="xcertainty-tab" style={{display: activeTab === "xcertainty" ? "block" : "none"}}>
         {/* Content for the xcertainty tab */}
+      </div>
+
+      <div id="about-content" role="tabpanel" aria-labelledby="about-tab" style={{display: activeTab === "about" ? "block" : "none"}}>
+        {/* Content for the about tab */}
       </div>
 
       <div className="right-section">

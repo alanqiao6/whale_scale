@@ -4,6 +4,7 @@ import Sidebar from "./components/Sidebar"
 import TopBar from "./components/TopBar"
 import ImageViewer from "./components/ImageViewer"
 import Data from "./components/Data"
+import About from "./components/About"
 import "./App.css"
 import * as exifr from "exifr"
 
@@ -340,51 +341,57 @@ export default function App() {
           setActiveTool={setActiveTool}
           sidebarSubmitted={sidebarSubmitted}
         />
-        <ImageViewer
-          image={image}
-          widthSegments={widthSegments}
-          activeTool={activeTool}
-          setActiveTool={setActiveTool}
-          onMeasurementUpdate={handleMeasurementUpdate}
-          onImageUpload={handleImageUpload}
-          onBackendResult={handleBackendResult}
-          metadata={metadata}
-          segmentColor={formData.segmentColor}
-          crosshairColor={formData.crosshairColor}
-          crosshairSize={parseInt(formData.crosshairSize) || 10}
-          pixelDimension={pixelDimension}
-        />
-        {backendMessage && (
-          <p style={{ textAlign: "center", color: "black", fontWeight: "bold", marginTop: "10px" }}>{backendMessage}</p>
-        )}
+        {activeTab !== "about" ? (
+          <>
+            <ImageViewer
+              image={image}
+              widthSegments={widthSegments}
+              activeTool={activeTool}
+              setActiveTool={setActiveTool}
+              onMeasurementUpdate={handleMeasurementUpdate}
+              onImageUpload={handleImageUpload}
+              onBackendResult={handleBackendResult}
+              metadata={metadata}
+              segmentColor={formData.segmentColor}
+              crosshairColor={formData.crosshairColor}
+              crosshairSize={parseInt(formData.crosshairSize) || 10}
+              pixelDimension={pixelDimension}
+            />
+            {backendMessage && (
+              <p style={{ textAlign: "center", color: "black", fontWeight: "bold", marginTop: "10px" }}>{backendMessage}</p>
+            )}
 
-        {rulerData && (
-          <button
-            onClick={handleVolumeCalculation}
-            style={{
-              margin: "10px auto",
-              display: "block",
-              padding: "8px 16px",
-              background: "#4CAF50",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-            }}
-          >
-            Calculate Body Volume from Ruler Data
-          </button>
-        )}
+            {rulerData && (
+              <button
+                onClick={handleVolumeCalculation}
+                style={{
+                  margin: "10px auto",
+                  display: "block",
+                  padding: "8px 16px",
+                  background: "#4CAF50",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+              >
+                Calculate Body Volume from Ruler Data
+              </button>
+            )}
 
-        <Data 
-          formData={formData} 
-          rulerData={rulerData} 
-          manualCurveData={manualCurveData} 
-          areaData={areaData}
-          angleData={angleData}
-          bodyConditionData={bodyConditionData}
-          pixelDimension={pixelDimension}
-        />
+            <Data 
+              formData={formData} 
+              rulerData={rulerData} 
+              manualCurveData={manualCurveData} 
+              areaData={areaData}
+              angleData={angleData}
+              bodyConditionData={bodyConditionData}
+              pixelDimension={pixelDimension}
+            />
+          </>
+        ) : (
+          <About />
+        )}
       </div>
     </div>
   )
