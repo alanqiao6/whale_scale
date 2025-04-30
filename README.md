@@ -85,19 +85,24 @@ For full deployment steps (VCM setup, certbot, pipeline), see: DEPLOYMENT_GUIDE.
 
 📁 PROJECT STRUCTURE HIGHLIGHTS
 -------------------------------
+
+```text
 whale_scale/
-├── whale_scale/      # Django project backend
-|   |── frontend/     # React frontend source code
-|   |── main/         # Main app directory
-│   ├── accounts/     # User authentication (login, registration)
-│   └── MMI_codex/    # Core measurement engine (Collatrix, MorphoMetriX, Xcertainty)
-├── requirements.txt  # Python dependencies
-├── docker-compose.yml       # Local Docker config
-├── docker-compose.prod.yml  # Production Docker config
-├── .gitlab-ci.yml           # GitLab CI/CD pipeline
-├── nginx/                   # Nginx server config files
-├── DEV.md                   # Developer setup guide
-└── DEPLOYMENT_GUIDE.md      # Full production deployment instructions
+├── whale_scale/                # Django backend project
+│   ├── accounts/               # User authentication (login, registration)
+│   ├── frontend/               # React frontend source code
+│   ├── main/                   # Core Django app logic
+│   └── MMI_codex/              # Measurement engine (Collatrix, MorphoMetriX, Xcertainty)
+├── nginx/                      # Nginx configuration for production
+├── docker-compose.yml          # Docker setup for local development
+├── docker-compose.prod.yml     # Docker setup for production
+├── .gitlab-ci.yml              # GitLab CI/CD pipeline config
+├── requirements.txt            # Backend Python dependencies
+doc/
+└── technical_documentation/
+    ├── DEPLOYMENT_GUIDE.md     # Full production deployment steps
+    └── DEVELOPER_GUIDE.md      # Local dev setup instructions
+```
 
 
 📤 CONTACT & CONTRIBUTIONS
