@@ -71,3 +71,22 @@ PostgreSQL provides data storage for the application, storing:
 - Development and production configurations are managed through separate Docker Compose files
 - The frontend communicates with the backend through RESTful API calls
 - Core measurement algorithms are implemented as Python modules for scientific accuracy and performance
+
+## Adding New Features
+
+Our architecture is designed to be highly flexible, allowing for straightforward feature additions:
+
+1. **Implementation Process**:
+   * Develop the new feature in the appropriate component (frontend React component or backend Django module)
+   * Connect to existing interfaces through established APIs (or create new if necessary)
+   * Submit changes via pull request to the dev repository
+   * Our CI/CD pipeline automatically builds new Docker containers
+   * Changes are deployed through Docker Compose with minimal disruption
+
+2. **Why This Works**:
+   * Modular design means changes affect only relevant components
+   * Docker containerization isolates dependencies
+   * Clear API boundaries prevent cascading changes
+   * Standardized deployment process ensures consistency
+
+This approach means new measurement algorithms, visualization tools, or data processing features can be added with minimal impact on existing functionality, keeping the application flexible and maintainable.
