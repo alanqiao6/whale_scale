@@ -1,3 +1,18 @@
+"""
+WhaleScale Accounts App Configuration
+===================================
+
+Purpose:
+    Django app configuration for the WhaleScale authentication system.
+    Defines app name and database settings.
+
+Author:
+    Ciaran Burr
+
+License:
+    MIT
+"""
+
 from django.apps import AppConfig
 
 

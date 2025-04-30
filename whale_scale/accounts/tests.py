@@ -1,3 +1,19 @@
+"""
+WhaleScale Authentication Module Tests
+=====================================
+
+Purpose:
+    Unit tests for the WhaleScale authentication API endpoints,
+    including login, signup, logout, and session validation.
+    Tests cover success cases, error handling, and security.
+
+Author:
+    Ciaran Burr
+
+License:
+    MIT
+"""
+
 from django.test import TestCase, Client
 from django.contrib.auth.models import User
 from django.urls import reverse
