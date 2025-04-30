@@ -1,3 +1,12 @@
+// File: data.js
+// Authors: Alan Qiao, August Hao, Ciaran Burr
+// Purpose: This React component displays all collected whale measurement data, including form inputs, curve lengths, area and angle metrics, and calculated body condition indices. 
+// It also provides a CSV export feature that combines all available data into a downloadable report.
+// The component makes the export function globally accessible via `window.exportDataToCSV` for triggering from other components like Sidebar.
+
+
+
+
 import "./Data.css"
 import React from "react"
 

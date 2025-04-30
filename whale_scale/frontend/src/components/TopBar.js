@@ -1,3 +1,13 @@
+// File: Topbar.js
+// Authors: Alan Qiao, August Hao, Ciaran Burr
+// Purpose: This component renders the global navigation bar for WhaleScale.
+// It manages tab switching (Measure, Xcertainty, About), authentication status (login/logout via Django backend),
+// and interaction with tool buttons (ruler, pencil, area, angle, help).
+// It also dynamically retrieves CSRF tokens and displays modals (AuthModal, HelpModal).
+
+
+
+
 "use client"
 
 import "./TopBar.css"

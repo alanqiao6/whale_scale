@@ -1,3 +1,13 @@
+/* File: Topbar.css
+ * Authors: Alan Qiao, August Hao
+ * Purpose: Styles the top navigation bar of WhaleScale, including tabs, tool buttons,
+ * and user login/logout elements. Supports responsive layout and visually distinguishes
+ * active tools and tabs for user feedback.
+ */
+
+
+
+
 .top-bar {
   display: flex;
   justify-content: space-between;

@@ -1,3 +1,12 @@
+/* File: app.css
+ * Authors: Alan Qiao, August Hao
+ * Purpose: Global styles and layout configuration for the WhaleScale application,
+ * including primary color definitions, responsive flexbox layout, and media queries
+ * to ensure usability across desktop and mobile devices.
+ */
+
+
+
 :root {
   --primary-blue: #0e8ae3;
   --accent-red: #e7403e;

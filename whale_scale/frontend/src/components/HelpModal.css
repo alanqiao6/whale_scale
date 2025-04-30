@@ -1,3 +1,13 @@
+/* File: HelpModal.css
+ * Author: Alan Qiao
+ * Purpose: Styles the WhaleScale help modal overlay, content layout, button interactions,
+ * and step-by-step instruction views for both onboarding and help documentation modes.
+ * Ensures accessibility, responsiveness, and high visual contrast for usability.
+ */
+
+
+
+
 .help-modal-overlay {
     position: fixed;
     top: 0;

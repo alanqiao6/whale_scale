@@ -1,3 +1,14 @@
+/* File: ImageViewer.css
+ * Authors: Alan Qiao, August Hao
+ * Purpose: Styles the canvas display and interactive measurement UI in WhaleScale's image viewer.
+ * Includes layout for the canvas, upload zone, tool feedback, and finalize/clear buttons.
+ * Designed for accessibility, responsive UI, and visually distinct tool interactions.
+ */
+
+
+
+
+
 .image-container {
   flex: 1;
   padding: 20px;

@@ -1,3 +1,12 @@
+// File: sidebar.js
+// Authors: Alan Qiao, August Hao, Ciaran Burr
+// Purpose: This component renders the interactive sidebar UI in WhaleScale,
+// allowing users to upload an image, view or override extracted metadata, adjust configuration parameters (e.g. width segments, crosshair size/color),
+// and submit data to the backend for pixel dimension calculation via Collatrix.
+// Also enables CSV export via an exposed global export function and handles basic validation and error messaging.
+
+
+
 "use client";
 import React, { useState, useEffect } from "react";
 import "./Sidebar.css";

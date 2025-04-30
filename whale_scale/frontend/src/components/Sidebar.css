@@ -1,3 +1,12 @@
+/* File: Sidebar.css
+ * Authors: Alan Qiao, August Hao
+ * Purpose: Defines layout and styles for the WhaleScale sidebar panel,
+ * including upload button, input fields, color pickers, validation warnings,
+ * and responsive design for mobile views. Ensures accessible interaction and clear visual hierarchy.
+ */
+
+
+
 .sidebar {
   width: 250px;
   background-color: var(--primary-blue);

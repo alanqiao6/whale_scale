@@ -1,4 +1,14 @@
-// HelpModal.js
+// File: HelpModal.js
+// Author: Alan Qiao
+// Purpose: This React component displays an interactive help modal for onboarding and documentation.
+// It guides users through the WhaleScale measurement workflow via step-by-step instructions,
+// includes keyboard navigation (arrow keys and escape), and supports both modal and list display modes.
+// The tutorial dynamically renders sidebar field definitions and toggles visibility for specific sections.
+
+
+
+
+
 import React, { useState, useEffect } from "react"
 import "./HelpModal.css"
 

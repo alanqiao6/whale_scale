@@ -1,3 +1,15 @@
+// File: imageviewer.js
+// Authors: Alan Qiao, August Hao
+// Purpose: Core interactive measurement canvas for WhaleScale. Enables users to upload whale images,
+// place measurement points (ruler, area, curve, angle), and render interactive overlays.
+// Handles drawing logic, mouse/keyboard events, backend submission for MorphoMetriX,
+// and crosshair manipulation for body width segmentation.
+// Also includes ARIA-compliant accessibility and responsive finalize buttons.
+
+
+
+
+
 "use client"
 
 import React, { useState, useEffect, useRef } from "react"
