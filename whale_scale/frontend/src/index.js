@@ -1,3 +1,8 @@
+/* File: index.css.test.js
+ * Authors: Alan Qiao, August Hao, Ciaran Burr, Jason Fitzpatrick
+ * Purpose: Tests the global CSS styles to ensure they are properly applied, default with react
+ */
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';

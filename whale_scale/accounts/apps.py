@@ -3,8 +3,7 @@ WhaleScale Accounts App Configuration
 ===================================
 
 Purpose:
-    Django app configuration for the WhaleScale authentication system.
-    Defines app name and database settings.
+    Django app configuration for the WhaleScale authentication system
 
 Author:
     Ciaran Burr

@@ -1,3 +1,8 @@
+/* File: About.css
+ * Authors: August Hao
+ * Purpose: Provides layout and styling for the about page component,
+ * including visual grouping for background, scope, client, and team sections.
+ */
 .about-container {
   max-width: 1200px;
   margin: 0 auto;

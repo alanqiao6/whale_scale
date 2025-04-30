@@ -8,7 +8,7 @@
     form submission, error states, and CSRF token management.
   
   Author:
-    Ciaran
+    Ciaran Burr
   
   License:
     MIT

@@ -1,10 +1,16 @@
 """
-ASGI config for whale_scale project.
+WhaleScale Django ASGI Configuration
+=======================================
 
-It exposes the ASGI callable as a module-level variable named ``application``.
-
-For more information on this file, see
-https://docs.djangoproject.com/en/5.1/howto/deployment/asgi/
+Purpose:
+   Exposes the ASGI callable as a module-level variable named 'application'
+   for use with ASGI-compatible web servers and channels during deployment.
+   
+Author:
+   Jason Fitzpatrick, Ciaran Burr
+   
+For more information:
+   https://docs.djangoproject.com/en/5.1/howto/deployment/asgi/
 """
 
 import os

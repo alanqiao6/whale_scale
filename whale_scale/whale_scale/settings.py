@@ -9,7 +9,7 @@ Purpose:
     and session management.
 
 Author:
-    Jason, Ciaran
+    Jason Fitzpatrick, Ciaran Burr
 
 License:
     MIT

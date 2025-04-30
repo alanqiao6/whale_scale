@@ -1,3 +1,8 @@
+/* File: About.js
+* Authors: August Hao
+* Purpose: Provides the About page component displaying project background,
+* scope, researcher information, and team member details.
+*/
 import React from 'react';
 import './About.css';
 

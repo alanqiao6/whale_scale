@@ -1,3 +1,8 @@
+/* File: setupTests.js
+* Authors: Alan Qiao, August Hao, Ciaran Burr, Jason Fitzpatrick
+* Purpose: Read comments below
+*/
+
 // jest-dom adds custom jest matchers for asserting on DOM nodes.
 // allows you to do things like:
 // expect(element).toHaveTextContent(/react/i)

@@ -1,10 +1,16 @@
 """
-WSGI config for whale_scale project.
+WhaleScale Django WSGI Configuration
+=======================================
 
-It exposes the WSGI callable as a module-level variable named ``application``.
-
-For more information on this file, see
-https://docs.djangoproject.com/en/5.1/howto/deployment/wsgi/
+Purpose:
+    Exposes the WSGI callable as a module-level variable named 'application'
+    for use with WSGI-compatible web servers during production deployment.
+    
+Author:
+    Jason Fitzpatrick, Ciaran Burr
+    
+For more information:
+    https://docs.djangoproject.com/en/5.1/howto/deployment/wsgi/
 """
 
 import os

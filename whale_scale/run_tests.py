@@ -8,7 +8,7 @@ Purpose:
     Supports running specific test modules and customizing coverage reports.
 
 Author:
-    Ciaran
+    Ciaran Burr
 
 License:
     MIT

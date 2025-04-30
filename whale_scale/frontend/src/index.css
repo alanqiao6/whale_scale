@@ -1,4 +1,9 @@
-body {
+/* File: index.css.test.js
+ * Authors: Alan Qiao, August Hao, Ciaran Burr, Jason Fitzpatrick
+ * Purpose: Default global css styles
+ */
+
+ body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',

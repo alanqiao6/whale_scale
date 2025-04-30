@@ -1,3 +1,9 @@
+'''
+File for testing Morphometrix, Collatrix, and Xcertainty
+
+Author: Ciaran Burr
+'''
+
 from django.test import TestCase, Client
 import json
 import numpy as np
