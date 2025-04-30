@@ -64,7 +64,7 @@ By integrating these tools, WhaleScale provides precise measurement capabilities
    $ npm start
    Access: http://localhost:3000
 
-> For more detailed dev setup, refer to: DEV.md
+> For more detailed dev setup, refer to: DEVELOPER_GUIDE.md in doc/technical_documentation/
 
 
 🐳 DEPLOYMENT OVERVIEW (Docker + CI/CD)
@@ -80,7 +80,7 @@ WhaleScale supports full deployment via Docker and GitLab CI/CD pipelines. Both 
 To run Docker in production mode locally:
    $ docker-compose -f docker-compose.prod.yml up -d --build
 
-For full deployment steps (VCM setup, certbot, pipeline), see: DEPLOYMENT_GUIDE.md
+For full deployment steps (VCM setup, certbot, pipeline), see: DEPLOYMENT_GUIDE.md in doc/technical_documentation/
 
 
 📁 PROJECT STRUCTURE HIGHLIGHTS
