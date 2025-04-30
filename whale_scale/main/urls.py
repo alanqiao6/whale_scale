@@ -1,3 +1,9 @@
+'''
+File for defining url routes starting with /api/
+
+Author: Jason Fitzpatrick
+'''
+
 from django.urls import path
 from .views import CollatriX, MorphoMetrix, Xcertainty
 

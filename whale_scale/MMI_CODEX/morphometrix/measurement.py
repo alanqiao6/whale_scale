@@ -1,3 +1,10 @@
+'''
+The following is a Python file adapted from the MMI-CODEX/MorphometriX repository
+https://github.com/MMI-CODEX/MorphometriX
+
+Author: Jason Fitzpatrick
+'''
+
 class Measurement:
     """Represents an individual measurement in the measurement stack."""
 

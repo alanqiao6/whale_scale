@@ -20,5 +20,5 @@ from django.urls import path, include
 urlpatterns = [
     path('api/', include('main.urls')),
     path('accounts/', include('accounts.urls')),  # Add this line
-    # path("admin/", admin.site.urls),
+    # path("admin/", admin.site.urls), # UNCOMMENT THIS TO ACCESS THE ADMIN PANEL
 ]

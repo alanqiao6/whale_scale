@@ -1,6 +1,8 @@
 '''
 The following is a Python file adapted from the following template_model.R file in the MMI-CODEX
 https://github.com/MMI-CODEX/Xcertainty/blob/main/R/template_model.R
+
+Author: Jason Fitzpatrick
 '''
 
 import pymc as pm

@@ -1,3 +1,10 @@
+'''
+The following is a Python file adapted from the MMI-CODEX/CollatriX repository
+https://github.com/MMI-CODEX/CollatriX
+
+Author: Jason Fitzpatrick
+'''
+
 import numpy as np
 import pandas as pd
 

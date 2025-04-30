@@ -1,6 +1,8 @@
 '''
 The following is a Python file adapted from the following flatten_data.R file in the MMI-CODEX
 https://github.com/MMI-CODEX/Xcertainty/blob/main/R/flatten_data.R
+
+Author: Jason Fitzpatrick
 '''
 
 import pandas as pd

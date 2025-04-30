@@ -1,6 +1,8 @@
 '''
 The following is a Python file adapted from the following independent_length_sampler.R file in the MMI-CODEX
 https://github.com/MMI-CODEX/Xcertainty/blob/main/R/independent_length_sampler.R
+
+Author: Jason Fitzpatrick
 '''
 
 import numpy as np

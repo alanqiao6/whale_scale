@@ -1,3 +1,10 @@
+'''
+The following is a Python file adapted from the MMI-CODEX/MorphometriX repository
+https://github.com/MMI-CODEX/MorphometriX
+
+Author: Jason Fitzpatrick
+'''
+
 import numpy as np
 
 def compute_angle_between_lines(line1, line2):

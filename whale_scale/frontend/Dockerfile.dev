@@ -1,3 +1,5 @@
+# Author: Jason Fitzpatrick
+
 FROM node:18-alpine as build
 
 ARG REACT_APP_API_URL

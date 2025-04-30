@@ -1,3 +1,10 @@
+'''
+The following is a Python file adapted from the MMI-CODEX/CollatriX repository
+https://github.com/MMI-CODEX/CollatriX
+
+Author: Jason Fitzpatrick
+'''
+
 import pandas as pd
 
 from .calculate_body_volume_circle import calculate_body_volume_circle
