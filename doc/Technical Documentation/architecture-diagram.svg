@@ -1,0 +1,96 @@
+<svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="800" height="600" fill="#f8f9fa" />
+  
+  <!-- Title -->
+  <text x="400" y="30" font-family="Arial" font-size="24" font-weight="bold" text-anchor="middle">WhaleScale Architecture</text>
+  
+  <!-- Client Layer -->
+  <rect x="50" y="70" width="700" height="60" rx="5" ry="5" fill="#e3f2fd" stroke="#2196f3" stroke-width="2" />
+  <text x="400" y="105" font-family="Arial" font-size="18" font-weight="bold" text-anchor="middle">Client Layer (Web Browser)</text>
+  
+  <!-- NGINX Layer -->
+  <rect x="50" y="150" width="700" height="60" rx="5" ry="5" fill="#e8f5e9" stroke="#4caf50" stroke-width="2" />
+  <text x="400" y="185" font-family="Arial" font-size="18" font-weight="bold" text-anchor="middle">NGINX Reverse Proxy</text>
+  
+  <!-- Frontend Layer -->
+  <rect x="50" y="230" width="700" height="100" rx="5" ry="5" fill="#fff3e0" stroke="#ff9800" stroke-width="2" />
+  <text x="400" y="255" font-family="Arial" font-size="18" font-weight="bold" text-anchor="middle">Frontend (React.js)</text>
+  
+  <!-- Frontend Components -->
+  <rect x="80" y="270" width="120" height="40" rx="5" ry="5" fill="#ffe0b2" stroke="#ff9800" stroke-width="1" />
+  <text x="140" y="295" font-family="Arial" font-size="14" text-anchor="middle">Main App</text>
+  
+  <rect x="220" y="270" width="120" height="40" rx="5" ry="5" fill="#ffe0b2" stroke="#ff9800" stroke-width="1" />
+  <text x="280" y="295" font-family="Arial" font-size="14" text-anchor="middle">TopBar/Sidebar</text>
+  
+  <rect x="360" y="270" width="120" height="40" rx="5" ry="5" fill="#ffe0b2" stroke="#ff9800" stroke-width="1" />
+  <text x="420" y="295" font-family="Arial" font-size="14" text-anchor="middle">ImageViewer</text>
+  
+  <rect x="500" y="270" width="120" height="40" rx="5" ry="5" fill="#ffe0b2" stroke="#ff9800" stroke-width="1" />
+  <text x="560" y="295" font-family="Arial" font-size="14" text-anchor="middle">Data Component</text>
+  
+  <rect x="640" y="270" width="80" height="40" rx="5" ry="5" fill="#ffe0b2" stroke="#ff9800" stroke-width="1" />
+  <text x="680" y="295" font-family="Arial" font-size="14" text-anchor="middle">Auth</text>
+  
+  <!-- Backend Layer -->
+  <rect x="50" y="350" width="700" height="70" rx="5" ry="5" fill="#e1f5fe" stroke="#03a9f4" stroke-width="2" />
+  <text x="400" y="375" font-family="Arial" font-size="18" font-weight="bold" text-anchor="middle">Backend (Django)</text>
+  
+  <!-- Backend Components -->
+  <rect x="80" y="390" width="120" height="20" rx="3" ry="3" fill="#b3e5fc" stroke="#03a9f4" stroke-width="1" />
+  <text x="140" y="405" font-family="Arial" font-size="12" text-anchor="middle">REST API</text>
+  
+  <rect x="220" y="390" width="120" height="20" rx="3" ry="3" fill="#b3e5fc" stroke="#03a9f4" stroke-width="1" />
+  <text x="280" y="405" font-family="Arial" font-size="12" text-anchor="middle">Auth Service</text>
+  
+  <rect x="360" y="390" width="120" height="20" rx="3" ry="3" fill="#b3e5fc" stroke="#03a9f4" stroke-width="1" />
+  <text x="420" y="405" font-family="Arial" font-size="12" text-anchor="middle">Data Service</text>
+  
+  <rect x="500" y="390" width="120" height="20" rx="3" ry="3" fill="#b3e5fc" stroke="#03a9f4" stroke-width="1" />
+  <text x="560" y="405" font-family="Arial" font-size="12" text-anchor="middle">Analysis Service</text>
+  
+  <rect x="640" y="390" width="80" height="20" rx="3" ry="3" fill="#b3e5fc" stroke="#03a9f4" stroke-width="1" />
+  <text x="680" y="405" font-family="Arial" font-size="12" text-anchor="middle">Logging</text>
+  
+  <!-- Core Modules Layer -->
+  <rect x="50" y="440" width="700" height="80" rx="5" ry="5" fill="#f3e5f5" stroke="#9c27b0" stroke-width="2" />
+  <text x="400" y="465" font-family="Arial" font-size="18" font-weight="bold" text-anchor="middle">Core Whale Modules (MMI_CODEX)</text>
+  
+  <!-- Core Modules -->
+  <rect x="80" y="480" width="200" height="30" rx="5" ry="5" fill="#e1bee7" stroke="#9c27b0" stroke-width="1" />
+  <text x="180" y="500" font-family="Arial" font-size="16" text-anchor="middle">Collatrix</text>
+  
+  <rect x="300" y="480" width="200" height="30" rx="5" ry="5" fill="#e1bee7" stroke="#9c27b0" stroke-width="1" />
+  <text x="400" y="500" font-family="Arial" font-size="16" text-anchor="middle">Morphometrix</text>
+  
+  <rect x="520" y="480" width="200" height="30" rx="5" ry="5" fill="#e1bee7" stroke="#9c27b0" stroke-width="1" />
+  <text x="620" y="500" font-family="Arial" font-size="16" text-anchor="middle">Xcertainty</text>
+  
+  <!-- Database Layer -->
+  <rect x="300" y="540" width="200" height="40" rx="5" ry="5" fill="#ffebee" stroke="#f44336" stroke-width="2" />
+  <text x="400" y="565" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle">PostgreSQL Database</text>
+  
+  <!-- Arrows -->
+  <!-- Client to NGINX -->
+  <line x1="400" y1="130" x2="400" y2="150" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)" />
+  
+  <!-- NGINX to Frontend -->
+  <line x1="400" y1="210" x2="400" y2="230" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)" />
+  
+  <!-- Frontend to Backend -->
+  <line x1="400" y1="330" x2="400" y2="350" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)" />
+  
+  <!-- Backend to Core -->
+  <line x1="400" y1="420" x2="400" y2="440" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)" />
+  
+  <!-- Backend to Database -->
+  <line x1="400" y1="520" x2="400" y2="540" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)" />
+  
+  <!-- Arrowhead Marker -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
+    </marker>
+  </defs>
+</svg>
