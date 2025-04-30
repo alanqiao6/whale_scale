@@ -1,3 +1,18 @@
+/**
+ * WhaleScale Authentication Modal Styles
+  =====================================
+ 
+  Purpose:
+    Styling for the authentication modal component in the WhaleScale application.
+    Includes overlay, form elements, and responsive layout adjustments.
+ 
+  Author:
+    Ciaran
+ 
+  License:
+    MIT
+ */
+
 .auth-modal-overlay {
   position: fixed;
   top: 0;
