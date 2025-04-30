@@ -1,3 +1,8 @@
+'''
+Registers models for admin panel
+Author: Jason Fitzpatrick
+'''
+
 from django.contrib import admin
 from .models import Measurement, BodyCondition
 

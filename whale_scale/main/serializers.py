@@ -1,3 +1,8 @@
+'''
+Serializes models
+Author: Jason Fitzpatrick
+'''
+
 from rest_framework import serializers
 from .models import Measurement, BodyCondition
 
