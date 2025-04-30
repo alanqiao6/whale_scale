@@ -1,5 +1,5 @@
 // File: app.js
-// Authors: Alan Qiao, August Hao
+// Authors: Alan Qiao, August Hao, Ciaran Burr
 // Purpose: Serves as the main React component for the WhaleScale frontend.
 // It orchestrates the app’s layout and logic, including image upload and metadata extraction (via Collatrix),
 // state management for measurement tools, dynamic tab switching, sidebar inputs, measurement submission (MorphoMetriX),

@@ -1,3 +1,19 @@
+/**
+ WhaleScale Authentication Modal Component
+  ========================================
+  
+  Purpose:
+    Provides a reusable authentication interface for login and signup
+    functionality in the WhaleScale application. Handles user credentials,
+    form submission, error states, and CSRF token management.
+  
+  Author:
+    Ciaran
+  
+  License:
+    MIT
+ */
+
 import React, { useState, useEffect } from 'react'
 import './AuthModal.css'
 

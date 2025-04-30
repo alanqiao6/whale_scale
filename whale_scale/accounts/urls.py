@@ -1,4 +1,18 @@
-# whale_scale/accounts/urls.py
+"""
+WhaleScale URL Configuration - Authentication Routes
+===================================================
+
+Purpose:
+    Defines URL patterns for authentication endpoints in the WhaleScale
+    application, including login, signup, logout, and session validation.
+
+Author:
+    Ciaran Burr
+
+License:
+    MIT
+"""
+
 
 from django.urls import path
 from . import views

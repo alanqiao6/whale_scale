@@ -1,3 +1,18 @@
+"""
+WhaleScale Authentication Module
+===============================
+
+Purpose: 
+    Handles user authentication, registration, and session management
+    for the WhaleScale application.
+
+Author: 
+    Ciaran Burr
+
+License: 
+    MIT
+"""
+
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.models import User
 from django.http import JsonResponse

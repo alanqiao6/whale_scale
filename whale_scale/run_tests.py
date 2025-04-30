@@ -1,13 +1,23 @@
-#!/usr/bin/env python
 """
-Test runner script for running all project tests with code coverage reporting.
-Run this script from the project root directory.
+WhaleScale Test Runner
+=====================
+
+Purpose:
+    A custom test automation script for the WhaleScale application that
+    runs Django tests with code coverage reporting and colored output.
+    Supports running specific test modules and customizing coverage reports.
+
+Author:
+    Ciaran
+
+License:
+    MIT
 
 Usage:
     python run_tests.py                  # Run all tests with coverage
     python run_tests.py --no-coverage    # Run tests without coverage
     python run_tests.py --module accounts  # Run only account tests
-    python run_tests.py --module main      # Run only main tests (morphometrix, collatrix, xcertainty)
+    python run_tests.py --module main      # Run only main tests
 """
 
 import os
