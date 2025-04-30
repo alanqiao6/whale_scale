@@ -1,0 +1,44 @@
+WhaleScale – RELEASE_NOTES.txt
+===============================
+
+Version: Final Submission  
+Release Date: April 30, 2025
+
+
+🧩 CURRENT FUNCTIONALITY
+-------------------------
+WhaleScale is a web-based tool for measuring and analyzing whale dimensions from aerial imagery. The following features are included in this release:
+
+- ✅ Upload images in JPG, PNG, HEIC, or WEBP formats
+- ✅ Automatically extract embedded metadata using Collatrix
+- ✅ Interactively place and move crosshairs along the whale body to calculate **curved length**
+- ✅ Calculate **body condition** and **estimated volume**
+- ✅ Draw straight-line measurements using a **line tool**
+- ✅ Measure enclosed areas using the **area tool**
+- ✅ Measure angles using the **angle tool**
+- ✅ Export collected measurement data for external analysis
+- ✅ User **login system** for saving or tracking data
+- ✅ App is also **fully usable without login**
+
+
+🐞 KNOWN BUGS / INCOMPLETE FEATURES
+-----------------------------------
+- ❌ **Xcertainty** integration is not fully implemented in this version; measurement uncertainty is not currently visualized.
+
+
+⚠️ ASSUMPTIONS & LIMITATIONS
+-----------------------------
+- Measurement accuracy depends on user precision in placing crosshairs.
+- While the app does not assume high-quality drone imagery, higher-resolution images offer better on-screen visualization and more accurate tracing.
+- No backend image validation beyond file type; malformed metadata may not be parsed correctly.
+- No persistent user storage or session history beyond login (for now).
+
+
+🧪 PLATFORMS TESTED
+--------------------
+- ✔️ Google Chrome (latest)
+- ✔️ Safari (latest)
+- ✔️ Mobile browsers (iOS Safari, Android Chrome)
+
+Tested across macOS and iOS devices.
+
