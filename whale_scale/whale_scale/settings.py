@@ -30,7 +30,17 @@ ENV = os.environ.get('ENVIRONMENT', 'dev')  # 'prod' or 'dev'
 
 DEBUG = os.environ.get(f'{ENV.upper()}_DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.environ.get(f'{ENV.upper()}_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+# COMMENTED OUT: Environment variable approach for development
+# ALLOWED_HOSTS = os.environ.get(f'{ENV.upper()}_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+
+# FIXED: Direct list for development testing
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1', 
+    'vcm-47955.vm.duke.edu',
+    'whale-scale.colab.duke.edu',
+    '0.0.0.0'
+]
 
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure1234')
 
@@ -149,16 +159,19 @@ STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# FIXED: Added localhost:8080 for development testing
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:8080",
+    "http://127.0.0.1:8080",  # ADDED: For SSH tunnel testing
     "https://dev-whale-scale.colab.duke.edu",  # Add your production domain
     "https://whale-scale.colab.duke.edu",
 ]
 CORS_ALLOW_CREDENTIALS = True  # Important for cookies/session auth
 
-# Add this section to fix the CSRF issue
+# FIXED: Added localhost:8080 for development testing
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8080',
+    'http://127.0.0.1:8080',  # ADDED: For SSH tunnel testing
     "https://dev-whale-scale.colab.duke.edu",  # Add your production domain
     "https://whale-scale.colab.duke.edu",
 ]
@@ -180,7 +193,12 @@ else:
 # Session settings
 SESSION_COOKIE_AGE = 3600  # 1 hour (you can keep this as is)
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Add this to ensure session expires when browser closes
-SESSION_COOKIE_SECURE = True  # Set to True in production with HTTPS
+
+# COMMENTED OUT: HTTPS requirement for development testing
+# SESSION_COOKIE_SECURE = True  # Set to True in production with HTTPS
+# FIXED: Allow HTTP for development testing
+SESSION_COOKIE_SECURE = False  # Set to False for HTTP development testing
+
 SESSION_COOKIE_HTTPONLY = True  # Add this to prevent JavaScript access to session cookie
 SESSION_COOKIE_SAMESITE = 'Lax'  # Add this for security
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Use database-backed sessions
