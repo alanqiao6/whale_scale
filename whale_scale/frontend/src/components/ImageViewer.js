@@ -28,6 +28,9 @@ export default function ImageViewer({
   crosshairSize = 10,
   pixelDimension,
   crosshairColor = "#FF0000",
+  // ADD THESE NEW PROPS:
+  subjectName,
+  formData
 }) {
   const canvasRef = useRef(null)
   const [points, setPoints] = useState([])
@@ -41,6 +44,8 @@ export default function ImageViewer({
   const [polygonPoints, setPolygonPoints] = useState([])
   const [anglePoints, setAnglePoints] = useState([])
   const [angleLines, setAngleLines] = useState([])
+  // ADD THIS LINE:
+  const [imageScale, setImageScale] = useState(1);
 
   useEffect(() => {
     if (!image) return
@@ -134,6 +139,14 @@ export default function ImageViewer({
       window.removeEventListener("mouseup", handleMouseUp)
     }
   }, [draggingIndex])
+
+  useEffect(() => {
+    if (imgObj && canvasRef.current) {
+      const canvas = canvasRef.current;
+      const scale = imgObj.naturalWidth / canvas.width;
+      setImageScale(scale);
+    }
+  }, [imgObj]);
 
   const handleMouseDown = (e) => {
     const canvas = canvasRef.current
@@ -261,7 +274,7 @@ export default function ImageViewer({
 
   const handleFinalizeRuler = async () => {
     try {
-      // New payload format matching what the backend expects
+      // Request total curve length from backend
       const payload = {
         measurement_stack: [{
           measurement_type: "curve",
@@ -274,7 +287,7 @@ export default function ImageViewer({
           }))
         }],
         ...(pixelDimension && { pixel_dimension: pixelDimension })
-      };
+      }
 
       const curveRes = await fetch("/api/morphometrix/calculate_curve/", {
         method: "POST",
@@ -288,87 +301,146 @@ export default function ImageViewer({
         return
       }
 
-      const curveLength = curveResult.length
-      const curvePoints = curveResult.curve_points || []
+      const curveLength = curveResult.length * imageScale 
+      const lengthPixels = Math.hypot(mainLine.x2 - mainLine.x1, mainLine.y2 - mainLine.y1) * imageScale 
 
-      const widths = crosshairs.map((pair, i) => {
+      // Send total TL measurement
+      onBackendResult({
+        subject_name: subjectName,
+        measurement_type: "TL",
+        user_image_path: image,
+        image_timestamp: metadata?.image_timestamp ?? new Date().toISOString(),
+        measurement_timestamp: new Date().toISOString(),
+        coordinate_data: crosshairs,
+        pixel_dimension: pixelDimension,
+        pixel_count: lengthPixels,
+        scaled_dimension: curveLength,
+        focal_length: metadata?.focalLength,
+        sensor_width: metadata?.sensorWidth,
+        image_width: metadata?.imageWidth,
+        image_height: metadata?.imageHeight,
+        field_of_view: metadata?.fieldOfView,
+        altitude: metadata?.altitude,
+        altitude_offset: formData?.altitudeOffset,
+        gps_latitude: metadata?.gps_latitude,
+        gps_longitude: metadata?.gps_longitude,
+        camera_make: metadata?.camera_make,
+        camera_model: metadata?.camera_model,
+      })
+
+      // Add per-segment results (TL_w{percent})
+      const interval = Math.round(100 / (crosshairs.length + 1))
+      crosshairs.forEach((pair, i) => {
         const dx = pair.right.x - pair.left.x
         const dy = pair.right.y - pair.left.y
-        const length = Math.hypot(dx, dy)
-        return {
-          index: i + 1,
-          length: parseFloat((length * (pixelDimension || 1)).toFixed(4)),
-          coords: {
-            x1: pair.left.x,
-            y1: pair.left.y,
-            x2: pair.right.x,
-            y2: pair.right.y,
-          },
-        }
+        const pixelLength = Math.hypot(dx, dy) * imageScale 
+        const realLength = parseFloat((pixelLength * (pixelDimension || 1)).toFixed(4)) 
+        const percent = interval * (i + 1)
+
+        onBackendResult({
+          subject_name: subjectName,
+          measurement_type: `TL_w${percent.toFixed(2)}`,
+          user_image_path: image,
+          image_timestamp: metadata?.image_timestamp ?? new Date().toISOString(),
+          measurement_timestamp: new Date().toISOString(),
+          coordinate_data: pair,
+          pixel_dimension: pixelDimension,
+          pixel_count: pixelLength,
+          scaled_dimension: realLength,
+          focal_length: metadata?.focalLength,
+          sensor_width: metadata?.sensorWidth,
+          image_width: metadata?.imageWidth,
+          image_height: metadata?.imageHeight,
+          field_of_view: metadata?.fieldOfView,
+          altitude: metadata?.altitude,
+          altitude_offset: formData?.altitudeOffset,
+          gps_latitude: metadata?.gps_latitude,
+          gps_longitude: metadata?.gps_longitude,
+          camera_make: metadata?.camera_make,
+          camera_model: metadata?.camera_model,
+        })
       })
 
-      setBackendMessage(`✅ Ruler Curve: ${curveLength.toFixed(2)} m`)
-
-      onBackendResult({
-        type: "ruler",
-        curveLength,
-        curvePoints,
-        widthSegments: widths,
-      })
+      setBackendMessage(`✅ Entry Added to Data Tab With Name "${subjectName}"`)
     } catch (err) {
+      console.error("Ruler error:", err)
       setBackendMessage("❗ Error connecting to backend for ruler")
     }
   }
 
   const handleFinalizeManualCurve = async () => {
-      if (manualCurvePoints.length < 2) return
+    if (manualCurvePoints.length < 2) return
 
-      const payload = {
-          measurement_stack: [{
-              measurement_type: "curve",  // Use uppercase as in the old version
-              name: "manual_curve",
-              objects_params: manualCurvePoints.map(point => ({
-                  parms: {
-                      x: point.x,
-                      y: point.y
-                  }
-              }))
-          }],
-          ...(pixelDimension && { pixel_dimension: pixelDimension })
-      };
-
-      console.log("Sending payload:", JSON.stringify(payload, null, 2));
-
-      try {
-          // Use the same URL path as in the old version
-          const response = await fetch("/api/morphometrix/calculate_curve/", {
-              method: "POST",
-              headers: {
-                  "Content-Type": "application/json"
-              },
-              body: JSON.stringify(payload)
-          });
-
-          if (!response.ok) {
-              const errorText = await response.text();
-              console.error("Server response:", errorText);
-              throw new Error(`HTTP error! status: ${response.status}`);
+    const payload = {
+      measurement_stack: [{
+        measurement_type: "curve",
+        name: "manual_curve",
+        objects_params: manualCurvePoints.map(point => ({
+          parms: {
+            x: point.x,
+            y: point.y
           }
+        }))
+      }],
+      ...(pixelDimension && { pixel_dimension: pixelDimension })
+    };
 
-          const result = await response.json();
-          setBackendMessage(`✅ Manual Curve: ${result.length.toFixed(2)} m`);
+    try {
+      const response = await fetch("/api/morphometrix/calculate_curve/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
 
-          onBackendResult({
-              type: "manual_curve",
-              length: result.length,
-              curvePoints: manualCurvePoints,
-          });
-          setManualCurvePoints([]);
-          setActiveTool(null);
-      } catch (err) {
-          console.error("Full error:", err);
-          setBackendMessage("❗ Error connecting to backend for manual curve");
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Server response:", errorText);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+
+      const result = await response.json();
+
+      const lengthPixels = manualCurvePoints.reduce((sum, p, i, arr) => {
+        if (i === 0) return 0
+        const dx = p.x - arr[i - 1].x
+        const dy = p.y - arr[i - 1].y
+        return sum + Math.hypot(dx, dy)
+      }, 0) * imageScale
+      const curveLength = result.length * imageScale
+
+      setBackendMessage(`✅ Entry Added to Data Tab With Name "${subjectName}"`);
+
+      onBackendResult({
+        subject_name: subjectName,
+        measurement_type: "curve_length",
+        user_image_path: image,
+        image_timestamp: metadata?.image_timestamp ?? new Date().toISOString(),
+        measurement_timestamp: new Date().toISOString(),
+        coordinate_data: manualCurvePoints,
+        pixel_dimension: pixelDimension,
+        pixel_count: lengthPixels,
+        scaled_dimension: curveLength,
+        focal_length: metadata?.focalLength,
+        sensor_width: metadata?.sensorWidth,
+        image_width: metadata?.imageWidth,
+        image_height: metadata?.imageHeight,
+        field_of_view: metadata?.fieldOfView,
+        altitude: metadata?.altitude,
+        altitude_offset: formData?.altitudeOffset,
+        gps_latitude: metadata?.gps_latitude,
+        gps_longitude: metadata?.gps_longitude,
+        camera_make: metadata?.camera_make,
+        camera_model: metadata?.camera_model,
+      })
+      
+      setManualCurvePoints([]);
+      setActiveTool(null);
+    } catch (err) {
+      console.error("Full error:", err);
+      setBackendMessage("❗ Error connecting to backend for manual curve");
+    }
   };
 
   const handleFinalizeArea = async () => {
@@ -376,42 +448,59 @@ export default function ImageViewer({
       setBackendMessage("❗ Need at least 3 points for area calculation")
       return
     }
-  
+
     try {
       const payload = {
         measurement: {
-          measurement_type: 2,  // Using numeric type as shown in the backend example
+          measurement_type: 2,
           name: "Polygon Area",
           objects_params: [
             {
-              type: 5,  // Type for polygon
-              parms: polygonPoints  // Direct array of points, not wrapped in a 'points' property
+              type: 5,
+              parms: polygonPoints
             }
           ]
         },
         ...(pixelDimension && { pixel_dimension: pixelDimension })
       }
-  
+
       const response = await fetch("/api/morphometrix/calculate_area/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       })
-  
+
       const result = await response.json()
       if (!response.ok) {
         setBackendMessage(`❗ Area calculation error: ${result.error}`)
         return
       }
-  
-      setBackendMessage(`✅ Area: ${result.area.toFixed(2)} m²`)
-  
+
+      setBackendMessage(`✅ Entry Added to Data Tab With Name "${subjectName}"`)
+
       onBackendResult({
-        type: "area",
-        area: result.area,
-        polygonPoints: polygonPoints,
+        subject_name: subjectName,
+        measurement_type: "area",
+        user_image_path: image,
+        image_timestamp: metadata?.image_timestamp ?? new Date().toISOString(),
+        measurement_timestamp: new Date().toISOString(),
+        coordinate_data: polygonPoints,
+        pixel_dimension: pixelDimension,
+        pixel_count: null,
+        scaled_dimension: result.area * imageScale,
+        focal_length: metadata?.focalLength,
+        sensor_width: metadata?.sensorWidth,
+        image_width: metadata?.imageWidth,
+        image_height: metadata?.imageHeight,
+        field_of_view: metadata?.fieldOfView,
+        altitude: metadata?.altitude,
+        altitude_offset: formData?.altitudeOffset,
+        gps_latitude: metadata?.gps_latitude,
+        gps_longitude: metadata?.gps_longitude,
+        camera_make: metadata?.camera_make,
+        camera_model: metadata?.camera_model,
       })
-  
+
       setPolygonPoints([])
       setActiveTool(null)
     } catch (err) {
@@ -450,11 +539,11 @@ export default function ImageViewer({
     try {
       const payload = {
         measurement: {
-          measurement_type: 3, // Type for angle measurement
+          measurement_type: 3,
           name: "Angle Measurement",
           objects_params: [
             {
-              type: 1, // Type for line
+              type: 1,
               parms: {
                 x1: anglePoints[1].x,
                 y1: anglePoints[1].y,
@@ -463,7 +552,7 @@ export default function ImageViewer({
               }
             },
             {
-              type: 1, // Type for line
+              type: 1,
               parms: {
                 x1: anglePoints[1].x,
                 y1: anglePoints[1].y,
@@ -487,13 +576,29 @@ export default function ImageViewer({
         return
       }
 
-      setBackendMessage(`✅ Angle: ${result.angle.toFixed(2)}°`)
+      setBackendMessage(`✅ Entry Added to Data Tab With Name "${subjectName}"`)
 
       onBackendResult({
-        type: "angle",
-        angle: result.angle,
-        anglePoints: anglePoints,
-        angleLines: angleLines
+        subject_name: subjectName,
+        measurement_type: "angle",
+        user_image_path: image,
+        image_timestamp: metadata?.image_timestamp ?? new Date().toISOString(),
+        measurement_timestamp: new Date().toISOString(),
+        coordinate_data: anglePoints,
+        pixel_dimension: pixelDimension,
+        pixel_count: null,
+        scaled_dimension: result.angle,
+        focal_length: metadata?.focalLength,
+        sensor_width: metadata?.sensorWidth,
+        image_width: metadata?.imageWidth,
+        image_height: metadata?.imageHeight,
+        field_of_view: metadata?.fieldOfView,
+        altitude: metadata?.altitude,
+        altitude_offset: formData?.altitudeOffset,
+        gps_latitude: metadata?.gps_latitude,
+        gps_longitude: metadata?.gps_longitude,
+        camera_make: metadata?.camera_make,
+        camera_model: metadata?.camera_model,
       })
 
       setAnglePoints([])
