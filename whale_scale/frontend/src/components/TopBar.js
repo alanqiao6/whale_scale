@@ -5,16 +5,12 @@
 // and interaction with tool buttons (ruler, pencil, area, angle, help).
 // It also dynamically retrieves CSRF tokens and displays modals (AuthModal, HelpModal).
 
-
-
-
 "use client"
 
 import "./TopBar.css"
 import React, { useState, useEffect } from "react"
 import AuthModal from './AuthModal'
 import HelpModal from './HelpModal'
-
 
 // Utility function to get CSRF token from cookies
 function getCookie(name) {
@@ -167,8 +163,9 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
         {/* Content for the about tab */}
       </div>
 
-      <div className="right-section">
-        <div className="tools" role="toolbar" aria-label="Measurement tools">
+      <div className="tools-and-auth" role="toolbar" aria-label="Tools and authentication">
+        {/* Measurement Tools */}
+        <div className="tools-section">
           <button
             className={`tool-button ${activeTool === "ruler" ? "active" : ""}`}
             onClick={() => {
@@ -199,6 +196,7 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
           >
             <span aria-hidden="true">📐</span>
           </button>
+          
           <button
             className={`tool-button ${activeTool === "pencil" ? "active" : ""}`}
             onClick={() => setActiveTool(activeTool === "pencil" ? null : "pencil")}
@@ -208,6 +206,7 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
           >
             <span aria-hidden="true">✏️</span>
           </button>
+          
           <button
             className={`tool-button ${activeTool === "area" ? "active" : ""}`}
             onClick={() => setActiveTool(activeTool === "area" ? null : "area")}
@@ -217,6 +216,7 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
           >
             <span aria-hidden="true">🔲</span>
           </button>
+          
           <button 
             className="tool-button" 
             title="Help" 
@@ -228,28 +228,36 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
           >
             <span aria-hidden="true">❓</span>
           </button>
-
         </div>
 
+        {/* Authentication Section - Now inline with tools */}
         <div className="auth-section">
           {user ? (
-            <div className="user-info" role="status" aria-live="polite">
-              <span className="username">Hi, {user.username}</span>
+            <>
               <button 
-                className="logout-button" 
+                className="tool-button user-button" 
+                title={`Logged in as ${user.username}`}
+                aria-label={`User account: ${user.username}`}
+              >
+                <span aria-hidden="true">👤</span>
+              </button>
+              <button 
+                className="tool-button logout-button" 
                 onClick={handleLogout}
+                title="Logout"
                 aria-label="Log out of your account"
               >
-                Logout
+                <span aria-hidden="true">🚪</span>
               </button>
-            </div>
+            </>
           ) : (
             <button 
-              className="login-button" 
+              className="tool-button login-button" 
               onClick={() => setShowAuthModal(true)}
+              title="Login"
               aria-label="Log in to your account"
             >
-              Login
+              <span aria-hidden="true">🔑</span>
             </button>
           )}
         </div>
@@ -273,9 +281,6 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
         setHelpMode={setHelpMode}
         setShowHelp={setShowHelp}
       />
-
-
-
     </div>
   )
 }

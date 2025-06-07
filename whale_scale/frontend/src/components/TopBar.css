@@ -5,12 +5,10 @@
  * active tools and tabs for user feedback.
  */
 
-
-
-
 .top-bar {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   padding: 10px 20px;
   background-color: white;
   border-bottom: 1px solid #eee;
@@ -36,7 +34,14 @@
   border-radius: 4px;
 }
 
-.tools {
+/* Container for tools and authentication */
+.tools-and-auth {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.tools-section {
   display: flex;
   gap: 10px;
 }
@@ -65,10 +70,67 @@
   color: white;
 }
 
+/* Authentication section styling */
+.auth-section {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border-left: 1px solid #eee;
+  padding-left: 20px;
+}
+
+/* User button styling */
+.user-button {
+  background-color: #e8f5e8 !important;
+  color: #2e7d32 !important;
+}
+
+.user-button:hover {
+  background-color: #c8e6c9 !important;
+}
+
+/* Login button styling */
+.login-button {
+  background-color: #e3f2fd !important;
+  color: #1565c0 !important;
+}
+
+.login-button:hover {
+  background-color: #bbdefb !important;
+}
+
+/* Logout button styling */
+.logout-button {
+  background-color: #ffebee !important;
+  color: #c62828 !important;
+}
+
+.logout-button:hover {
+  background-color: #ffcdd2 !important;
+}
+
+/* Responsive design */
 @media (max-width: 768px) {
   .top-bar {
     flex-direction: column;
     gap: 10px;
+    align-items: stretch;
+  }
+  
+  .tools-and-auth {
+    justify-content: center;
+    gap: 15px;
+  }
+  
+  .auth-section {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid #eee;
+    padding-top: 10px;
+    justify-content: center;
+  }
+  
+  .tabs {
+    justify-content: center;
   }
 }
-
