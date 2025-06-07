@@ -186,19 +186,19 @@ CSRF_FAILURE_VIEW = 'django.views.csrf.csrf_failure'  # Better error messages
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
-# Add environment-specific cookie settings to prevent conflicts
-if ENV == 'dev':
-    SESSION_COOKIE_NAME = 'dev_sessionid'
-    CSRF_COOKIE_NAME = 'dev_csrftoken'
-    if not DEBUG:  # Only set domain in production-like environment
-        CSRF_COOKIE_DOMAIN = 'dev-whale-scale.colab.duke.edu'
-        SESSION_COOKIE_DOMAIN = 'dev-whale-scale.colab.duke.edu'
-else:
-    SESSION_COOKIE_NAME = 'prod_sessionid'
-    CSRF_COOKIE_NAME = 'prod_csrftoken'
-    if not DEBUG:  # Only set domain in production environment
-        CSRF_COOKIE_DOMAIN = 'whale-scale.colab.duke.edu'
-        SESSION_COOKIE_DOMAIN = 'whale-scale.colab.duke.edu'
+# COMMENTED OUT: Environment-specific cookie settings to prevent conflicts
+# if ENV == 'dev':
+#     SESSION_COOKIE_NAME = 'dev_sessionid'
+#     CSRF_COOKIE_NAME = 'dev_csrftoken'
+#     if not DEBUG:  # Only set domain in production-like environment
+#         CSRF_COOKIE_DOMAIN = 'dev-whale-scale.colab.duke.edu'
+#         SESSION_COOKIE_DOMAIN = 'dev-whale-scale.colab.duke.edu'
+# else:
+#     SESSION_COOKIE_NAME = 'prod_sessionid'
+#     CSRF_COOKIE_NAME = 'prod_csrftoken'
+#     if not DEBUG:  # Only set domain in production environment
+#         CSRF_COOKIE_DOMAIN = 'whale-scale.colab.duke.edu'
+#         SESSION_COOKIE_DOMAIN = 'whale-scale.colab.duke.edu'
 
 # Session settings
 SESSION_COOKIE_AGE = 3600  # 1 hour (you can keep this as is)
