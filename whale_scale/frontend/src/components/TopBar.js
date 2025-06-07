@@ -233,31 +233,23 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
         {/* Authentication Section - Now inline with tools */}
         <div className="auth-section">
           {user ? (
-            <>
+            <div className="user-info" role="status" aria-live="polite">
+              <span className="username">Hi, {user.username}</span>
               <button 
-                className="tool-button user-button" 
-                title={`Logged in as ${user.username}`}
-                aria-label={`User account: ${user.username}`}
-              >
-                <span aria-hidden="true">👤</span>
-              </button>
-              <button 
-                className="tool-button logout-button" 
+                className="logout-button" 
                 onClick={handleLogout}
-                title="Logout"
                 aria-label="Log out of your account"
               >
-                <span aria-hidden="true">🚪</span>
+                Logout
               </button>
-            </>
+            </div>
           ) : (
             <button 
-              className="tool-button login-button" 
+              className="login-button" 
               onClick={() => setShowAuthModal(true)}
-              title="Login"
               aria-label="Log in to your account"
             >
-              <span aria-hidden="true">🔑</span>
+              Login
             </button>
           )}
         </div>
