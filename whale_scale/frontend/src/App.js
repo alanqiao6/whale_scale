@@ -1,13 +1,10 @@
 // File: app.js
 // Authors: Alan Qiao, August Hao, Ciaran Burr
 // Purpose: Serves as the main React component for the WhaleScale frontend.
-// It orchestrates the app’s layout and logic, including image upload and metadata extraction (via Collatrix),
+// It orchestrates the app's layout and logic, including image upload and metadata extraction (via Collatrix),
 // state management for measurement tools, dynamic tab switching, sidebar inputs, measurement submission (MorphoMetriX),
 // and backend-driven volume/body condition calculations.
 // Integrates core components (Sidebar, TopBar, ImageViewer, Data, About) and manages data flow between them
-
-
-
 
 "use client"
 import React, { useState, useEffect } from "react"
@@ -40,7 +37,6 @@ const getSessionId = () => {
   return getCookie('sessionid') || getCookie('dev_sessionid') || getCookie('prod_sessionid');
 };
 
-
 export default function App() {
   const [activeTab, setActiveTab] = useState("measure")
   const [activeTool, setActiveTool] = useState(null)
@@ -72,7 +68,6 @@ export default function App() {
   const [pixelDimension, setPixelDimension] = useState(null)
   const [sidebarSubmitted, setSidebarSubmitted] = useState(false)
 
-
   // Handle real-time input changes from Sidebar
   const handleInputChange = (name, value) => {
     setFormData(prev => ({
@@ -89,7 +84,6 @@ export default function App() {
       }))
     }
   }
-
 
   const handleImageUpload = async (file) => {
     if (file) {
@@ -145,7 +139,6 @@ export default function App() {
     // but this ensures consistency
     setFormData(dataFromSidebar)
     setSidebarSubmitted(true)
-
 
     if (dataFromSidebar.pixelDimension) {
       setPixelDimension(dataFromSidebar.pixelDimension)
@@ -206,34 +199,59 @@ export default function App() {
     }
   }
 
+  // FIXED: Updated handleBackendResult to use measurement_type instead of type
   const handleBackendResult = (result) => {
+    console.log("Backend result received:", result); // Debug log
     setBackendResult(result)
 
-    if (result.type === "manual_curve") {
+    // Use measurement_type instead of type
+    if (result.measurement_type === "curve_length") {
       setManualCurveData({
         type: "manual_curve",
-        curveLength: result.length,
-        curvePoints: result.curvePoints,
+        curveLength: result.scaled_dimension, // Use scaled_dimension
+        curvePoints: result.coordinate_data,  // Use coordinate_data
       })
-    } else if (result.type === "ruler") {
-      setRulerData({
-        type: "ruler",
-        curveLength: result.curveLength,
-        widthSegments: result.widthSegments ?? [],
-        // Use the user-specified number rather than array length
-        segments: Number.parseInt(formData.widthSegments) || result.widthSegments?.length || 0,
-      })
-    } else if (result.type === "area") {
+    } else if (result.measurement_type === "TL" || result.measurement_type.startsWith("TL_w")) {
+      // Handle ruler measurements (TL = Total Length, TL_w* = width segments)
+      if (result.measurement_type === "TL") {
+        // This is the main ruler line
+        setRulerData({
+          type: "ruler",
+          curveLength: result.scaled_dimension,
+          widthSegments: [], // Will be populated by TL_w* measurements
+          segments: Number.parseInt(formData.widthSegments) || 0,
+        })
+      } else {
+        // This is a width segment (TL_w5.00, TL_w10.00, etc.)
+        setRulerData(prev => {
+          if (!prev) return null;
+          
+          // Extract percentage from measurement_type (e.g., "TL_w5.00" -> 5.00)
+          const percentage = result.measurement_type.replace("TL_w", "");
+          
+          const newSegment = {
+            index: percentage,
+            length: result.scaled_dimension.toFixed(4),
+            coords: result.coordinate_data
+          };
+          
+          return {
+            ...prev,
+            widthSegments: [...(prev.widthSegments || []), newSegment]
+          };
+        });
+      }
+    } else if (result.measurement_type === "area") {
       setAreaData({
         type: "area",
-        area: result.area,
-        polygonPoints: result.polygonPoints,
+        area: result.scaled_dimension,
+        polygonPoints: result.coordinate_data,
       })
-    } else if (result.type === "angle") {
+    } else if (result.measurement_type === "angle") {
       setAngleData({
         type: "angle",
-        angle: result.angle,
-        anglePoints: result.anglePoints,
+        angle: result.scaled_dimension,
+        anglePoints: result.coordinate_data,
       })
     }
   }
@@ -367,6 +385,8 @@ export default function App() {
               crosshairColor={formData.crosshairColor}
               crosshairSize={parseInt(formData.crosshairSize) || 10}
               pixelDimension={pixelDimension}
+              subjectName={imageFile?.name || "whale_measurement"}
+              formData={formData}
             />
             {backendMessage && (
               <p style={{ textAlign: "center", color: "black", fontWeight: "bold", marginTop: "10px" }}>{backendMessage}</p>

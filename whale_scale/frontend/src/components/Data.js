@@ -4,16 +4,13 @@
 // It also provides a CSV export feature that combines all available data into a downloadable report.
 // The component makes the export function globally accessible via `window.exportDataToCSV` for triggering from other components like Sidebar.
 
-
-
-
 import "./Data.css"
-import React from "react"
+import React, { useCallback } from "react"
 
 export default function Data({ formData, rulerData, manualCurveData, areaData, angleData, bodyConditionData, pixelDimension }) {
 
-  // Function to export data to CSV with multiple tables
-  const exportDataToCSV = () => {
+  // FIXED: Use useCallback to stabilize the export function and prevent memory leaks
+  const exportDataToCSV = useCallback(() => {
     console.log("Starting export function...");
     
     // Check if any data exists to export
@@ -244,7 +241,7 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
       console.error("Error during export:", err);
       alert(`Export failed: ${err.message}`);
     }
-  };
+  }, [formData, rulerData, manualCurveData, areaData, angleData, bodyConditionData, pixelDimension]); // Only recreate when data actually changes
 
   // Helper function to extract filename from path
   const getFileNameFromPath = (path) => {
@@ -254,7 +251,7 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
     return fileName.replace(/\.[^/.]+$/, ""); // Remove extension
   };
   
-  // Add export function to make it accessible from outside
+  // FIXED: Use stable function reference and proper cleanup
   React.useEffect(() => {
     // Expose the export function globally so Sidebar can access it
     window.exportDataToCSV = exportDataToCSV;
@@ -265,7 +262,7 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
       delete window.exportDataToCSV;
       console.log("Export function removed from window");
     };
-  }, [formData, rulerData, manualCurveData, areaData, angleData, bodyConditionData, pixelDimension]);
+  }, [exportDataToCSV]); // Only recreate when the stable function changes
 
   if (!formData && !rulerData && !manualCurveData && !areaData && !angleData && !bodyConditionData) {
     return (
@@ -323,14 +320,18 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
               <strong style={dataLabelStyle}>Segments:</strong> {rulerData.segments}
             </p>
 
-            <h4 style={headingStyle}>Width Segment Lengths</h4>
-            <ul>
-              {rulerData.widthSegments.map((seg) => (
-                <li key={seg.index}>
-                  <span style={dataLabelStyle}>Segment {seg.index}:</span> {seg.length} m
-                </li>
-              ))}
-            </ul>
+            {rulerData.widthSegments && rulerData.widthSegments.length > 0 && (
+              <>
+                <h4 style={headingStyle}>Width Segment Lengths</h4>
+                <ul>
+                  {rulerData.widthSegments.map((seg, idx) => (
+                    <li key={idx}>
+                      <span style={dataLabelStyle}>Segment {seg.index}:</span> {seg.length} m
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
         )}
 
