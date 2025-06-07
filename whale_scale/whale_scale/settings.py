@@ -150,7 +150,7 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
+    "http://localhost:8080",
     "https://dev-whale-scale.colab.duke.edu",  # Add your production domain
     "https://whale-scale.colab.duke.edu",
 ]
@@ -158,7 +158,7 @@ CORS_ALLOW_CREDENTIALS = True  # Important for cookies/session auth
 
 # Add this section to fix the CSRF issue
 CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:3000',
+    'http://localhost:8080',
     "https://dev-whale-scale.colab.duke.edu",  # Add your production domain
     "https://whale-scale.colab.duke.edu",
 ]
