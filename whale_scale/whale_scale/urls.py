@@ -8,7 +8,7 @@ Purpose:
     URL configurations from individual apps.
 
 Authors:
-    Jason Fitzpatrick, Ciaran Burr
+    Jason Fitzpatrick, Ciaran Burr 
 
 License:
     MIT
