@@ -177,10 +177,14 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # ALL ADDED AS EXTRA 
-# Add after your CSRF_TRUSTED_ORIGINS section
+# Add these CSRF debug settings to your settings.py
 CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF cookie
 CSRF_USE_SESSIONS = False     # Use cookies instead of sessions for CSRF
 CSRF_COOKIE_SAMESITE = 'Lax'  # Less strict for development
+CSRF_FAILURE_VIEW = 'django.views.csrf.csrf_failure'  # Better error messages
+# For debugging CSRF issues
+import logging
+logging.basicConfig(level=logging.DEBUG)
 
 # Add environment-specific cookie settings to prevent conflicts
 if ENV == 'dev':
