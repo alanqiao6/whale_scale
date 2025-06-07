@@ -6,10 +6,6 @@
 // and crosshair manipulation for body width segmentation.
 // Also includes ARIA-compliant accessibility and responsive finalize buttons.
 
-
-
-
-
 "use client"
 
 import React, { useState, useEffect, useRef } from "react"
@@ -147,6 +143,16 @@ export default function ImageViewer({
       setImageScale(scale);
     }
   }, [imgObj]);
+
+  // Auto-clear success message after 3 seconds
+  useEffect(() => {
+    if (backendMessage.includes("✅")) {
+      const timer = setTimeout(() => {
+        setBackendMessage("")
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [backendMessage])
 
   const handleMouseDown = (e) => {
     const canvas = canvasRef.current
@@ -362,6 +368,14 @@ export default function ImageViewer({
       })
 
       setBackendMessage(`✅ Entry Added to Data Tab With Name "${subjectName}"`)
+      
+      // Clear ruler state after successful finalization
+      setPoints([])
+      setMainLine(null)
+      setSegmentLines([])
+      setCrosshairs([])
+      setActiveTool(null)
+      
     } catch (err) {
       console.error("Ruler error:", err)
       setBackendMessage("❗ Error connecting to backend for ruler")
