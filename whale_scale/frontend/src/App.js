@@ -67,6 +67,8 @@ export default function App() {
   const [backendMessage, setBackendMessage] = useState("")
   const [pixelDimension, setPixelDimension] = useState(null)
   const [sidebarSubmitted, setSidebarSubmitted] = useState(false)
+  // Add loading state for metadata extraction
+  const [isExtractingMetadata, setIsExtractingMetadata] = useState(false)
 
   // Handle real-time input changes from Sidebar
   const handleInputChange = (name, value) => {
@@ -90,6 +92,9 @@ export default function App() {
       const imageUrl = URL.createObjectURL(file)
       setImage(imageUrl)
       setImageFile(file)
+      
+      // Start loading state
+      setIsExtractingMetadata(true)
 
       try {
         const formData = new FormData()
@@ -124,7 +129,10 @@ export default function App() {
       } catch (error) {
         console.error("Error extracting metadata via backend:", error)
         // Still try client-side extraction if server throws error
-      } 
+      } finally {
+        // End loading state
+        setIsExtractingMetadata(false)
+      }
     }
   }
 
@@ -361,6 +369,7 @@ export default function App() {
         onImageUpload={handleImageUpload} 
         onSubmit={handleSubmit}
         onInputChange={handleInputChange}
+        isExtractingMetadata={isExtractingMetadata}
       />
       <div className="main-content">
         <TopBar

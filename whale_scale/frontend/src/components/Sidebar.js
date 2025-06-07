@@ -5,13 +5,11 @@
 // and submit data to the backend for pixel dimension calculation via Collatrix.
 // Also enables CSV export via an exposed global export function and handles basic validation and error messaging.
 
-
-
 "use client";
 import React, { useState, useEffect } from "react";
 import "./Sidebar.css";
 
-export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, onInputChange }) {
+export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, onInputChange, isExtractingMetadata }) {
   const [error, setError] = useState("");
   const [inputConflict, setInputConflict] = useState(false);
   
@@ -96,7 +94,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
 
   // Define a style for labels to ensure proper contrast
   const labelStyle = {
-    color: "#FFFFFF", // Black text for maximum contrast
+    color: "#FFFFFF", // White text for maximum contrast
     fontWeight: "bold"
   };
 
@@ -108,7 +106,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
         id={`input-${name}`}
         name={name}
         value={formData[name]}
-        disabled={disabled}
+        disabled={disabled || isExtractingMetadata}
         onChange={(e) => handleChange(name, e.target.value)}
         aria-describedby={`${name}-help`}
       />
@@ -130,6 +128,22 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
         <p id="upload-help" className="sr-only">Choose an image to upload for processing.</p>
       </div>
 
+      {/* Loading message for metadata extraction */}
+      {isExtractingMetadata && (
+        <div style={{ 
+          padding: "10px", 
+          margin: "10px 0", 
+          backgroundColor: "#f0f8ff", 
+          border: "1px solid #007acc",
+          borderRadius: "4px",
+          textAlign: "center",
+          color: "#007acc",
+          fontWeight: "bold"
+        }}>
+          🔍 Scraping image metadata...
+        </div>
+      )}
+
       {renderInput("Altitude (m)", "altitude", false)}
       {renderInput("Altitude Offset (m)", "altitudeOffset", false)}
       {renderInput("Image Width (px)", "imageWidth", false)}
@@ -149,6 +163,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
           name="widthSegments"
           value={formData.widthSegments} 
           onChange={(e) => handleChange("widthSegments", e.target.value)} 
+          disabled={isExtractingMetadata}
           aria-required="true"
           aria-describedby="width-segments-help"
         />
@@ -165,6 +180,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
           max="100"
           value={formData.crosshairSize}
           onChange={(e) => handleChange("crosshairSize", e.target.value)}
+          disabled={isExtractingMetadata}
           aria-valuenow={formData.crosshairSize}
           aria-valuemin="0"
           aria-valuemax="100"
@@ -180,11 +196,11 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
           name="crosshairColor"
           value={formData.crosshairColor || "#FF0000"}
           onChange={(e) => handleChange("crosshairColor", e.target.value)}
+          disabled={isExtractingMetadata}
           className="color-picker"
           aria-label="Select crosshair color"
         />
       </div>
-
 
       <div className="input-group">
         <label htmlFor="segment-color" style={labelStyle}>Segment Color</label>
@@ -194,6 +210,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
           name="segmentColor"
           value={formData.segmentColor}
           onChange={(e) => handleChange("segmentColor", e.target.value)}
+          disabled={isExtractingMetadata}
           className="color-picker"
           aria-label="Select segment color"
         />
@@ -214,6 +231,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       <button 
         className="submit-button" 
         onClick={handleSubmit}
+        disabled={isExtractingMetadata}
         aria-label="Submit configuration"
       >
         Submit
@@ -224,6 +242,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       <button 
         className="export-button" 
         onClick={handleExport}
+        disabled={isExtractingMetadata}
         aria-label="Export data to CSV"
       >
         Export 📤
