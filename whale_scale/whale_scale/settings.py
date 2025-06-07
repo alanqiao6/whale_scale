@@ -176,6 +176,12 @@ CSRF_TRUSTED_ORIGINS = [
     "https://whale-scale.colab.duke.edu",
 ]
 
+# ALL ADDED AS EXTRA 
+# Add after your CSRF_TRUSTED_ORIGINS section
+CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF cookie
+CSRF_USE_SESSIONS = False     # Use cookies instead of sessions for CSRF
+CSRF_COOKIE_SAMESITE = 'Lax'  # Less strict for development
+
 # Add environment-specific cookie settings to prevent conflicts
 if ENV == 'dev':
     SESSION_COOKIE_NAME = 'dev_sessionid'
