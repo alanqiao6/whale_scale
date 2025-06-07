@@ -21,7 +21,7 @@ deploy-prod:
     - chmod 600 gitlab_vcm
     - |
       ssh -o StrictHostKeyChecking=no -i gitlab_vcm $VCM_USER_PROD@$VCM_IP_PROD "
-      cd /home/vcm/APP_WHALESCALE && 
+      cd /home/vcm/APP_WHALESCALE/app_WhaleScale && 
       git fetch &&
       git checkout main && 
       git pull origin main && 
