@@ -5,6 +5,7 @@
 // Handles drawing logic, mouse/keyboard events, backend submission for MorphoMetriX,
 // and crosshair manipulation for body width segmentation.
 // Also includes ARIA-compliant accessibility and responsive finalize buttons.
+// Updated: Allow multiple finalize ruler submissions without clearing measurements
 
 "use client"
 
@@ -143,16 +144,6 @@ export default function ImageViewer({
       setImageScale(scale);
     }
   }, [imgObj]);
-
-  // Auto-clear success message after 3 seconds
-  useEffect(() => {
-    if (backendMessage.includes("✅")) {
-      const timer = setTimeout(() => {
-        setBackendMessage("")
-      }, 3000)
-      return () => clearTimeout(timer)
-    }
-  }, [backendMessage])
 
   const handleMouseDown = (e) => {
     const canvas = canvasRef.current
@@ -369,12 +360,10 @@ export default function ImageViewer({
 
       setBackendMessage(`✅ Entry Added to Data Tab With Name "${subjectName}"`)
       
-      // Clear ruler state after successful finalization
-      setPoints([])
-      setMainLine(null)
-      setSegmentLines([])
-      setCrosshairs([])
-      setActiveTool(null)
+      // Clear the message after a few seconds so user knows they can finalize again
+      setTimeout(() => {
+        setBackendMessage("")
+      }, 3000)
       
     } catch (err) {
       console.error("Ruler error:", err)
@@ -864,7 +853,8 @@ export default function ImageViewer({
             </button>
           )}
 
-          {crosshairs.length > 0 && activeTool === null && (
+          {/* UPDATED: Show finalize button whenever crosshairs exist, regardless of activeTool */}
+          {crosshairs.length > 0 && (
             <>
               <button
                 className="finalize-button"
