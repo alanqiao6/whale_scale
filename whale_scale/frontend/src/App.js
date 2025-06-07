@@ -264,102 +264,119 @@ export default function App() {
     }
   }
 
-  // Function to handle volume calculations using the ruler data
-  const handleVolumeCalculation = async () => {
-    if (!rulerData || !metadata.focalLength || !metadata.altitude) {
-      alert("Please complete a ruler measurement and provide focal length and altitude data first.")
-      return
+// Fixed handleVolumeCalculation function
+const handleVolumeCalculation = async () => {
+  if (!rulerData || !metadata.focalLength || !metadata.altitude) {
+    alert("Please complete a ruler measurement and provide focal length and altitude data first.")
+    return
+  }
+
+  try {
+    // Extract width segments and create proper measurement data
+    const widthSegments = rulerData.widthSegments || [];
+    
+    if (widthSegments.length < 3) {
+      alert("Need at least 3 width segments for body condition calculation");
+      return;
     }
 
-    try {
-      // Generate width positions as percentages of total length (0%, 5%, 10%, etc.)
-      const interval = 5;
-      const maxPercentage = 30;
-      const widthColumns = {};
+    // Sort width segments by percentage/position
+    const sortedSegments = widthSegments.sort((a, b) => parseFloat(a.index) - parseFloat(b.index));
+    
+    // Create measurement object with TL and width measurements
+    const measurementObj = {
+      Image_ID: imageFile?.name || "current_image",
+      Image: imageFile?.name || "current_image",
+      TL: rulerData.curveLength, // Use the actual curve length without division
+    };
+
+    // Add width measurements using the actual measurement names
+    sortedSegments.forEach(segment => {
+      const columnName = `TL_w${parseFloat(segment.index).toFixed(2)}`;
+      measurementObj[columnName] = parseFloat(segment.length);
+    });
+
+    // Calculate interval and bounds from actual data
+    const positions = sortedSegments.map(s => parseFloat(s.index));
+    const lower = Math.min(...positions);
+    const upper = Math.max(...positions);
+    const interval = positions.length > 1 ? (upper - lower) / (positions.length - 1) : 5;
+
+    const measurementData = {
+      measurements: [measurementObj],
+      bv_method: "Circle",
+      bai_method: "Parabola", 
+      tl_name: "TL",
+      interval: interval,
+      lower: lower,
+      upper: upper
+    };
+
+    console.log("Sending body condition data:", measurementData);
+
+    const response = await fetch("/api/collatrix/calculate_body_condition/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(measurementData),
+    });
+
+    if (response.ok) {
+      const volumeResults = await response.json();
+      console.log("Volume calculation results:", volumeResults);
       
-      // Create width columns with proper naming convention (Length_w0.00, Length_w5.00, etc.)
-      for (let i = 0; i <= maxPercentage; i += interval) {
-        // Format with 2 decimal places (0.00, 5.00, etc.)
-        const formattedPos = i.toFixed(2);
-        const columnName = `Length_w${formattedPos}`;
+      if (volumeResults && volumeResults.length > 0) {
+        const result = volumeResults[0];
         
-        // Find the closest width segment to this percentage position
-        const segmentIndex = Math.round((i / 100) * rulerData.widthSegments.length);
-        const segment = rulerData.widthSegments[segmentIndex < rulerData.widthSegments.length ? segmentIndex : rulerData.widthSegments.length - 1];
+        // Extract meaningful results (look for non-zero values)
+        const bvKey = Object.keys(result).find(k => k.startsWith('BVcir_') && result[k] > 0);
+        const baiKey = Object.keys(result).find(k => k.startsWith('BAIpar_') && result[k] > 0);
+        const saKey = Object.keys(result).find(k => k.startsWith('SA_') && result[k] > 0);
         
-        // Use the width value from that segment or a default value
-        widthColumns[columnName] = segment ? parseFloat(segment.length) / 100 : 0;
-      }
-
-      // Format the measurement data for the body condition API
-      const measurementData = {
-        measurements: [
-          {
-            Image_ID: imageFile?.name || "current_image",
-            Image: imageFile?.name || "current_image",
-            Length: rulerData.curveLength / 100, // Convert to realistic units
-            ...widthColumns
-          }
-        ],
-        bv_method: "Circle", // Method for body volume calculation
-        bai_method: "Parabola", // Method for body area index
-        tl_name: "Length", // Name of the total length measurement
-        interval: interval, // Width measurement interval
-        lower: 0, // Lower bound
-        upper: maxPercentage // Upper bound
-      };
-
-      console.log("Sending body condition data:", measurementData);
-
-      const response = await fetch("/api/collatrix/calculate_body_condition/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(measurementData),
-      });
-
-      if (response.ok) {
-        const volumeResults = await response.json();
-        console.log("Volume calculation results:", volumeResults);
+        let resultMessage = "🐋 Body Condition Results:\n";
         
-        // Check if we got valid results
-        if (volumeResults && volumeResults.length > 0) {
-          let resultMessage = "✅ Body condition results:";
-          
-          // Add BV (Body Volume) if available
-          if (volumeResults[0].BVcir) {
-            resultMessage += ` Volume: ${volumeResults[0].BVcir.toFixed(2)} units³`;
-          }
-          
-          // Add BAI (Body Area Index) if available
-          if (volumeResults[0].BAIpar) {
-            resultMessage += ` | Area Index: ${volumeResults[0].BAIpar.toFixed(2)}`;
-          }
-          
-          setBackendMessage(resultMessage);
-          
-          // Store the body condition results in state
-          setBodyConditionData({
-            type: "body_condition",
-            volume: volumeResults[0]?.BVcir,
-            areaIndex: volumeResults[0]?.BAIpar,
-            surfaceArea: volumeResults[0]?.SA,
-            fullResults: volumeResults[0]
-          });
-        } else {
-          setBackendMessage("⚠️ Volume calculation completed but no results returned");
+        if (bvKey && result[bvKey] > 0) {
+          resultMessage += `**Body Volume (${bvKey}):** ${result[bvKey].toFixed(4)}\n`;
         }
+        
+        if (baiKey && result[baiKey] > 0) {
+          resultMessage += `**Body Area Index (${baiKey}):** ${result[baiKey].toFixed(4)}\n`;
+        }
+        
+        if (saKey && result[saKey] > 0) {
+          resultMessage += `**Surface Area (${saKey}):** ${result[saKey].toFixed(4)}\n`;
+        }
+        
+        // If all values are still zero or very small, there might be a data issue
+        if (!bvKey && !baiKey && !saKey) {
+          resultMessage += "⚠️ All calculated values are zero - check measurement data and units";
+          console.warn("All body condition values are zero:", result);
+        }
+        
+        setBackendMessage(resultMessage);
+        
+        // Store results using the actual keys found
+        setBodyConditionData({
+          type: "body_condition",
+          volume: bvKey ? result[bvKey] : null,
+          areaIndex: baiKey ? result[baiKey] : null,
+          surfaceArea: saKey ? result[saKey] : null,
+          fullResults: result
+        });
       } else {
-        const errorText = await response.text();
-        console.error("Volume calculation error:", errorText);
-        setBackendMessage("❗ Error calculating volume");
+        setBackendMessage("⚠️ Volume calculation completed but no results returned");
       }
-    } catch (error) {
-      console.error("Error in volume calculation:", error);
-      setBackendMessage("❗ Error connecting to backend for volume calculation");
+    } else {
+      const errorText = await response.text();
+      console.error("Volume calculation error:", errorText);
+      setBackendMessage("❗ Error calculating volume");
     }
-  };
+  } catch (error) {
+    console.error("Error in volume calculation:", error);
+    setBackendMessage("❗ Error connecting to backend for volume calculation");
+  }
+};
 
   return (
     <div className="app-container">
