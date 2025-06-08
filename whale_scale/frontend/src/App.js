@@ -4,7 +4,7 @@
 // It orchestrates the app's layout and logic, including image upload and metadata extraction (via Collatrix),
 // state management for measurement tools, dynamic tab switching, sidebar inputs, measurement submission (MorphoMetriX),
 // and backend-driven volume/body condition calculations.
-// Integrates core components (Sidebar, TopBar, ImageViewer, Data, About) and manages data flow between them
+// Integrates core components (Sidebar, TopBar, ImageViewer, Data, About) and manages data flow between them 
 
 "use client"
 import React, { useState, useEffect } from "react"
