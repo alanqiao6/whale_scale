@@ -36,3 +36,32 @@
   }
 }
 
+/* Add these styles to your existing App.css */
+
+.saved-data-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.saved-data-modal {
+  background: white;
+  border-radius: 8px;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  padding: 20px;
+  margin: 20px;
+}
+
+.close-saved-data:hover {
+  background: #d32f2f !important;
+}

@@ -9,7 +9,8 @@
 import React, { useState, useEffect } from "react";
 import "./Sidebar.css";
 
-export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, onInputChange, isExtractingMetadata }) {
+// CHANGE THIS LINE: Add onShowSavedData to the function parameters
+export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, onInputChange, isExtractingMetadata, onShowSavedData }) {
   const [error, setError] = useState("");
   const [inputConflict, setInputConflict] = useState(false);
   
@@ -239,13 +240,37 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       <p style={{ fontSize: "0.8em", color: "#000000", marginTop: "4px", marginBottom: "12px" }}>
         <span aria-hidden="true">⚠️</span> <span style={{ fontWeight: "bold" }}>required field</span>
       </p>
+      
+      {/* ADD THIS NEW BUTTON HERE - right after the export button */}
       <button 
         className="export-button" 
         onClick={handleExport}
         disabled={isExtractingMetadata}
         aria-label="Export data to CSV"
+        style={{ marginBottom: "8px" }}
       >
         Export 📤
+      </button>
+      
+      {/* ADD THIS NEW BUTTON */}
+      <button
+        className="saved-data-button"
+        onClick={onShowSavedData}
+        disabled={isExtractingMetadata}
+        style={{
+          width: "100%",
+          padding: "10px",
+          background: "#2196F3",
+          color: "white",
+          border: "none",
+          borderRadius: "4px",
+          cursor: "pointer",
+          fontSize: "14px",
+          fontWeight: "bold"
+        }}
+        aria-label="View previously saved data and measurements"
+      >
+        📁 View Saved Data
       </button>
     </div>
   );

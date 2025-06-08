@@ -21,6 +21,8 @@ import platform
 import logging
 import math
 
+from django.contrib.auth.models import User
+from .models import UploadedImage, Measurement, BodyConditionResult, UserSession
 
 from MMI_CODEX.collatrix.body_condition.calculate_body_area_index import calculate_body_area_index
 from MMI_CODEX.collatrix.body_condition.calculate_body_volume import calculate_body_volume
@@ -75,6 +77,52 @@ class MorphoMetrix(View):
         else:
             return JsonResponse({"error": "Invalid function name"}, status=400)
 
+    def save_measurement_to_db(self, request, measurement_type, measurement_data, result):
+        """Helper method to save measurements to database"""
+        try:
+            # Get current image from session
+            image_id = request.session.get('current_image_id')
+            if not image_id:
+                logger.warning("No current image ID in session")
+                return
+            
+            try:
+                image_record = UploadedImage.objects.get(id=image_id)
+            except UploadedImage.DoesNotExist:
+                logger.warning(f"Image with ID {image_id} not found")
+                return
+            
+            # Ensure user has access to this image
+            if request.user.is_authenticated:
+                if image_record.user != request.user:
+                    logger.warning("User doesn't own this image")
+                    return
+            else:
+                # For anonymous users, check session
+                session_key = request.session.session_key
+                if image_record.session_key != session_key:
+                    logger.warning("Session doesn't match image session")
+                    return
+            
+            # Create measurement record
+            Measurement.objects.create(
+                image=image_record,
+                measurement_type=measurement_type,
+                measurement_name=measurement_data.get("measurement_name", ""),
+                scaled_dimension=result.get("scaled_dimension"),
+                coordinate_data=result.get("coordinate_data", []),
+                measurement_metadata={
+                    "pixel_dimension": request.session.get('pixel_dimension'),
+                    "original_data": measurement_data,
+                    "result": result
+                }
+            )
+            
+            logger.info(f"Saved {measurement_type} measurement for image {image_id}")
+            
+        except Exception as e:
+            logger.error(f"Error saving measurement to database: {str(e)}")
+
     def calculate_curve(self, request):
         """
         Compute Bézier curve interpolation and arc length.
@@ -127,35 +175,19 @@ class MorphoMetrix(View):
 
     def calculate_length(self, request):
         """
-        Compute total length of selected measurement.
-
-        Input: JSON with a measurement containing objects_params of line segments, each with a length in parms.
-
-        Output: JSON with the total length.
-
-        Axios Example:
-        axios.post("http://localhost:8000/morphometrix/calculate_length/", {
-            measurement: {
-                measurement_type: "line",
-                measurement_name: "Test Line",
-                objects_params: [
-                { parms: { length: 10 } },
-                { parms: { length: 15 } }
-                ]
-            },
-            pixel_dimension: 0.123 // OPTIONAL: This will be used to convert the output length to the unit of the pixel dimension (i.e. meters)
-        }).then(response => console.log(response.data));
+        Compute total length of selected measurement and save to database.
         """
         data = json.loads(request.body)
         logger = logging.getLogger(__name__)
         logger.info("Received measurement: %s", data)
         measurement_data = data.get("measurement", {})
         pixel_dimension = data.get("pixel_dimension", 1)
+        
         try:
             pixel_dimension = float(pixel_dimension)
         except ValueError:
             return JsonResponse({"error": "Invalid pixel_dimension"}, status=400)
-    
+
         measurement = Measurement(
             measurement_type=measurement_data.get("measurement_type"),
             name=measurement_data.get("measurement_name")
@@ -166,6 +198,14 @@ class MorphoMetrix(View):
             obj["parms"].get("length", 0) * pixel_dimension if "length" in obj["parms"] else 0
             for obj in measurement.objects_params
         ])
+        
+        # Save to database
+        result = {
+            "scaled_dimension": measurement.measurement_value,
+            "coordinate_data": measurement_data.get("objects_params", [])
+        }
+        self.save_measurement_to_db(request, "ruler", measurement_data, result)
+        
         return JsonResponse({"length": measurement.measurement_value})
 
     def calculate_angle(self, request):
@@ -309,31 +349,39 @@ class CollatriX(View):
             return self.extract_metadata(request)
         elif function_name == "compute_pixel_dimension":
             return self.compute_pixel_dimension(request)
+        elif function_name == "get_user_images":
+            return self.get_user_images(request)
+        elif function_name == "get_image_measurements":
+            image_id = request.GET.get('image_id')
+            return self.get_image_measurements(request, image_id)
         else:
             return JsonResponse({"error": "Invalid function name"}, status=400)
 
+    def get_or_create_session(self, request):
+        """Get or create session for anonymous users"""
+        if not request.session.session_key:
+            request.session.create()
+        
+        session_key = request.session.session_key
+        user_session, created = UserSession.objects.get_or_create(
+            session_key=session_key,
+            defaults={'session_key': session_key}
+        )
+        if not created:
+            # Update last activity
+            user_session.save()
+        
+        return session_key
+
     def extract_metadata(self, request):
         """
-        Extracts metadata from an uploaded image.
-
-        Input: multipart/form-data with a single image file.
-
-        Output: JSON object containing metadata such as timestamp, camera model, GPS coordinates, and exposure settings.
-
-        Axios Example:
-        const formData = new FormData();
-        formData.append("image", imageFile);
-
-        axios.post("http://localhost:8000/collatrix/extract_metadata/", formData)
-        .then(response => console.log(response.data));
+        Extracts metadata from an uploaded image and saves to database.
         """
-
         def to_float(value):
             try:
                 return float(value)
             except (TypeError, ValueError):
                 return value
-        
 
         if 'image' not in request.FILES:
             return JsonResponse({"error": "No image file provided"}, status=400)
@@ -342,13 +390,15 @@ class CollatriX(View):
         image_path = default_storage.save(uploaded_image.name, uploaded_image)
 
         try:
+            # Extract metadata using exiftool
             with self.exiftool as et:
                 metadata = et.get_metadata(image_path)[0]
+            
+            # Prepare response data
             response_data = {
                 "timestamp": metadata.get("EXIF:DateTimeOriginal", "Unknown"),
                 "file_name": metadata.get("File:FileName", os.path.basename(image_path)),
                 "file_size_bytes": metadata.get("File:FileSize", None),
-                # "image_dimensions": f"{metadata.get('File:ImageWidth', '?')} x {metadata.get('File:ImageHeight', '?')}",
                 "image_width": to_float(metadata.get("File:ImageWidth")),
                 "image_height": to_float(metadata.get("File:ImageHeight")),
                 "megapixels": to_float(metadata.get("Composite:Megapixels", None)),
@@ -380,6 +430,34 @@ class CollatriX(View):
                 "light_value_ev": to_float(metadata.get("Composite:LightValue", None)),
             }
 
+            # Save to database if user is authenticated or track by session
+            user = request.user if request.user.is_authenticated else None
+            session_key = None if user else self.get_or_create_session(request)
+            
+            # Create UploadedImage record
+            uploaded_image_record = UploadedImage.objects.create(
+                user=user,
+                session_key=session_key,
+                filename=uploaded_image.name,
+                original_filename=uploaded_image.name,
+                focal_length_mm=response_data.get("focal_length_mm"),
+                gps_altitude_m=response_data.get("gps_altitude_m"),
+                image_width=response_data.get("image_width"),
+                image_height=response_data.get("image_height"),
+                field_of_view_deg=response_data.get("field_of_view_deg"),
+                camera_make=response_data.get("camera_make"),
+                camera_model=response_data.get("camera_model"),
+                timestamp=response_data.get("timestamp"),
+                gps_latitude=response_data.get("gps_latitude"),
+                gps_longitude=response_data.get("gps_longitude"),
+            )
+            
+            # Add image_id to response so frontend can track it
+            response_data["image_id"] = uploaded_image_record.id
+            
+            # Store image_id in session for future requests
+            request.session['current_image_id'] = uploaded_image_record.id
+            
             return JsonResponse(response_data)
 
         except Exception as e:
@@ -387,7 +465,8 @@ class CollatriX(View):
             return JsonResponse({"error": str(e)}, status=500)
 
         finally:
-            os.remove(image_path)
+            if os.path.exists(image_path):
+                os.remove(image_path)
 
     def compute_pixel_dimension(self, request):
         """
@@ -836,8 +915,70 @@ class CollatriX(View):
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
 
+    def get_user_images(self, request):
+        """Get all images for the current user or session"""
+        if request.user.is_authenticated:
+            images = UploadedImage.objects.filter(user=request.user)
+        else:
+            session_key = request.session.session_key
+            if not session_key:
+                return JsonResponse({"images": []})
+            images = UploadedImage.objects.filter(session_key=session_key)
+        
+        image_data = []
+        for img in images:
+            image_data.append({
+                "id": img.id,
+                "filename": img.filename,
+                "upload_date": img.upload_date.isoformat(),
+                "focal_length_mm": img.focal_length_mm,
+                "gps_altitude_m": img.gps_altitude_m,
+                "image_width": img.image_width,
+                "image_height": img.image_height,
+                "camera_make": img.camera_make,
+                "camera_model": img.camera_model,
+                "measurement_count": img.measurements.count(),
+            })
+        
+        return JsonResponse({"images": image_data})
 
+    def get_image_measurements(self, request, image_id):
+        """Get all measurements for a specific image"""
+        try:
+            if request.user.is_authenticated:
+                image = UploadedImage.objects.get(id=image_id, user=request.user)
+            else:
+                session_key = request.session.session_key
+                image = UploadedImage.objects.get(id=image_id, session_key=session_key)
+        except UploadedImage.DoesNotExist:
+            return JsonResponse({"error": "Image not found"}, status=404)
+        
+        measurements = image.measurements.all()
+        measurement_data = []
+        
+        for measurement in measurements:
+            measurement_data.append({
+                "id": measurement.id,
+                "measurement_type": measurement.measurement_type,
+                "measurement_name": measurement.measurement_name,
+                "scaled_dimension": measurement.scaled_dimension,
+                "coordinate_data": measurement.coordinate_data,
+                "created_date": measurement.created_date.isoformat(),
+            })
+        
+        return JsonResponse({"measurements": measurement_data})
 
+    def get(self, request, function_name):
+        """Handle GET requests"""
+        if function_name == "get_user_images":
+            return self.get_user_images(request)
+        elif function_name == "get_image_measurements":
+            image_id = request.GET.get('image_id')
+            if not image_id:
+                return JsonResponse({"error": "image_id parameter required"}, status=400)
+            return self.get_image_measurements(request, image_id)
+        else:
+            return JsonResponse({"error": "Invalid function name"}, status=400)
 
 # -------------------------
 # Xcertainty Endpoints

@@ -13,6 +13,7 @@ import TopBar from "./components/TopBar"
 import ImageViewer from "./components/ImageViewer"
 import Data from "./components/Data"
 import About from "./components/About"
+import SavedData from "./components/SavedData"  // ADD THIS IMPORT
 import "./App.css"
 import * as exifr from "exifr"
 
@@ -69,6 +70,8 @@ export default function App() {
   const [sidebarSubmitted, setSidebarSubmitted] = useState(false)
   // Add loading state for metadata extraction
   const [isExtractingMetadata, setIsExtractingMetadata] = useState(false)
+  // ADD THIS NEW STATE FOR SAVED DATA
+  const [savedDataVisible, setSavedDataVisible] = useState(false)
 
   // Handle real-time input changes from Sidebar
   const handleInputChange = (name, value) => {
@@ -264,6 +267,76 @@ export default function App() {
     }
   }
 
+  // ADD THIS NEW FUNCTION TO LOAD SAVED MEASUREMENTS
+  const handleLoadSavedMeasurement = (measurement) => {
+    // Convert saved measurement back to frontend format
+    if (measurement.measurement_type === "TL") {
+      // This is a ruler measurement
+      setRulerData({
+        type: "ruler",
+        curveLength: measurement.scaled_dimension,
+        widthSegments: [], // Will be populated by other measurements
+        segments: 0, // You might want to store this in metadata
+      });
+      
+      setBackendMessage(`✅ Loaded saved ruler measurement: ${measurement.scaled_dimension.toFixed(2)}m`);
+      
+    } else if (measurement.measurement_type.startsWith("TL_w")) {
+      // This is a width segment - add to existing ruler data
+      setRulerData(prev => {
+        if (!prev) return null;
+        
+        const percentage = measurement.measurement_type.replace("TL_w", "");
+        const newSegment = {
+          index: percentage,
+          length: measurement.scaled_dimension.toFixed(4),
+          coords: measurement.coordinate_data
+        };
+        
+        return {
+          ...prev,
+          widthSegments: [...(prev.widthSegments || []), newSegment]
+        };
+      });
+      
+    } else if (measurement.measurement_type === "curve_length") {
+      setManualCurveData({
+        type: "manual_curve",
+        curveLength: measurement.scaled_dimension,
+        curvePoints: measurement.coordinate_data,
+      });
+      
+      setBackendMessage(`✅ Loaded saved curve: ${measurement.scaled_dimension.toFixed(2)}m`);
+      
+    } else if (measurement.measurement_type === "area") {
+      setAreaData({
+        type: "area",
+        area: measurement.scaled_dimension,
+        polygonPoints: measurement.coordinate_data,
+      });
+      
+      setBackendMessage(`✅ Loaded saved area: ${measurement.scaled_dimension.toFixed(2)}m²`);
+      
+    } else if (measurement.measurement_type === "angle") {
+      setAngleData({
+        type: "angle",
+        angle: measurement.scaled_dimension,
+        anglePoints: measurement.coordinate_data,
+      });
+      
+      setBackendMessage(`✅ Loaded saved angle: ${measurement.scaled_dimension.toFixed(2)}°`);
+    }
+    
+    // Switch to measure tab and close saved data view
+    setActiveTab("measure");
+    setSavedDataVisible(false);
+    
+    // Clear the message after a few seconds
+    setTimeout(() => {
+      setBackendMessage("");
+    }, 3000);
+  };
+
 // Fixed handleVolumeCalculation function
 const handleVolumeCalculation = async () => {
   if (!rulerData || !metadata.focalLength || !metadata.altitude) {
@@ -387,6 +460,7 @@ const handleVolumeCalculation = async () => {
         onSubmit={handleSubmit}
         onInputChange={handleInputChange}
         isExtractingMetadata={isExtractingMetadata}
+        onShowSavedData={() => setSavedDataVisible(true)}  // ADD THIS PROP
       />
       <div className="main-content">
         <TopBar
@@ -396,6 +470,37 @@ const handleVolumeCalculation = async () => {
           setActiveTool={setActiveTool}
           sidebarSubmitted={sidebarSubmitted}
         />
+        
+        {/* ADD SAVED DATA MODAL HERE */}
+        {savedDataVisible && (
+          <div className="saved-data-overlay">
+            <div className="saved-data-modal">
+              <button 
+                className="close-saved-data"
+                onClick={() => setSavedDataVisible(false)}
+                style={{
+                  position: "absolute",
+                  top: "15px",
+                  right: "15px",
+                  background: "#f44336",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "50%",
+                  width: "30px",
+                  height: "30px",
+                  cursor: "pointer",
+                  fontSize: "16px"
+                }}
+              >
+                ×
+              </button>
+              <SavedData 
+                onLoadMeasurement={handleLoadSavedMeasurement}
+              />
+            </div>
+          </div>
+        )}
+        
         {activeTab !== "about" ? (
           <>
             <ImageViewer
