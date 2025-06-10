@@ -79,6 +79,7 @@ class MorphoMetrix(View):
 
     def save_measurement_to_db(self, request, measurement_type, measurement_data, result):
         """Helper method to save measurements to database"""
+        logger = logging.getLogger(__name__)
         try:
             # Get current image from session
             image_id = request.session.get('current_image_id')
