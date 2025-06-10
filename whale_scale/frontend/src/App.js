@@ -210,30 +210,50 @@ export default function App() {
     }
   }
 
-  // ADD THIS NEW FUNCTION TO SAVE MEASUREMENTS TO DATABASE
+  // UPDATED: Fixed saveMeasurementToDatabase function in App.js
   const saveMeasurementToDatabase = async (measurement) => {
     try {
+      // Ensure we have the required data structure
+      const measurementPayload = {
+        measurement_type: measurement.measurement_type,
+        measurement_name: measurement.measurement_name || "User Measurement",
+        scaled_dimension: measurement.scaled_dimension || 0,
+        coordinate_data: measurement.coordinate_data || [],
+        // Add additional metadata that might be useful
+        metadata: {
+          subject_name: measurement.subject_name,
+          user_image_path: measurement.user_image_path,
+          image_timestamp: measurement.image_timestamp,
+          measurement_timestamp: measurement.measurement_timestamp
+        }
+      };
+
+      console.log("Saving measurement payload:", measurementPayload); // Debug log
+
       const response = await fetch("/api/collatrix/save_measurement/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          // Ensure CSRF token is included if needed
+          "X-CSRFToken": getCookie('csrftoken') || '',
         },
-        credentials: 'include',
-        body: JSON.stringify({
-          measurement_type: measurement.measurement_type,
-          measurement_name: measurement.measurement_name || "User Measurement",
-          scaled_dimension: measurement.scaled_dimension,
-          coordinate_data: measurement.coordinate_data,
-        }),
+        credentials: 'include', // Important for session handling
+        body: JSON.stringify(measurementPayload),
       });
-      
+
       if (response.ok) {
-        console.log("Measurement saved successfully");
+        const result = await response.json();
+        console.log("Measurement saved successfully:", result);
+        return result;
       } else {
-        console.error("Failed to save measurement");
+        const errorText = await response.text();
+        console.error("Failed to save measurement:", response.status, errorText);
+        throw new Error(`Failed to save measurement: ${response.status} ${errorText}`);
       }
     } catch (error) {
       console.error("Error saving measurement:", error);
+      // Don't throw the error to prevent breaking the main flow
+      // Just log it for debugging purposes
     }
   };
 

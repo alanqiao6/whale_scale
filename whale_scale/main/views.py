@@ -363,45 +363,93 @@ class CollatriX(View):
             return JsonResponse({"error": "Invalid function name"}, status=400)
 
     def save_measurement(self, request):
-        """Save a measurement to the database"""
+        """Save a measurement to the database with improved error handling"""
+        logger = logging.getLogger(__name__)
+        
         try:
             data = json.loads(request.body)
+            logger.info(f"Received measurement data: {data}")
+            
+            # Ensure session exists for anonymous users
+            if not request.session.session_key:
+                request.session.create()
             
             # Get current image from session 
             image_id = request.session.get('current_image_id')
+            logger.info(f"Current image ID from session: {image_id}")
+            
             if not image_id:
-                return JsonResponse({"error": "No current image"}, status=400)
+                logger.error("No current image ID in session")
+                return JsonResponse({
+                    "error": "No current image in session. Please upload an image first."
+                }, status=400)
             
             try:
                 image_record = UploadedImage.objects.get(id=image_id)
+                logger.info(f"Found image record: {image_record.filename}")
             except UploadedImage.DoesNotExist:
-                return JsonResponse({"error": "Image not found"}, status=404)
+                logger.error(f"Image with ID {image_id} not found in database")
+                return JsonResponse({
+                    "error": "Image not found in database"
+                }, status=404)
             
             # Check session/user access
             if request.user.is_authenticated:
                 if image_record.user != request.user:
+                    logger.error("Authenticated user doesn't own this image")
                     return JsonResponse({"error": "Access denied"}, status=403)
             else:
                 session_key = request.session.session_key
                 if image_record.session_key != session_key:
-                    return JsonResponse({"error": "Access denied"}, status=403)
+                    logger.error(f"Session mismatch: image session={image_record.session_key}, current session={session_key}")
+                    return JsonResponse({"error": "Session access denied"}, status=403)
+            
+            # Extract and validate measurement data
+            measurement_type = data.get("measurement_type")
+            measurement_name = data.get("measurement_name", "User Measurement")
+            scaled_dimension = data.get("scaled_dimension", 0)
+            coordinate_data = data.get("coordinate_data", [])
+            
+            if not measurement_type:
+                return JsonResponse({
+                    "error": "measurement_type is required"
+                }, status=400)
+            
+            # Ensure scaled_dimension is a number
+            try:
+                scaled_dimension = float(scaled_dimension) if scaled_dimension is not None else 0.0
+            except (ValueError, TypeError):
+                scaled_dimension = 0.0
             
             # Create measurement record
             measurement = Measurement.objects.create(
                 image=image_record,
-                measurement_type=data.get("measurement_type"),
-                measurement_name=data.get("measurement_name", "User Measurement"),
-                scaled_dimension=data.get("scaled_dimension"),
-                coordinate_data=data.get("coordinate_data", []),
+                measurement_type=measurement_type,
+                measurement_name=measurement_name,
+                scaled_dimension=scaled_dimension,
+                coordinate_data=coordinate_data,
+                measurement_metadata=data.get("metadata", {})
             )
+            
+            logger.info(f"Successfully created measurement {measurement.id} for image {image_id}")
             
             return JsonResponse({
                 "success": True, 
-                "measurement_id": measurement.id
+                "measurement_id": measurement.id,
+                "message": f"Saved {measurement_type} measurement successfully"
             })
             
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in request body: {str(e)}")
+            return JsonResponse({
+                "error": "Invalid JSON in request body"
+            }, status=400)
         except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
+            logger.error(f"Unexpected error saving measurement: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return JsonResponse({
+                "error": f"Internal server error: {str(e)}"
+            }, status=500)
 
     def get_or_create_session(self, request):
         """Get or create session for anonymous users"""
@@ -422,7 +470,10 @@ class CollatriX(View):
     def extract_metadata(self, request):
         """
         Extracts metadata from an uploaded image and saves to database.
+        Ensures session is properly created and image ID is stored.
         """
+        logger = logging.getLogger(__name__)
+        
         def to_float(value):
             try:
                 return float(value)
@@ -434,8 +485,15 @@ class CollatriX(View):
 
         uploaded_image = request.FILES['image']
         image_path = default_storage.save(uploaded_image.name, uploaded_image)
+        
+        logger.info(f"Processing image: {uploaded_image.name}")
 
         try:
+            # Ensure session exists
+            if not request.session.session_key:
+                request.session.create()
+                logger.info(f"Created new session: {request.session.session_key}")
+            
             # Extract metadata using exiftool
             with self.exiftool as et:
                 metadata = et.get_metadata(image_path)[0]
@@ -478,7 +536,9 @@ class CollatriX(View):
 
             # Save to database if user is authenticated or track by session
             user = request.user if request.user.is_authenticated else None
-            session_key = None if user else self.get_or_create_session(request)
+            session_key = None if user else request.session.session_key
+            
+            logger.info(f"Saving image for user: {user}, session: {session_key}")
             
             # Create UploadedImage record
             uploaded_image_record = UploadedImage.objects.create(
@@ -503,11 +563,16 @@ class CollatriX(View):
             
             # Store image_id in session for future requests
             request.session['current_image_id'] = uploaded_image_record.id
+            request.session.save()  # Explicitly save the session
+            
+            logger.info(f"Successfully saved image with ID: {uploaded_image_record.id}")
+            logger.info(f"Session current_image_id set to: {request.session.get('current_image_id')}")
             
             return JsonResponse(response_data)
 
         except Exception as e:
-            traceback.print_exc()
+            logger.error(f"Error extracting metadata: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return JsonResponse({"error": str(e)}, status=500)
 
         finally:
