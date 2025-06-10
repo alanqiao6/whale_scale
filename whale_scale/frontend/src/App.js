@@ -350,22 +350,45 @@ export default function App() {
     }
   };
 
-  // ADD THIS NEW FUNCTION TO LOAD SAVED MEASUREMENTS
+  // UPDATED: handleLoadSavedMeasurement function to handle grouped ruler measurements
   const handleLoadSavedMeasurement = (measurement) => {
     // Convert saved measurement back to frontend format
-    if (measurement.measurement_type === "TL") {
-      // This is a ruler measurement
+    if (measurement.measurement_type === "ruler_complete") {
+      // This is a complete ruler measurement with width segments
+      const metadata = measurement.metadata || {};
+      const totalLength = metadata.total_length || {};
+      const widthSegments = metadata.width_segments || [];
+      
+      // Load the main ruler line
+      setRulerData({
+        type: "ruler",
+        curveLength: totalLength.scaled_dimension || measurement.scaled_dimension,
+        widthSegments: widthSegments.map(segment => {
+          const percentage = segment.measurement_type?.replace("TL_w", "") || "0.00";
+          return {
+            index: percentage,
+            length: segment.scaled_dimension?.toFixed(4) || "0.0000",
+            coords: segment.coordinate_data || []
+          };
+        }),
+        segments: widthSegments.length,
+      });
+      
+      setBackendMessage(`✅ Loaded complete ruler measurement: ${(totalLength.scaled_dimension || measurement.scaled_dimension)?.toFixed(2)}m with ${widthSegments.length} width segments`);
+      
+    } else if (measurement.measurement_type === "TL") {
+      // This is a legacy ruler measurement (old format)
       setRulerData({
         type: "ruler",
         curveLength: measurement.scaled_dimension,
-        widthSegments: [], // Will be populated by other measurements
-        segments: 0, // You might want to store this in metadata
+        widthSegments: [],
+        segments: 0,
       });
       
       setBackendMessage(`✅ Loaded saved ruler measurement: ${measurement.scaled_dimension.toFixed(2)}m`);
       
     } else if (measurement.measurement_type.startsWith("TL_w")) {
-      // This is a width segment - add to existing ruler data
+      // This is a width segment - add to existing ruler data (legacy format)
       setRulerData(prev => {
         if (!prev) return null;
         

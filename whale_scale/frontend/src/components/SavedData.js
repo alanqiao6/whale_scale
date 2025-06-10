@@ -1,5 +1,6 @@
 // File: SavedData.js
 // Purpose: Component to display and manage saved measurements and images
+// UPDATED: Now handles grouped ruler measurements with width segments
 
 import React, { useState, useEffect } from "react";
 import "./SavedData.css";
@@ -70,6 +71,64 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
     return new Date(dateString).toLocaleDateString() + " " + new Date(dateString).toLocaleTimeString();
   };
 
+  // NEW: Function to get measurement type icon and label
+  const getMeasurementTypeDisplay = (measurement) => {
+    switch (measurement.measurement_type) {
+      case 'ruler_complete':
+        const segmentCount = measurement.metadata?.segment_count || 0;
+        return {
+          icon: '📏',
+          label: `Complete Ruler Measurement (${segmentCount} segments)`,
+          unit: 'meters'
+        };
+      case 'TL':
+        return { icon: '📏', label: 'Total Length', unit: 'meters' };
+      case 'curve_length':
+        return { icon: '✏️', label: 'Manual Curve', unit: 'meters' };
+      case 'area':
+        return { icon: '🔲', label: 'Area', unit: 'm²' };
+      case 'angle':
+        return { icon: '📐', label: 'Angle', unit: 'degrees' };
+      default:
+        if (measurement.measurement_type?.startsWith('TL_w')) {
+          return { icon: '📐', label: 'Width Segment', unit: 'meters' };
+        }
+        return { icon: '📏', label: measurement.measurement_type, unit: 'meters' };
+    }
+  };
+
+  // NEW: Function to render ruler measurement details
+  const renderRulerDetails = (measurement) => {
+    const metadata = measurement.metadata || {};
+    const totalLength = metadata.total_length || {};
+    const widthSegments = metadata.width_segments || [];
+
+    return (
+      <div className="ruler-details">
+        <div className="ruler-summary">
+          <p><strong>Total Length:</strong> {totalLength.scaled_dimension?.toFixed(4) || measurement.scaled_dimension?.toFixed(4) || 'N/A'} meters</p>
+          <p><strong>Width Segments:</strong> {widthSegments.length}</p>
+        </div>
+        
+        {widthSegments.length > 0 && (
+          <div className="width-segments-list">
+            <h5 style={{ margin: '10px 0 5px 0', fontSize: '14px', color: '#666' }}>Width Segment Details:</h5>
+            <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px' }}>
+              {widthSegments.map((segment, index) => {
+                const percentage = segment.measurement_type?.replace('TL_w', '') || `${(index + 1) * 25}.00`;
+                return (
+                  <li key={index} style={{ marginBottom: '3px' }}>
+                    <strong>Segment {index + 1} ({percentage}%):</strong> {segment.scaled_dimension?.toFixed(4) || 'N/A'} meters
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (loading) {
     return <div className="saved-data-loading">Loading saved data...</div>;
   }
@@ -117,49 +176,46 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
             <p>No measurements found for this image.</p>
           ) : (
             <div className="measurements-grid">
-              {imageMeasurements.map((measurement) => (
-                <div key={measurement.id} className="measurement-card">
-                  <div className="measurement-header">
-                    <span className="measurement-type">
-                      {measurement.measurement_type === 'TL' && '📏 Total Length'}
-                      {measurement.measurement_type.startsWith('TL_w') && '📐 Width Segment'}
-                      {measurement.measurement_type === 'curve_length' && '✏️ Manual Curve'}
-                      {measurement.measurement_type === 'area' && '🔲 Area'}
-                      {measurement.measurement_type === 'angle' && '📐 Angle'}
-                      {!['TL', 'curve_length', 'area', 'angle'].includes(measurement.measurement_type) && 
-                       !measurement.measurement_type.startsWith('TL_w') && measurement.measurement_type}
-                    </span>
-                    <span className="measurement-date">
-                      {formatDate(measurement.created_date)}
-                    </span>
+              {imageMeasurements.map((measurement) => {
+                const typeDisplay = getMeasurementTypeDisplay(measurement);
+                const isRulerComplete = measurement.measurement_type === 'ruler_complete';
+                
+                return (
+                  <div key={measurement.id} className={`measurement-card ${isRulerComplete ? 'ruler-complete' : ''}`}>
+                    <div className="measurement-header">
+                      <span className="measurement-type">
+                        {typeDisplay.icon} {typeDisplay.label}
+                      </span>
+                      <span className="measurement-date">
+                        {formatDate(measurement.created_date)}
+                      </span>
+                    </div>
+                    
+                    <div className="measurement-details">
+                      {measurement.measurement_name && (
+                        <p><strong>Name:</strong> {measurement.measurement_name}</p>
+                      )}
+                      
+                      {/* Render ruler details specially */}
+                      {isRulerComplete ? (
+                        renderRulerDetails(measurement)
+                      ) : (
+                        <>
+                          <p><strong>Value:</strong> {measurement.scaled_dimension?.toFixed(4) || 'N/A'}</p>
+                          <p><strong>Unit:</strong> {typeDisplay.unit}</p>
+                        </>
+                      )}
+                    </div>
+                    
+                    <button 
+                      className="load-measurement-btn"
+                      onClick={() => handleLoadMeasurement(measurement)}
+                    >
+                      Load into Viewer
+                    </button>
                   </div>
-                  
-                  <div className="measurement-details">
-                    {measurement.measurement_name && (
-                      <p><strong>Name:</strong> {measurement.measurement_name}</p>
-                    )}
-                    <p><strong>Value:</strong> {measurement.scaled_dimension?.toFixed(4) || 'N/A'}</p>
-                    {measurement.measurement_type === 'area' && (
-                      <p><strong>Unit:</strong> m²</p>
-                    )}
-                    {measurement.measurement_type === 'angle' && (
-                      <p><strong>Unit:</strong> degrees</p>
-                    )}
-                    {(measurement.measurement_type === 'TL' || 
-                      measurement.measurement_type.startsWith('TL_w') ||
-                      measurement.measurement_type === 'curve_length') && (
-                      <p><strong>Unit:</strong> meters</p>
-                    )}
-                  </div>
-                  
-                  <button 
-                    className="load-measurement-btn"
-                    onClick={() => handleLoadMeasurement(measurement)}
-                  >
-                    Load into Viewer
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
