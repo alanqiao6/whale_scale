@@ -324,14 +324,14 @@ class MorphoMetrix(View):
 class CollatriX(View):
     """API endpoints for metadata extraction, EXIF processing, and collation."""
 
-def __init__(self, **kwargs):
-    super().__init__(**kwargs)
-    # Check if exiftool_path is defined and exists, otherwise use default
-    if 'exiftool_path' not in globals() or not os.path.exists(exiftool_path):
-        exiftool_executable = "/usr/bin/exiftool"  # Standard path for Debian-based systems
-    else:
-        exiftool_executable = str(exiftool_path)
-    self.exiftool = ExifToolHelper(executable=str(exiftool_path))
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Check if exiftool_path is defined and exists, otherwise use default
+        if 'exiftool_path' not in globals() or not os.path.exists(exiftool_path):
+            exiftool_executable = "/usr/bin/exiftool"  # Standard path for Debian-based systems
+        else:
+            exiftool_executable = str(exiftool_path)
+        self.exiftool = ExifToolHelper(executable=str(exiftool_path))
 
     def post(self, request, function_name):
         """
