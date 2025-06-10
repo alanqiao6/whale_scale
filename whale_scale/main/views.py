@@ -81,7 +81,7 @@ class MorphoMetrix(View):
         """Helper method to save measurements to database"""
         logger = logging.getLogger(__name__)
         try:
-            # Get current image from session
+            # Get current image from session 
             image_id = request.session.get('current_image_id')
             if not image_id:
                 logger.warning("No current image ID in session")
