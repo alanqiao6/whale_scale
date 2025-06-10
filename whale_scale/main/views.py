@@ -37,7 +37,7 @@ from MMI_CODEX.morphometrix.compute_angle_between_lines import compute_angle_bet
 from MMI_CODEX.morphometrix.compute_curve_length import compute_curve_length
 from MMI_CODEX.morphometrix.compute_polygon_area import compute_polygon_area
 from MMI_CODEX.morphometrix.constants import ObjectTypes
-from MMI_CODEX.morphometrix.measurement import Measurement
+from MMI_CODEX.morphometrix.measurement import Measurement as MorphoMeasurement  # FIXED: Added alias
 
 from MMI_CODEX.xcertainty.parsers.combine_observations import combine_observations
 from MMI_CODEX.xcertainty.parsers.parse_observations import parse_observations
@@ -148,7 +148,7 @@ class MorphoMetrix(View):
 
         """
         data = json.loads(request.body)
-        measurement_stack = [Measurement(**m) for m in data.get("measurement_stack", [])]
+        measurement_stack = [MorphoMeasurement(**m) for m in data.get("measurement_stack", [])]  # FIXED: Use MorphoMeasurement
         pixel_dimension = data.get("pixel_dimension", 1)
 
         measurement = measurement_stack[-1]
@@ -189,7 +189,7 @@ class MorphoMetrix(View):
         except ValueError:
             return JsonResponse({"error": "Invalid pixel_dimension"}, status=400)
 
-        measurement = Measurement(
+        measurement = MorphoMeasurement(  # FIXED: Use MorphoMeasurement
             measurement_type=measurement_data.get("measurement_type"),
             name=measurement_data.get("measurement_name")
         )
@@ -232,7 +232,7 @@ class MorphoMetrix(View):
 
         try:
             data = json.loads(request.body)
-            measurement = Measurement(**data.get("measurement"))
+            measurement = MorphoMeasurement(**data.get("measurement"))  # FIXED: Use MorphoMeasurement
             lines = measurement.get_objects()
 
             if len(lines) < 2:
@@ -278,7 +278,7 @@ class MorphoMetrix(View):
         }).then(response => console.log(response.data));
         """
         data = json.loads(request.body)
-        measurement = Measurement(**data.get("measurement"))
+        measurement = MorphoMeasurement(**data.get("measurement"))  # FIXED: Use MorphoMeasurement
         pixel_dimension = data.get("pixel_dimension", 1)
 
         qpolygon = [obj["parms"] for obj in measurement.objects_params if obj["type"] == ObjectTypes.POLYGONITEM]
@@ -298,7 +298,7 @@ class MorphoMetrix(View):
     
     def calculate_widths(self, data):
         """Compute width measurements."""
-        measurement_stack = [Measurement(**m) for m in data.get("measurement_stack", [])]
+        measurement_stack = [MorphoMeasurement(**m) for m in data.get("measurement_stack", [])]  # FIXED: Use MorphoMeasurement
         bias = data.get("bias", None)
         pixel_dimension = data.get("pixel_dimension", 1)
 
@@ -421,7 +421,7 @@ class CollatriX(View):
             except (ValueError, TypeError):
                 scaled_dimension = 0.0
             
-            # Create measurement record
+            # Create measurement record using Django model (Measurement from .models)
             measurement = Measurement.objects.create(
                 image=image_record,
                 measurement_type=measurement_type,
