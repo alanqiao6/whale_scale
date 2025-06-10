@@ -269,8 +269,10 @@ export default function App() {
 
   // ADD THIS NEW FUNCTION TO LOAD SAVED MEASUREMENTS
   const handleLoadSavedMeasurement = (measurement) => {
+    console.log("Loading measurement:", measurement); // ADD THIS
     // Convert saved measurement back to frontend format
     if (measurement.measurement_type === "TL") {
+      console.log("Loading TL measurement");
       // This is a ruler measurement
       setRulerData({
         type: "ruler",
