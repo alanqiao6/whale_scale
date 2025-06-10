@@ -328,11 +328,13 @@ class CollatriX(View):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Check if exiftool_path is defined and exists, otherwise use default
-        if 'exiftool_path' not in globals() or not os.path.exists(exiftool_path):
+        if 'exiftool_path' not in globals() or not os.path.exists(str(exiftool_path)):
             exiftool_executable = "/usr/bin/exiftool"  # Standard path for Debian-based systems
         else:
             exiftool_executable = str(exiftool_path)
-        self.exiftool = ExifToolHelper(executable=str(exiftool_path))
+        
+        # Use the determined executable path, not the global exiftool_path
+        self.exiftool = ExifToolHelper(executable=exiftool_executable) 
 
     def post(self, request, function_name):
         """
