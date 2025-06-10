@@ -257,31 +257,31 @@ export default function App() {
     }
   };
 
-  // UPDATED: Modified handleBackendResult to save measurements and use measurement_type instead of type
   const handleBackendResult = (result) => {
-    console.log("Backend result received:", result); // Debug log
-    setBackendResult(result)
-
-    // SAVE THE MEASUREMENT TO DATABASE - ADD THIS LINE
-    saveMeasurementToDatabase(result);
+    console.log("Backend result received:", result);
+    setBackendResult(result);
 
     // Use measurement_type instead of type
     if (result.measurement_type === "curve_length") {
+      // Save manual curve measurements immediately
+      saveMeasurementToDatabase(result);
+      
       setManualCurveData({
         type: "manual_curve",
-        curveLength: result.scaled_dimension, // Use scaled_dimension
-        curvePoints: result.coordinate_data,  // Use coordinate_data
-      })
+        curveLength: result.scaled_dimension,
+        curvePoints: result.coordinate_data,
+      });
     } else if (result.measurement_type === "TL" || result.measurement_type.startsWith("TL_w")) {
       // Handle ruler measurements (TL = Total Length, TL_w* = width segments)
       if (result.measurement_type === "TL") {
-        // This is the main ruler line
+        // This is the main ruler line - store it temporarily
         setRulerData({
           type: "ruler",
           curveLength: result.scaled_dimension,
-          widthSegments: [], // Will be populated by TL_w* measurements
+          widthSegments: [],
           segments: Number.parseInt(formData.widthSegments) || 0,
-        })
+          totalLengthResult: result, // Store the TL result for later saving
+        });
       } else {
         // This is a width segment (TL_w5.00, TL_w10.00, etc.)
         setRulerData(prev => {
@@ -293,29 +293,62 @@ export default function App() {
           const newSegment = {
             index: percentage,
             length: result.scaled_dimension.toFixed(4),
-            coords: result.coordinate_data
+            coords: result.coordinate_data,
+            result: result // Store the individual segment result
           };
+          
+          const updatedWidthSegments = [...(prev.widthSegments || []), newSegment];
+          const expectedSegments = prev.segments;
+          
+          // Check if we have collected all expected width segments
+          if (updatedWidthSegments.length === expectedSegments && prev.totalLengthResult) {
+            // Save the complete ruler measurement with all width segments
+            const completeRulerMeasurement = {
+              measurement_type: "ruler_complete",
+              measurement_name: "Complete Ruler Measurement",
+              scaled_dimension: prev.totalLengthResult.scaled_dimension,
+              coordinate_data: prev.totalLengthResult.coordinate_data,
+              metadata: {
+                total_length: prev.totalLengthResult,
+                width_segments: updatedWidthSegments.map(seg => seg.result),
+                segment_count: expectedSegments,
+                subject_name: prev.totalLengthResult.subject_name,
+                user_image_path: prev.totalLengthResult.user_image_path,
+                image_timestamp: prev.totalLengthResult.image_timestamp,
+                measurement_timestamp: new Date().toISOString()
+              }
+            };
+            
+            // Save the complete measurement
+            saveMeasurementToDatabase(completeRulerMeasurement);
+          }
           
           return {
             ...prev,
-            widthSegments: [...(prev.widthSegments || []), newSegment]
+            widthSegments: updatedWidthSegments
           };
         });
       }
     } else if (result.measurement_type === "area") {
+      // Save area measurements immediately
+      saveMeasurementToDatabase(result);
+      
       setAreaData({
         type: "area",
         area: result.scaled_dimension,
         polygonPoints: result.coordinate_data,
-      })
+      });
     } else if (result.measurement_type === "angle") {
+      // Save angle measurements immediately
+      saveMeasurementToDatabase(result);
+      
       setAngleData({
         type: "angle",
         angle: result.scaled_dimension,
         anglePoints: result.coordinate_data,
-      })
+      });
     }
-  }
+  };
 
   // ADD THIS NEW FUNCTION TO LOAD SAVED MEASUREMENTS
   const handleLoadSavedMeasurement = (measurement) => {
