@@ -257,6 +257,7 @@ export default function App() {
     }
   };
 
+  // FINAL FIXED: Modified handleBackendResult to properly handle ruler measurements
   const handleBackendResult = (result) => {
     console.log("Backend result received:", result);
     setBackendResult(result);
@@ -274,14 +275,34 @@ export default function App() {
     } else if (result.measurement_type === "TL" || result.measurement_type.startsWith("TL_w")) {
       // Handle ruler measurements (TL = Total Length, TL_w* = width segments)
       if (result.measurement_type === "TL") {
-        // This is the main ruler line - store it temporarily
-        setRulerData({
-          type: "ruler",
-          curveLength: result.scaled_dimension,
-          widthSegments: [],
-          segments: Number.parseInt(formData.widthSegments) || 0,
-          totalLengthResult: result, // Store the TL result for later saving
-        });
+        // This is the main ruler line
+        const expectedSegments = Number.parseInt(formData.widthSegments) || 0;
+        
+        if (expectedSegments === 0) {
+          // No width segments expected - save immediately as simple ruler
+          const simpleRulerMeasurement = {
+            ...result,
+            measurement_type: "ruler",
+            measurement_name: "Total Length Measurement"
+          };
+          saveMeasurementToDatabase(simpleRulerMeasurement);
+          
+          setRulerData({
+            type: "ruler",
+            curveLength: result.scaled_dimension,
+            widthSegments: [],
+            segments: 0,
+          });
+        } else {
+          // Width segments expected - store temporarily, DON'T SAVE YET
+          setRulerData({
+            type: "ruler",
+            curveLength: result.scaled_dimension,
+            widthSegments: [],
+            segments: expectedSegments,
+            totalLengthResult: result, // Store for later saving
+          });
+        }
       } else {
         // This is a width segment (TL_w5.00, TL_w10.00, etc.)
         setRulerData(prev => {
@@ -301,11 +322,11 @@ export default function App() {
           const expectedSegments = prev.segments;
           
           // Check if we have collected all expected width segments
-          if (updatedWidthSegments.length === expectedSegments && prev.totalLengthResult) {
+          if (updatedWidthSegments.length === expectedSegments && expectedSegments > 0 && prev.totalLengthResult) {
             // Save the complete ruler measurement with all width segments
             const completeRulerMeasurement = {
               measurement_type: "ruler_complete",
-              measurement_name: "Complete Ruler Measurement",
+              measurement_name: `Ruler with ${expectedSegments} Width Segments`,
               scaled_dimension: prev.totalLengthResult.scaled_dimension,
               coordinate_data: prev.totalLengthResult.coordinate_data,
               metadata: {
@@ -350,7 +371,6 @@ export default function App() {
     }
   };
 
-  // UPDATED: handleLoadSavedMeasurement function to handle grouped ruler measurements
   const handleLoadSavedMeasurement = (measurement) => {
     // Convert saved measurement back to frontend format
     if (measurement.measurement_type === "ruler_complete") {
@@ -374,10 +394,10 @@ export default function App() {
         segments: widthSegments.length,
       });
       
-      setBackendMessage(`✅ Loaded complete ruler measurement: ${(totalLength.scaled_dimension || measurement.scaled_dimension)?.toFixed(2)}m with ${widthSegments.length} width segments`);
+      setBackendMessage(`✅ Loaded ruler measurement: ${(totalLength.scaled_dimension || measurement.scaled_dimension)?.toFixed(2)}m with ${widthSegments.length} width segments`);
       
-    } else if (measurement.measurement_type === "TL") {
-      // This is a legacy ruler measurement (old format)
+    } else if (measurement.measurement_type === "ruler" || measurement.measurement_type === "TL") {
+      // This is a simple ruler measurement (just total length)
       setRulerData({
         type: "ruler",
         curveLength: measurement.scaled_dimension,
@@ -385,7 +405,7 @@ export default function App() {
         segments: 0,
       });
       
-      setBackendMessage(`✅ Loaded saved ruler measurement: ${measurement.scaled_dimension.toFixed(2)}m`);
+      setBackendMessage(`✅ Loaded total length measurement: ${measurement.scaled_dimension.toFixed(2)}m`);
       
     } else if (measurement.measurement_type.startsWith("TL_w")) {
       // This is a width segment - add to existing ruler data (legacy format)

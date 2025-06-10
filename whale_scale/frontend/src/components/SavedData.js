@@ -78,9 +78,11 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
         const segmentCount = measurement.metadata?.segment_count || 0;
         return {
           icon: '📏',
-          label: `Complete Ruler Measurement (${segmentCount} segments)`,
+          label: `Ruler Measurement (${segmentCount} segments)`,
           unit: 'meters'
         };
+      case 'ruler':
+        return { icon: '📏', label: 'Total Length', unit: 'meters' };
       case 'TL':
         return { icon: '📏', label: 'Total Length', unit: 'meters' };
       case 'curve_length':
