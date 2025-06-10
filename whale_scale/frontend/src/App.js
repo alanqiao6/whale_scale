@@ -210,10 +210,40 @@ export default function App() {
     }
   }
 
-  // FIXED: Updated handleBackendResult to use measurement_type instead of type
+  // ADD THIS NEW FUNCTION TO SAVE MEASUREMENTS TO DATABASE
+  const saveMeasurementToDatabase = async (measurement) => {
+    try {
+      const response = await fetch("/api/collatrix/save_measurement/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          measurement_type: measurement.measurement_type,
+          measurement_name: measurement.measurement_name || "User Measurement",
+          scaled_dimension: measurement.scaled_dimension,
+          coordinate_data: measurement.coordinate_data,
+        }),
+      });
+      
+      if (response.ok) {
+        console.log("Measurement saved successfully");
+      } else {
+        console.error("Failed to save measurement");
+      }
+    } catch (error) {
+      console.error("Error saving measurement:", error);
+    }
+  };
+
+  // UPDATED: Modified handleBackendResult to save measurements and use measurement_type instead of type
   const handleBackendResult = (result) => {
     console.log("Backend result received:", result); // Debug log
     setBackendResult(result)
+
+    // SAVE THE MEASUREMENT TO DATABASE - ADD THIS LINE
+    saveMeasurementToDatabase(result);
 
     // Use measurement_type instead of type
     if (result.measurement_type === "curve_length") {
@@ -269,10 +299,8 @@ export default function App() {
 
   // ADD THIS NEW FUNCTION TO LOAD SAVED MEASUREMENTS
   const handleLoadSavedMeasurement = (measurement) => {
-    console.log("Loading measurement:", measurement); // ADD THIS
     // Convert saved measurement back to frontend format
     if (measurement.measurement_type === "TL") {
-      console.log("Loading TL measurement");
       // This is a ruler measurement
       setRulerData({
         type: "ruler",

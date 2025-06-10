@@ -342,6 +342,8 @@ class CollatriX(View):
         """
         if function_name == "calculate_body_condition":
             return self.calculate_body_condition(request)
+        elif function_name == "save_measurement":
+            return self.save_measurement(request)
         elif function_name == "lidar_wrangle":
             return self.lidar_wrangle(request)
         elif function_name == "lidar_image":
@@ -359,6 +361,47 @@ class CollatriX(View):
             return self.get_image_measurements(request, image_id)
         else:
             return JsonResponse({"error": "Invalid function name"}, status=400)
+
+    def save_measurement(self, request):
+        """Save a measurement to the database"""
+        try:
+            data = json.loads(request.body)
+            
+            # Get current image from session 
+            image_id = request.session.get('current_image_id')
+            if not image_id:
+                return JsonResponse({"error": "No current image"}, status=400)
+            
+            try:
+                image_record = UploadedImage.objects.get(id=image_id)
+            except UploadedImage.DoesNotExist:
+                return JsonResponse({"error": "Image not found"}, status=404)
+            
+            # Check session/user access
+            if request.user.is_authenticated:
+                if image_record.user != request.user:
+                    return JsonResponse({"error": "Access denied"}, status=403)
+            else:
+                session_key = request.session.session_key
+                if image_record.session_key != session_key:
+                    return JsonResponse({"error": "Access denied"}, status=403)
+            
+            # Create measurement record
+            measurement = Measurement.objects.create(
+                image=image_record,
+                measurement_type=data.get("measurement_type"),
+                measurement_name=data.get("measurement_name", "User Measurement"),
+                scaled_dimension=data.get("scaled_dimension"),
+                coordinate_data=data.get("coordinate_data", []),
+            )
+            
+            return JsonResponse({
+                "success": True, 
+                "measurement_id": measurement.id
+            })
+            
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
 
     def get_or_create_session(self, request):
         """Get or create session for anonymous users"""
