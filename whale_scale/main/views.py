@@ -1149,31 +1149,62 @@ class CollatriX(View):
         
         return JsonResponse({"images": image_data})
 
-    def get_image_measurements(self, request, image_id):
+    def get_image_measurements(request):
         """Get all measurements for a specific image"""
+        image_id = request.GET.get('image_id')
+        
+        if not image_id:
+            return JsonResponse({'error': 'image_id parameter required'}, status=400)
+            
         try:
-            if request.user.is_authenticated:
-                image = UploadedImage.objects.get(id=image_id, user=request.user)
-            else:
-                session_key = request.session.session_key
-                image = UploadedImage.objects.get(id=image_id, session_key=session_key)
-        except UploadedImage.DoesNotExist:
-            return JsonResponse({"error": "Image not found"}, status=404)
-        
-        measurements = image.measurements.all()
-        measurement_data = []
-        
-        for measurement in measurements:
-            measurement_data.append({
-                "id": measurement.id,
-                "measurement_type": measurement.measurement_type,
-                "measurement_name": measurement.measurement_name,
-                "scaled_dimension": measurement.scaled_dimension,
-                "coordinate_data": measurement.coordinate_data,
-                "created_date": measurement.created_date.isoformat(),
+            # Get all measurements for this image
+            measurements = Measurement.objects.filter(image_id=image_id).order_by('-created_date')
+            
+            measurements_data = []
+            for measurement in measurements:
+                # IMPORTANT: Handle JSONField properly - sometimes it's a string, sometimes a dict
+                metadata = measurement.measurement_metadata
+                if isinstance(metadata, str):
+                    try:
+                        import json
+                        metadata = json.loads(metadata)
+                    except json.JSONDecodeError:
+                        metadata = {}
+                elif metadata is None:
+                    metadata = {}
+                
+                # For ruler_complete measurements, ensure we get the segment count
+                if measurement.measurement_type == "ruler_complete":
+                    segment_count = metadata.get('segment_count', 0)
+                    width_segments = metadata.get('width_segments', [])
+                    
+                    # If segment_count is missing but we have width_segments, calculate it
+                    if segment_count == 0 and width_segments:
+                        segment_count = len(width_segments)
+                        # Update the metadata to include the correct count
+                        metadata['segment_count'] = segment_count
+                
+                measurement_data = {
+                    'id': measurement.id,
+                    'measurement_type': measurement.measurement_type,
+                    'measurement_name': measurement.measurement_name,
+                    'scaled_dimension': float(measurement.scaled_dimension),
+                    'coordinate_data': measurement.coordinate_data,
+                    'created_date': measurement.created_date.isoformat(),
+                    'metadata': metadata,  # This should now be a proper dict
+                    'measurement_metadata': metadata  # Also provide it here for backwards compatibility
+                }
+                
+                measurements_data.append(measurement_data)
+            
+            return JsonResponse({
+                'measurements': measurements_data,
+                'count': len(measurements_data)
             })
-        
-        return JsonResponse({"measurements": measurement_data})
+            
+        except Exception as e:
+            logger.error(f"Error retrieving measurements for image {image_id}: {str(e)}")
+            return JsonResponse({'error': 'Failed to retrieve measurements'}, status=500)
 
     def get(self, request, function_name):
         """Handle GET requests"""

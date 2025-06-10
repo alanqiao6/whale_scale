@@ -73,12 +73,28 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
 
   // NEW: Function to get measurement type icon and label
   const getMeasurementTypeDisplay = (measurement) => {
+    // Helper function to safely get metadata
+    const getMetadata = (measurement) => {
+      let metadata = measurement.metadata || measurement.measurement_metadata || {};
+      
+      // If metadata is a string, try to parse it
+      if (typeof metadata === 'string') {
+        try {
+          metadata = JSON.parse(metadata);
+        } catch (e) {
+          console.warn("Failed to parse metadata JSON:", metadata);
+          metadata = {};
+        }
+      }
+      
+      return metadata;
+    };
+    
     switch (measurement.measurement_type) {
       case 'ruler_complete':
-        // Try to get segment count from multiple possible locations
-        const segmentCount = measurement.metadata?.segment_count || 
-                           measurement.measurement_metadata?.segment_count || 
-                           measurement.metadata?.width_segments?.length || 
+        const metadata = getMetadata(measurement);
+        const segmentCount = metadata.segment_count || 
+                           metadata.width_segments?.length || 
                            0;
         return {
           icon: '📏',
@@ -105,8 +121,24 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
 
   // NEW: Function to render ruler measurement details
   const renderRulerDetails = (measurement) => {
-    // Try multiple possible locations for metadata
-    const metadata = measurement.metadata || measurement.measurement_metadata || {};
+    // Helper function to safely get metadata
+    const getMetadata = (measurement) => {
+      let metadata = measurement.metadata || measurement.measurement_metadata || {};
+      
+      // If metadata is a string, try to parse it
+      if (typeof metadata === 'string') {
+        try {
+          metadata = JSON.parse(metadata);
+        } catch (e) {
+          console.warn("Failed to parse metadata JSON:", metadata);
+          metadata = {};
+        }
+      }
+      
+      return metadata;
+    };
+    
+    const metadata = getMetadata(measurement);
     const totalLength = metadata.total_length || {};
     const widthSegments = metadata.width_segments || [];
     const segmentCount = metadata.segment_count || widthSegments.length;
