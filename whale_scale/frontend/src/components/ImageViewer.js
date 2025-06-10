@@ -5,7 +5,7 @@
 // Handles drawing logic, mouse/keyboard events, backend submission for MorphoMetriX,
 // and crosshair manipulation for body width segmentation.
 // Also includes ARIA-compliant accessibility and responsive finalize buttons.
-// Updated: Allow multiple finalize ruler submissions without clearing measurements
+// Updated: Allow multiple finalize ruler submissions without clearing measurements 
 
 "use client"
 
