@@ -210,17 +210,17 @@ export default function App() {
     }
   }
 
-  // UPDATED: Fixed saveMeasurementToDatabase function in App.js
+  // FIXED: saveMeasurementToDatabase function in App.js
   const saveMeasurementToDatabase = async (measurement) => {
     try {
-      // Ensure we have the required data structure
+      // For ruler_complete measurements, pass the metadata directly
       const measurementPayload = {
         measurement_type: measurement.measurement_type,
         measurement_name: measurement.measurement_name || "User Measurement",
         scaled_dimension: measurement.scaled_dimension || 0,
         coordinate_data: measurement.coordinate_data || [],
-        // Add additional metadata that might be useful
-        metadata: {
+        // Pass the metadata directly (especially for ruler_complete measurements)
+        metadata: measurement.metadata || {
           subject_name: measurement.subject_name,
           user_image_path: measurement.user_image_path,
           image_timestamp: measurement.image_timestamp,
@@ -371,6 +371,7 @@ export default function App() {
     }
   };
 
+  // UPDATED: handleLoadSavedMeasurement function to handle both ruler types
   const handleLoadSavedMeasurement = (measurement) => {
     // Convert saved measurement back to frontend format
     if (measurement.measurement_type === "ruler_complete") {

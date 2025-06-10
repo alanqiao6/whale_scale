@@ -75,7 +75,11 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
   const getMeasurementTypeDisplay = (measurement) => {
     switch (measurement.measurement_type) {
       case 'ruler_complete':
-        const segmentCount = measurement.metadata?.segment_count || 0;
+        // Try to get segment count from multiple possible locations
+        const segmentCount = measurement.metadata?.segment_count || 
+                           measurement.measurement_metadata?.segment_count || 
+                           measurement.metadata?.width_segments?.length || 
+                           0;
         return {
           icon: '📏',
           label: `Ruler Measurement (${segmentCount} segments)`,
@@ -101,15 +105,17 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
 
   // NEW: Function to render ruler measurement details
   const renderRulerDetails = (measurement) => {
-    const metadata = measurement.metadata || {};
+    // Try multiple possible locations for metadata
+    const metadata = measurement.metadata || measurement.measurement_metadata || {};
     const totalLength = metadata.total_length || {};
     const widthSegments = metadata.width_segments || [];
+    const segmentCount = metadata.segment_count || widthSegments.length;
 
     return (
       <div className="ruler-details">
         <div className="ruler-summary">
           <p><strong>Total Length:</strong> {totalLength.scaled_dimension?.toFixed(4) || measurement.scaled_dimension?.toFixed(4) || 'N/A'} meters</p>
-          <p><strong>Width Segments:</strong> {widthSegments.length}</p>
+          <p><strong>Width Segments:</strong> {segmentCount}</p>
         </div>
         
         {widthSegments.length > 0 && (

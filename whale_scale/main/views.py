@@ -77,53 +77,149 @@ class MorphoMetrix(View):
         else:
             return JsonResponse({"error": "Invalid function name"}, status=400)
 
-    def save_measurement_to_db(self, request, measurement_type, measurement_data, result):
-        """Helper method to save measurements to database"""
+    def save_measurement(self, request):
+        """Save a measurement to the database with improved error handling and ruler grouping"""
         logger = logging.getLogger(__name__)
+        
         try:
+            data = json.loads(request.body)
+            logger.info(f"Received measurement data: {data}")
+            
+            # Ensure session exists for anonymous users
+            if not request.session.session_key:
+                request.session.create()
+            
             # Get current image from session 
             image_id = request.session.get('current_image_id')
+            logger.info(f"Current image ID from session: {image_id}")
+            
             if not image_id:
-                logger.warning("No current image ID in session")
-                return
+                logger.error("No current image ID in session")
+                return JsonResponse({
+                    "error": "No current image in session. Please upload an image first."
+                }, status=400)
             
             try:
                 image_record = UploadedImage.objects.get(id=image_id)
+                logger.info(f"Found image record: {image_record.filename}")
             except UploadedImage.DoesNotExist:
-                logger.warning(f"Image with ID {image_id} not found")
-                return
+                logger.error(f"Image with ID {image_id} not found in database")
+                return JsonResponse({
+                    "error": "Image not found in database"
+                }, status=404)
             
-            # Ensure user has access to this image
+            # Check session/user access
             if request.user.is_authenticated:
                 if image_record.user != request.user:
-                    logger.warning("User doesn't own this image")
-                    return
+                    logger.error("Authenticated user doesn't own this image")
+                    return JsonResponse({"error": "Access denied"}, status=403)
             else:
-                # For anonymous users, check session
                 session_key = request.session.session_key
                 if image_record.session_key != session_key:
-                    logger.warning("Session doesn't match image session")
-                    return
+                    logger.error(f"Session mismatch: image session={image_record.session_key}, current session={session_key}")
+                    return JsonResponse({"error": "Session access denied"}, status=403)
             
-            # Create measurement record
-            Measurement.objects.create(
-                image=image_record,
-                measurement_type=measurement_type,
-                measurement_name=measurement_data.get("measurement_name", ""),
-                scaled_dimension=result.get("scaled_dimension"),
-                coordinate_data=result.get("coordinate_data", []),
-                measurement_metadata={
-                    "pixel_dimension": request.session.get('pixel_dimension'),
-                    "original_data": measurement_data,
-                    "result": result
-                }
-            )
+            # Extract and validate measurement data
+            measurement_type = data.get("measurement_type")
+            measurement_name = data.get("measurement_name", "User Measurement")
+            scaled_dimension = data.get("scaled_dimension", 0)
+            coordinate_data = data.get("coordinate_data", [])
             
-            logger.info(f"Saved {measurement_type} measurement for image {image_id}")
+            if not measurement_type:
+                return JsonResponse({
+                    "error": "measurement_type is required"
+                }, status=400)
             
+            # Ensure scaled_dimension is a number
+            try:
+                scaled_dimension = float(scaled_dimension) if scaled_dimension is not None else 0.0
+            except (ValueError, TypeError):
+                scaled_dimension = 0.0
+            
+            # Handle ruler measurements specially
+            if measurement_type == "ruler_complete":
+                # This is a complete ruler measurement with width segments
+                metadata = data.get("metadata", {})
+                total_length = metadata.get("total_length", {})
+                width_segments = metadata.get("width_segments", [])
+                
+                # Create the main ruler measurement
+                main_measurement = Measurement.objects.create(
+                    image=image_record,
+                    measurement_type="ruler",
+                    measurement_name=f"Ruler Measurement ({len(width_segments)} segments)",
+                    scaled_dimension=scaled_dimension,
+                    coordinate_data=coordinate_data,
+                    measurement_metadata={
+                        "total_length": total_length,
+                        "segment_count": len(width_segments),
+                        "width_segments_summary": [
+                            {
+                                "segment": f"Width {i+1}",
+                                "percentage": seg.get("measurement_type", "").replace("TL_w", ""),
+                                "length": seg.get("scaled_dimension", 0)
+                            }
+                            for i, seg in enumerate(width_segments)
+                        ]
+                    }
+                )
+                
+                # Create child measurements for each width segment
+                for i, segment in enumerate(width_segments):
+                    Measurement.objects.create(
+                        image=image_record,
+                        measurement_type="width_segment",
+                        measurement_name=f"Width Segment {i+1}",
+                        scaled_dimension=segment.get("scaled_dimension", 0),
+                        coordinate_data=segment.get("coordinate_data", []),
+                        measurement_metadata={
+                            "parent_measurement_id": main_measurement.id,
+                            "segment_number": i + 1,
+                            "percentage": segment.get("measurement_type", "").replace("TL_w", ""),
+                            "original_type": segment.get("measurement_type", "")
+                        }
+                    )
+                
+                logger.info(f"Successfully created ruler measurement {main_measurement.id} with {len(width_segments)} width segments")
+                
+                return JsonResponse({
+                    "success": True, 
+                    "measurement_id": main_measurement.id,
+                    "width_segments_count": len(width_segments),
+                    "message": f"Saved complete ruler measurement with {len(width_segments)} width segments"
+                })
+            
+            else:
+                # Handle other measurement types normally
+                measurement = Measurement.objects.create(
+                    image=image_record,
+                    measurement_type=measurement_type,
+                    measurement_name=measurement_name,
+                    scaled_dimension=scaled_dimension,
+                    coordinate_data=coordinate_data,
+                    measurement_metadata=data.get("metadata", {})
+                )
+                
+                logger.info(f"Successfully created measurement {measurement.id} for image {image_id}")
+                
+                return JsonResponse({
+                    "success": True, 
+                    "measurement_id": measurement.id,
+                    "message": f"Saved {measurement_type} measurement successfully"
+                })
+                
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in request body: {str(e)}")
+            return JsonResponse({
+                "error": "Invalid JSON in request body"
+            }, status=400)
         except Exception as e:
-            logger.error(f"Error saving measurement to database: {str(e)}")
-
+            logger.error(f"Unexpected error saving measurement: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return JsonResponse({
+                "error": f"Internal server error: {str(e)}"
+            }, status=500)
+    
     def calculate_curve(self, request):
         """
         Compute Bézier curve interpolation and arc length.
