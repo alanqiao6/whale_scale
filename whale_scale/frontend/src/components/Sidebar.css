@@ -3,7 +3,6 @@
  * Purpose: Defines layout and styles for the WhaleScale sidebar panel,
  * including upload button, input fields, color pickers, validation warnings,
  * and responsive design for mobile views. Ensures accessible interaction and clear visual hierarchy.
- * MINIMAL UPDATE: Only added whale naming input styling
  */
 
 .sidebar {
@@ -24,14 +23,6 @@
   cursor: pointer;
   text-align: center;
   display: block;
-}
-
-/* NEW: Only for disabled upload button when whale name missing */
-.upload-button.disabled {
-  background-color: #6c757d;
-  color: #ccc;
-  cursor: not-allowed;
-  opacity: 0.6;
 }
 
 .input-group {
@@ -78,47 +69,6 @@
   cursor: pointer;
   font-weight: bold;
   margin-top: 0; /* Remove previous margin */
-}
-
-/* NEW: Minimal whale naming styles */
-.whale-name-requirement {
-  background-color: rgba(255, 68, 68, 0.1);
-  border: 1px solid rgba(255, 68, 68, 0.3);
-  border-radius: 4px;
-  padding: 8px;
-  margin-bottom: 10px;
-  font-size: 0.9em;
-}
-
-.whale-suggestions {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 0 0 4px 4px;
-  max-height: 150px;
-  overflow-y: auto;
-  z-index: 1000;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.whale-suggestion-item {
-  padding: 8px 12px;
-  cursor: pointer;
-  color: #333;
-  border-bottom: 1px solid #eee;
-}
-
-.whale-suggestion-item:hover {
-  background-color: #f0f8ff;
-}
-
-.whale-id-display {
-  font-size: 0.8em;
-  color: #90EE90;
-  margin-top: 3px;
 }
 
 @media (max-width: 768px) {

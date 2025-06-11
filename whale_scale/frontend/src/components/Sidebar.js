@@ -3,9 +3,8 @@
 // Purpose: Interactive sidebar for WhaleScale that handles image metadata input,
 // focal length/altitude settings, width segment configuration, and pixel dimension calculation.
 // Provides real-time form validation and backend communication for measurement setup.
-// MINIMAL UPDATE: Only added whale naming input field
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import "./Sidebar.css";
 
 export default function Sidebar({ 
@@ -15,55 +14,12 @@ export default function Sidebar({
   onSubmit, 
   onInputChange, 
   isExtractingMetadata,
-  onShowSavedData,
-  currentWhaleId
+  onShowSavedData
 }) {
   const [pixelDimension, setPixelDimension] = useState(null);
-  const [whaleNameSuggestions, setWhaleNameSuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-
-  // Fetch whale name suggestions
-  const fetchWhaleNameSuggestions = async () => {
-    try {
-      const response = await fetch("/api/collatrix/get_user_images/", {
-        method: "GET",
-        credentials: 'include',
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        const images = data.images || [];
-        
-        const whaleNames = new Set();
-        images.forEach(img => {
-          const filename = img.filename || img.original_filename || "";
-          const nameMatch = filename.match(/^([A-Za-z_]+)\d*\./);
-          if (nameMatch) {
-            whaleNames.add(nameMatch[1]);
-          }
-        });
-        
-        setWhaleNameSuggestions(Array.from(whaleNames).sort());
-      }
-    } catch (error) {
-      console.error("Error fetching whale name suggestions:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchWhaleNameSuggestions();
-  }, []);
 
   const handleInputChange = (name, value) => {
     onInputChange(name, value);
-    if (name === "whaleName") {
-      setShowSuggestions(value.length > 0);
-    }
-  };
-
-  const handleWhaleSuggestionClick = (suggestion) => {
-    handleInputChange("whaleName", suggestion);
-    setShowSuggestions(false);
   };
 
   const calculatePixelDimension = async () => {
@@ -118,68 +74,28 @@ export default function Sidebar({
     <div className="sidebar">
       <h2>WhaleScale</h2>
       
-      {/* NEW: Simple whale name input */}
-      <div className="input-group" style={{ position: 'relative' }}>
-        <label>🐋 Whale Name:</label>
+      {/* ONLY NEW ADDITION: Whale name input box */}
+      <div className="input-group">
+        <label>Whale Name:</label>
         <input
           type="text"
           value={formData.whaleName || ""}
           onChange={(e) => handleInputChange("whaleName", e.target.value)}
-          placeholder="Enter whale name (e.g., Moby)"
-          onFocus={() => setShowSuggestions(formData.whaleName && formData.whaleName.length > 0)}
-          onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+          placeholder="Enter whale name"
         />
-        {currentWhaleId && (
-          <span className="whale-id-display">Current ID: {currentWhaleId}</span>
-        )}
-        {showSuggestions && whaleNameSuggestions.length > 0 && (
-          <div className="whale-suggestions">
-            {whaleNameSuggestions
-              .filter(name => name.toLowerCase().includes((formData.whaleName || "").toLowerCase()))
-              .map(suggestion => (
-                <div 
-                  key={suggestion}
-                  className="whale-suggestion-item"
-                  onClick={() => handleWhaleSuggestionClick(suggestion)}
-                >
-                  {suggestion}
-                </div>
-              ))
-            }
-          </div>
-        )}
       </div>
 
-      {/* Show warning if no whale name */}
-      {(!formData.whaleName || formData.whaleName.trim() === "") && (
-        <div className="whale-name-requirement">
-          ⚠️ Please enter a whale name before uploading an image
-        </div>
-      )}
-
-      <label 
-        className={`upload-button ${(!formData.whaleName || formData.whaleName.trim() === "") ? 'disabled' : ''}`}
-      >
+      <label className="upload-button">
         <input
           type="file"
           accept="image/*"
           onChange={(e) => {
             const file = e.target.files[0];
-            if (file) {
-              if (!formData.whaleName || formData.whaleName.trim() === "") {
-                alert("Please enter a whale name first!");
-                e.target.value = "";
-                return;
-              }
-              onImageUpload(file);
-            }
+            if (file) onImageUpload(file);
           }}
-          disabled={!formData.whaleName || formData.whaleName.trim() === "" || isExtractingMetadata}
           style={{ display: 'none' }}
         />
-        {isExtractingMetadata ? "Extracting Metadata..." : 
-         (!formData.whaleName || formData.whaleName.trim() === "") ? "Enter Whale Name First" : 
-         "Upload Image"}
+        {isExtractingMetadata ? "Extracting Metadata..." : "Upload Image"}
       </label>
 
       <div className="input-group">
@@ -321,15 +237,15 @@ export default function Sidebar({
         </div>
       )}
 
+      <button 
+        className="submit-button"
+        onClick={handleSubmit}
+        disabled={!pixelDimension}
+      >
+        Submit Parameters
+      </button>
+
       <div className="button-group">
-        <button 
-          className="submit-button"
-          onClick={handleSubmit}
-          disabled={!pixelDimension}
-        >
-          Submit Parameters
-        </button>
-        
         <button 
           className="export-button"
           onClick={exportData}
