@@ -236,7 +236,7 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
                         <p><strong>Name:</strong> {measurement.measurement_name}</p>
                       )}
                       
-                      {/* Render ruler details specially */}
+                      {/* Render ruler details specially  */}
                       {isRulerComplete ? (
                         renderRulerDetails(measurement)
                       ) : (
