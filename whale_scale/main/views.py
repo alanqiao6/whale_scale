@@ -1149,13 +1149,17 @@ class CollatriX(View):
         
         return JsonResponse({"images": image_data})
 
-    def get_image_measurements(request):
+    def get_image_measurements(self, request, image_id=None):
         """Get all measurements for a specific image"""
-        image_id = request.GET.get('image_id')
+        # Get image_id from parameter or query string
+        if not image_id:
+            image_id = request.GET.get('image_id')
         
         if not image_id:
             return JsonResponse({'error': 'image_id parameter required'}, status=400)
             
+        logger = logging.getLogger(__name__)  # Add logger definition
+        
         try:
             # Get all measurements for this image
             measurements = Measurement.objects.filter(image_id=image_id).order_by('-created_date')
@@ -1204,6 +1208,7 @@ class CollatriX(View):
             
         except Exception as e:
             logger.error(f"Error retrieving measurements for image {image_id}: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")  # Add full traceback
             return JsonResponse({'error': 'Failed to retrieve measurements'}, status=500)
 
     def get(self, request, function_name):
