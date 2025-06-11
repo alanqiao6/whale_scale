@@ -3,11 +3,21 @@
 // Purpose: This React component displays all collected whale measurement data, including form inputs, curve lengths, area and angle metrics, and calculated body condition indices. 
 // It also provides a CSV export feature that combines all available data into a downloadable report.
 // The component makes the export function globally accessible via `window.exportDataToCSV` for triggering from other components like Sidebar.
+// UPDATED: Now includes whale name/ID display and export functionality
 
 import "./Data.css"
 import React, { useCallback } from "react"
 
-export default function Data({ formData, rulerData, manualCurveData, areaData, angleData, bodyConditionData, pixelDimension }) {
+export default function Data({ 
+  formData, 
+  rulerData, 
+  manualCurveData, 
+  areaData, 
+  angleData, 
+  bodyConditionData, 
+  pixelDimension,
+  currentWhaleId  // NEW: Receive current whale ID
+}) {
 
   // FIXED: Use useCallback to stabilize the export function and prevent memory leaks
   const exportDataToCSV = useCallback(() => {
@@ -22,6 +32,22 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
     try {
       // Initialize CSV rows array
       let csvRows = [];
+      
+      // NEW: Add Whale Information Table
+      if (currentWhaleId || formData?.whaleName) {
+        csvRows.push("WHALE INFORMATION");
+        csvRows.push("Parameter,Value");
+        
+        if (currentWhaleId) {
+          csvRows.push(`Whale ID,${currentWhaleId}`);
+        }
+        if (formData?.whaleName) {
+          csvRows.push(`Whale Name,${formData.whaleName}`);
+        }
+        
+        // Add empty row as separator
+        csvRows.push("");
+      }
       
       // Add Form Data Table
       if (formData) {
@@ -164,6 +190,11 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
         csvRows.push("BODY CONDITION RESULTS");
         csvRows.push("Parameter,Value");
         
+        // NEW: Include whale ID in body condition results
+        if (bodyConditionData.whaleId || currentWhaleId) {
+          csvRows.push(`Whale ID,${bodyConditionData.whaleId || currentWhaleId}`);
+        }
+        
         if (bodyConditionData.volume !== undefined && !isNaN(bodyConditionData.volume)) {
           csvRows.push(`Body Volume,${bodyConditionData.volume.toFixed(2)} m³`);
         }
@@ -211,10 +242,10 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
         return row;
       }).join('\n');
       
-      // Create filename
+      // Create filename with whale name
       const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-      const imagePath = formData && formData.imagePath ? formData.imagePath : "image";
-      const fileName = `whalescale_${formData ? (formData.widthSegments || "0") : "0"}_${getFileNameFromPath(imagePath)}_${date}.csv`;
+      const whaleIdentifier = currentWhaleId || formData?.whaleName || "unnamed_whale";
+      const fileName = `whalescale_${whaleIdentifier}_${date}.csv`;
       
       console.log("Creating download with filename:", fileName);
       console.log("CSV Content Preview (first 500 chars):", csvContent.substring(0, 500));
@@ -241,7 +272,7 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
       console.error("Error during export:", err);
       alert(`Export failed: ${err.message}`);
     }
-  }, [formData, rulerData, manualCurveData, areaData, angleData, bodyConditionData, pixelDimension]); // Only recreate when data actually changes
+  }, [formData, rulerData, manualCurveData, areaData, angleData, bodyConditionData, pixelDimension, currentWhaleId]); // Add currentWhaleId to dependencies
 
   // Helper function to extract filename from path
   const getFileNameFromPath = (path) => {
@@ -289,6 +320,20 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
     <div className="data-section" role="region" aria-label="Measurement data">
       <h2 id="data-heading" style={headingStyle}>Measurement Data</h2>
       <div className="data-content">
+        {/* NEW: Whale Information Section */}
+        {(currentWhaleId || formData?.whaleName) && (
+          <div className="whale-data">
+            <h3 style={headingStyle}><span aria-hidden="true">🐋</span> Whale Information</h3>
+            {currentWhaleId && (
+              <p><strong style={dataLabelStyle}>Current Whale ID:</strong> {currentWhaleId}</p>
+            )}
+            {formData?.whaleName && (
+              <p><strong style={dataLabelStyle}>Whale Name:</strong> {formData.whaleName}</p>
+            )}
+            <p><strong style={dataLabelStyle}>Session:</strong> All measurements will be saved under this whale</p>
+          </div>
+        )}
+
         {formData && (
           <div className="form-data">
             <h3 style={headingStyle}>Form Data</h3>
@@ -374,6 +419,12 @@ export default function Data({ formData, rulerData, manualCurveData, areaData, a
         {bodyConditionData && (
           <div className="measurement-data">
             <h3 style={headingStyle}><span aria-hidden="true">🐋</span> Body Condition Results</h3>
+            {/* NEW: Show whale ID in body condition results */}
+            {(bodyConditionData.whaleId || currentWhaleId) && (
+              <p>
+                <strong style={dataLabelStyle}>Whale ID:</strong> {bodyConditionData.whaleId || currentWhaleId}
+              </p>
+            )}
             {bodyConditionData.volume && (
               <p>
                 <strong style={dataLabelStyle}>Body Volume:</strong> {bodyConditionData.volume.toFixed(2)} m³

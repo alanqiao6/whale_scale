@@ -1,4 +1,4 @@
-/* SavedData.css */
+/* SavedData.css - UPDATED with whale grouping styles */
 
 .saved-data-container {
   padding: 20px;
@@ -17,6 +17,98 @@
   color: #d32f2f;
   background-color: #ffebee;
   border-radius: 4px;
+}
+
+/* NEW: View controls for toggling between whale and list view */
+.view-controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  justify-content: center;
+}
+
+.view-toggle {
+  padding: 8px 16px;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  color: #666;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.view-toggle:hover {
+  border-color: #2196F3;
+  color: #2196F3;
+}
+
+.view-toggle.active {
+  background: #2196F3;
+  color: white;
+  border-color: #2196F3;
+}
+
+/* NEW: Whale grouping styles */
+.whale-groups-container {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.whale-group {
+  border: 2px solid #e3f2fd;
+  border-radius: 12px;
+  padding: 20px;
+  background: linear-gradient(135deg, #f8f9ff 0%, #ffffff 100%);
+}
+
+.whale-group-header {
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #e3f2fd;
+}
+
+.whale-group-header h4 {
+  margin: 0;
+  color: #1976D2;
+  font-size: 18px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.whale-images-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 15px;
+}
+
+.whale-image-card {
+  border: 1px solid #ddd;
+  background: white;
+  transition: all 0.3s ease;
+}
+
+.whale-image-card:hover {
+  border-color: #2196F3;
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.2);
+  transform: translateY(-2px);
+}
+
+.whale-image-card.selected {
+  border-color: #2196F3;
+  background-color: #e3f2fd;
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+}
+
+.whale-image-card h5 {
+  margin: 0 0 5px 0;
+  color: #1976D2;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .saved-images-list h3,
@@ -129,6 +221,21 @@
   color: #333;
 }
 
+/* NEW: Whale info in measurements */
+.whale-info-in-measurement {
+  background: #e8f5e8;
+  padding: 8px;
+  border-radius: 4px;
+  margin-top: 8px;
+  border-left: 3px solid #4CAF50;
+}
+
+.whale-info-in-measurement p {
+  margin: 2px 0;
+  font-size: 12px;
+  color: #2e7d32;
+}
+
 .load-measurement-btn {
   background: #4CAF50;
   color: white;
@@ -153,7 +260,8 @@
 /* Responsive design */
 @media (max-width: 768px) {
   .images-grid,
-  .measurements-grid {
+  .measurements-grid,
+  .whale-images-grid {
     grid-template-columns: 1fr;
   }
   
@@ -165,6 +273,15 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 5px;
+  }
+
+  .view-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .whale-group {
+    padding: 15px;
   }
 } 
 

@@ -1,6 +1,6 @@
 // File: SavedData.js
 // Purpose: Component to display and manage saved measurements and images
-// UPDATED: Now handles grouped ruler measurements with width segments
+// UPDATED: Now handles whale name grouping and shows whale-based organization
 
 import React, { useState, useEffect } from "react";
 import "./SavedData.css";
@@ -11,10 +11,19 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
   const [imageMeasurements, setImageMeasurements] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [groupByWhale, setGroupByWhale] = useState(true); // NEW: Toggle for grouping
+  const [whaleGroups, setWhaleGroups] = useState({}); // NEW: Whale-grouped data
 
   useEffect(() => {
     fetchSavedImages();
   }, []);
+
+  // NEW: Group images by whale name when data changes
+  useEffect(() => {
+    if (savedImages.length > 0) {
+      groupImagesByWhale();
+    }
+  }, [savedImages]);
 
   const fetchSavedImages = async () => {
     setLoading(true);
@@ -36,6 +45,35 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  // NEW: Group images by whale name
+  const groupImagesByWhale = () => {
+    const groups = {};
+    
+    savedImages.forEach(image => {
+      const filename = image.filename || image.original_filename || "";
+      
+      // Extract whale name from filename (e.g., "Moby1.jpg" -> "Moby")
+      let whaleName = "Unknown";
+      const nameMatch = filename.match(/^([A-Za-z_]+)\d*\./);
+      if (nameMatch) {
+        whaleName = nameMatch[1];
+      }
+      
+      if (!groups[whaleName]) {
+        groups[whaleName] = [];
+      }
+      
+      groups[whaleName].push(image);
+    });
+    
+    // Sort images within each group by upload date (newest first)
+    Object.keys(groups).forEach(whaleName => {
+      groups[whaleName].sort((a, b) => new Date(b.upload_date) - new Date(a.upload_date));
+    });
+    
+    setWhaleGroups(groups);
   };
 
   const fetchImageMeasurements = async (imageId) => {
@@ -71,7 +109,7 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
     return new Date(dateString).toLocaleDateString() + " " + new Date(dateString).toLocaleTimeString();
   };
 
-  // NEW: Function to get measurement type icon and label
+  // Function to get measurement type icon and label
   const getMeasurementTypeDisplay = (measurement) => {
     // Helper function to safely get metadata
     const getMetadata = (measurement) => {
@@ -119,7 +157,7 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
     }
   };
 
-  // NEW: Function to render ruler measurement details
+  // Function to render ruler measurement details
   const renderRulerDetails = (measurement) => {
     // Helper function to safely get metadata
     const getMetadata = (measurement) => {
@@ -169,6 +207,83 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
     );
   };
 
+  // NEW: Render whale-grouped view
+  const renderWhaleGroupedView = () => {
+    const whaleNames = Object.keys(whaleGroups).sort();
+    
+    if (whaleNames.length === 0) {
+      return <p>No saved images found. Upload and analyze some images to see them here!</p>;
+    }
+
+    return (
+      <div className="whale-groups-container">
+        {whaleNames.map(whaleName => (
+          <div key={whaleName} className="whale-group">
+            <div className="whale-group-header">
+              <h4>🐋 {whaleName} ({whaleGroups[whaleName].length} images)</h4>
+            </div>
+            <div className="whale-images-grid">
+              {whaleGroups[whaleName].map((image, index) => {
+                // Extract number from filename
+                const filenameMatch = image.filename?.match(/(\d+)/);
+                const imageNumber = filenameMatch ? filenameMatch[1] : (index + 1);
+                
+                return (
+                  <div 
+                    key={image.id} 
+                    className={`image-card whale-image-card ${selectedImageId === image.id ? 'selected' : ''}`}
+                    onClick={() => fetchImageMeasurements(image.id)}
+                  >
+                    <div className="image-info">
+                      <h5>{whaleName}{imageNumber}</h5>
+                      <p className="image-date">{formatDate(image.upload_date)}</p>
+                      <div className="image-metadata">
+                        <span>📏 {image.measurement_count} measurements</span>
+                        {image.camera_make && <span>📷 {image.camera_make}</span>}
+                        {image.focal_length_mm && <span>🔍 {image.focal_length_mm}mm</span>}
+                        {image.gps_altitude_m && <span>✈️ {image.gps_altitude_m}m</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // Render standard list view
+  const renderStandardView = () => {
+    if (savedImages.length === 0) {
+      return <p>No saved images found. Upload and analyze some images to see them here!</p>;
+    }
+
+    return (
+      <div className="images-grid">
+        {savedImages.map((image) => (
+          <div 
+            key={image.id} 
+            className={`image-card ${selectedImageId === image.id ? 'selected' : ''}`}
+            onClick={() => fetchImageMeasurements(image.id)}
+          >
+            <div className="image-info">
+              <h4>{image.filename}</h4>
+              <p className="image-date">{formatDate(image.upload_date)}</p>
+              <div className="image-metadata">
+                <span>📏 {image.measurement_count} measurements</span>
+                {image.camera_make && <span>📷 {image.camera_make} {image.camera_model}</span>}
+                {image.focal_length_mm && <span>🔍 {image.focal_length_mm}mm</span>}
+                {image.gps_altitude_m && <span>✈️ {image.gps_altitude_m}m</span>}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   if (loading) {
     return <div className="saved-data-loading">Loading saved data...</div>;
   }
@@ -181,32 +296,25 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
     <div className="saved-data-container">
       <h2>Saved Images & Measurements</h2>
       
+      {/* NEW: Toggle for grouping view */}
+      <div className="view-controls">
+        <button 
+          className={`view-toggle ${groupByWhale ? 'active' : ''}`}
+          onClick={() => setGroupByWhale(true)}
+        >
+          🐋 Group by Whale
+        </button>
+        <button 
+          className={`view-toggle ${!groupByWhale ? 'active' : ''}`}
+          onClick={() => setGroupByWhale(false)}
+        >
+          📅 List All Images
+        </button>
+      </div>
+      
       <div className="saved-images-list">
         <h3>Your Images ({savedImages.length})</h3>
-        {savedImages.length === 0 ? (
-          <p>No saved images found. Upload and analyze some images to see them here!</p>
-        ) : (
-          <div className="images-grid">
-            {savedImages.map((image) => (
-              <div 
-                key={image.id} 
-                className={`image-card ${selectedImageId === image.id ? 'selected' : ''}`}
-                onClick={() => fetchImageMeasurements(image.id)}
-              >
-                <div className="image-info">
-                  <h4>{image.filename}</h4>
-                  <p className="image-date">{formatDate(image.upload_date)}</p>
-                  <div className="image-metadata">
-                    <span>📏 {image.measurement_count} measurements</span>
-                    {image.camera_make && <span>📷 {image.camera_make} {image.camera_model}</span>}
-                    {image.focal_length_mm && <span>🔍 {image.focal_length_mm}mm</span>}
-                    {image.gps_altitude_m && <span>✈️ {image.gps_altitude_m}m</span>}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        {groupByWhale ? renderWhaleGroupedView() : renderStandardView()}
       </div>
 
       {selectedImageId && (
@@ -244,6 +352,25 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
                           <p><strong>Value:</strong> {measurement.scaled_dimension?.toFixed(4) || 'N/A'}</p>
                           <p><strong>Unit:</strong> {typeDisplay.unit}</p>
                         </>
+                      )}
+                      
+                      {/* NEW: Show whale information if available */}
+                      {measurement.metadata && (
+                        (() => {
+                          const metadata = typeof measurement.metadata === 'string' 
+                            ? (() => {
+                                try { return JSON.parse(measurement.metadata); }
+                                catch (e) { return {}; }
+                              })()
+                            : measurement.metadata;
+                          
+                          return (metadata.whale_name || metadata.whale_id) && (
+                            <div className="whale-info-in-measurement">
+                              {metadata.whale_name && <p><strong>Whale:</strong> {metadata.whale_name}</p>}
+                              {metadata.whale_id && <p><strong>Whale ID:</strong> {metadata.whale_id}</p>}
+                            </div>
+                          );
+                        })()
                       )}
                     </div>
                     

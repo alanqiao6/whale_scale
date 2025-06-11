@@ -2,9 +2,8 @@
  * Authors: Alan Qiao, August Hao
  * Purpose: Provides layout and styling for the whale measurement data display component,
  * including visual grouping for form data, ruler/curve/area/angle measurements, and body condition results.
+ * UPDATED: Added whale information section styling
  */
-
-
 
 .data-section {
   background-color: var(--background-gray);
@@ -18,14 +17,35 @@
   gap: 20px;
 }
 
-.form-data,
-.measurement-data {
+.form-data, 
+.measurement-data, 
+.whale-data {  /* NEW: Added whale-data */
   background-color: white;
   padding: 15px;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   flex: 1;
   min-width: 250px;
+}
+
+/* NEW: Special styling for whale information */
+.whale-data {
+  background: linear-gradient(135deg, #e8f5e8 0%, #ffffff 100%);
+  border-left: 4px solid #4CAF50;
+}
+
+.whale-data h3 {
+  color: #2e7d32;
+  margin-bottom: 15px;
+}
+
+.whale-data p {
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.whale-data strong {
+  color: #1b5e20;
 }
 
 .real-measurements {
@@ -57,4 +77,3 @@ li {
     flex-direction: column;
   }
 }
-
