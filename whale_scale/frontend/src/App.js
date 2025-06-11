@@ -74,7 +74,7 @@ export default function App() {
   const [whaleNameCounts, setWhaleNameCounts] = useState({}) // Track count for each whale name
   const [currentWhaleId, setCurrentWhaleId] = useState(null) // Current whale identifier with number
 
-  // FIXED: Function to clear all measurement data
+  // FIXED: Function to clear all measurement data and active tools
   const clearAllMeasurementData = () => {
     setRulerData(null);
     setManualCurveData(null);
@@ -84,8 +84,9 @@ export default function App() {
     setBackendResult(null);
     setBackendMessage("");
     setSidebarSubmitted(false);
-    setActiveTool(null);
-    console.log("Cleared all measurement data for new image");
+    setActiveTool(null); // Clear any active measurement tool
+    setPixelDimension(null); // Also clear pixel dimension since it's image-specific
+    console.log("Cleared all measurement data and active tools for new image");
   };
 
   // NEW: Function to generate whale identifier with incremental number
