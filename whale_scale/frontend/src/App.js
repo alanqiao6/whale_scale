@@ -1,11 +1,7 @@
 // File: app.js
 // Authors: Alan Qiao, August Hao, Ciaran Burr
 // Purpose: Serves as the main React component for the WhaleScale frontend.
-// It orchestrates the app's layout and logic, including image upload and metadata extraction (via Collatrix),
-// state management for measurement tools, dynamic tab switching, sidebar inputs, measurement submission (MorphoMetriX),
-// and backend-driven volume/body condition calculations.
-// Integrates core components (Sidebar, TopBar, ImageViewer, Data, About) and manages data flow between them
-// UPDATED: Added whale naming functionality with incremental numbering
+// FIXED: Clear measurement data when new image is uploaded and properly handle whale naming
 
 "use client"
 import React, { useState, useEffect } from "react"
@@ -58,7 +54,7 @@ export default function App() {
     crosshairOpacity: 100,
     segmentColor: "#FFFFC5",
     crosshairColor: "#FF0000",
-    whaleName: ""  // NEW: Add whale name to form data
+    whaleName: ""
   })
   const [widthSegments, setWidthSegments] = useState(null)
   const [rulerData, setRulerData] = useState(null)
@@ -77,6 +73,20 @@ export default function App() {
   // NEW: Add state for whale naming
   const [whaleNameCounts, setWhaleNameCounts] = useState({}) // Track count for each whale name
   const [currentWhaleId, setCurrentWhaleId] = useState(null) // Current whale identifier with number
+
+  // FIXED: Function to clear all measurement data
+  const clearAllMeasurementData = () => {
+    setRulerData(null);
+    setManualCurveData(null);
+    setAreaData(null);
+    setAngleData(null);
+    setBodyConditionData(null);
+    setBackendResult(null);
+    setBackendMessage("");
+    setSidebarSubmitted(false);
+    setActiveTool(null);
+    console.log("Cleared all measurement data for new image");
+  };
 
   // NEW: Function to generate whale identifier with incremental number
   const generateWhaleId = async (whaleName) => {
@@ -137,16 +147,25 @@ export default function App() {
     }
   }
 
+  // FIXED: Updated handleImageUpload to clear data and regenerate whale ID
   const handleImageUpload = async (file) => {
     if (file) {
+      // FIRST: Clear all existing measurement data when new image is uploaded
+      clearAllMeasurementData();
+      
       const imageUrl = URL.createObjectURL(file)
       setImage(imageUrl)
       setImageFile(file)
       
-      // NEW: Generate whale ID when image is uploaded
+      // Generate new whale ID when image is uploaded (always regenerate)
       if (formData.whaleName) {
+        console.log(`Generating new whale ID for: ${formData.whaleName}`);
         const whaleId = await generateWhaleId(formData.whaleName);
         setCurrentWhaleId(whaleId);
+        console.log(`Set current whale ID to: ${whaleId}`);
+      } else {
+        setCurrentWhaleId(null);
+        console.log("No whale name provided, cleared whale ID");
       }
       
       // Start loading state
@@ -192,6 +211,26 @@ export default function App() {
     }
   }
 
+  // FIXED: Also regenerate whale ID when whale name changes
+  useEffect(() => {
+    const regenerateWhaleIdOnNameChange = async () => {
+      if (formData.whaleName && formData.whaleName.trim() !== "") {
+        console.log(`Whale name changed to: ${formData.whaleName}, regenerating ID...`);
+        const whaleId = await generateWhaleId(formData.whaleName);
+        setCurrentWhaleId(whaleId);
+        console.log(`Updated whale ID to: ${whaleId}`);
+      } else {
+        setCurrentWhaleId(null);
+        console.log("Whale name cleared, reset whale ID");
+      }
+    };
+
+    // Only regenerate if we have an image loaded
+    if (image && imageFile) {
+      regenerateWhaleIdOnNameChange();
+    }
+  }, [formData.whaleName, image, imageFile]);
+
   const [measurementData, setMeasurementData] = useState(null)
 
   const handleMeasurementUpdate = (data) => {
@@ -204,7 +243,7 @@ export default function App() {
     setFormData(dataFromSidebar)
     setSidebarSubmitted(true)
 
-    // NEW: Generate whale ID when submitting if not already generated
+    // Generate whale ID when submitting if not already generated
     if (dataFromSidebar.whaleName && !currentWhaleId) {
       const whaleId = await generateWhaleId(dataFromSidebar.whaleName);
       setCurrentWhaleId(whaleId);
@@ -469,6 +508,9 @@ export default function App() {
 
   // UPDATED: handleLoadSavedMeasurement function to handle both ruler types
   const handleLoadSavedMeasurement = (measurement) => {
+    // FIRST: Clear existing measurement data when loading a saved measurement
+    clearAllMeasurementData();
+    
     // Convert saved measurement back to frontend format
     if (measurement.measurement_type === "ruler_complete") {
       // This is a complete ruler measurement with width segments
