@@ -1,6 +1,6 @@
 // File: SavedData.js
 // Purpose: Component to display and manage saved measurements and images
-// UPDATED: Now handles whale name grouping and shows whale-based organization
+// FIXED: Better whale name extraction and grouping logic
 
 import React, { useState, useEffect } from "react";
 import "./SavedData.css";
@@ -11,14 +11,14 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
   const [imageMeasurements, setImageMeasurements] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [groupByWhale, setGroupByWhale] = useState(true); // NEW: Toggle for grouping
-  const [whaleGroups, setWhaleGroups] = useState({}); // NEW: Whale-grouped data
+  const [groupByWhale, setGroupByWhale] = useState(true);
+  const [whaleGroups, setWhaleGroups] = useState({});
 
   useEffect(() => {
     fetchSavedImages();
   }, []);
 
-  // NEW: Group images by whale name when data changes
+  // Group images by whale name when data changes
   useEffect(() => {
     if (savedImages.length > 0) {
       groupImagesByWhale();
@@ -47,30 +47,69 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
     }
   };
 
-  // NEW: Group images by whale name
+  // IMPROVED: Better whale name extraction logic
+  const extractWhaleInfo = (filename) => {
+    if (!filename) {
+      return { whaleName: "Unknown", whaleNumber: "1" };
+    }
+
+    // Remove file extension
+    const nameWithoutExt = filename.replace(/\.[^/.]+$/, "");
+    
+    // Try to match whale name and number patterns
+    // Patterns like: "Moby1", "whale_A2", "example_whale2", etc.
+    const patterns = [
+      /^([A-Za-z_]+)(\d+)$/, // Simple pattern: letters + number
+      /^([A-Za-z_\s]+?)[\s_-]*(\d+)$/, // Letters with separators + number
+    ];
+
+    for (const pattern of patterns) {
+      const match = nameWithoutExt.match(pattern);
+      if (match) {
+        return {
+          whaleName: match[1].trim().replace(/[_\s]+$/, ''), // Clean trailing underscores/spaces
+          whaleNumber: match[2]
+        };
+      }
+    }
+
+    // Fallback: treat entire name as whale name
+    return {
+      whaleName: nameWithoutExt,
+      whaleNumber: "1"
+    };
+  };
+
+  // IMPROVED: Group images by whale name with better extraction
   const groupImagesByWhale = () => {
     const groups = {};
     
     savedImages.forEach(image => {
-      const filename = image.filename || image.original_filename || "";
-      
-      // Extract whale name from filename (e.g., "Moby1.jpg" -> "Moby")
-      let whaleName = "Unknown";
-      const nameMatch = filename.match(/^([A-Za-z_]+)\d*\./);
-      if (nameMatch) {
-        whaleName = nameMatch[1];
-      }
+      const { whaleName } = extractWhaleInfo(image.filename || image.original_filename);
       
       if (!groups[whaleName]) {
         groups[whaleName] = [];
       }
       
-      groups[whaleName].push(image);
+      groups[whaleName].push({
+        ...image,
+        whaleInfo: extractWhaleInfo(image.filename || image.original_filename)
+      });
     });
     
-    // Sort images within each group by upload date (newest first)
+    // Sort images within each group by whale number, then by upload date
     Object.keys(groups).forEach(whaleName => {
-      groups[whaleName].sort((a, b) => new Date(b.upload_date) - new Date(a.upload_date));
+      groups[whaleName].sort((a, b) => {
+        const numA = parseInt(a.whaleInfo.whaleNumber) || 1;
+        const numB = parseInt(b.whaleInfo.whaleNumber) || 1;
+        
+        if (numA !== numB) {
+          return numA - numB; // Sort by whale number ascending
+        }
+        
+        // If same number, sort by upload date (newest first)
+        return new Date(b.upload_date) - new Date(a.upload_date);
+      });
     });
     
     setWhaleGroups(groups);
@@ -207,7 +246,7 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
     );
   };
 
-  // NEW: Render whale-grouped view
+  // IMPROVED: Render whale-grouped view with better naming
   const renderWhaleGroupedView = () => {
     const whaleNames = Object.keys(whaleGroups).sort();
     
@@ -223,10 +262,8 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
               <h4>🐋 {whaleName} ({whaleGroups[whaleName].length} images)</h4>
             </div>
             <div className="whale-images-grid">
-              {whaleGroups[whaleName].map((image, index) => {
-                // Extract number from filename
-                const filenameMatch = image.filename?.match(/(\d+)/);
-                const imageNumber = filenameMatch ? filenameMatch[1] : (index + 1);
+              {whaleGroups[whaleName].map((image) => {
+                const displayName = `${image.whaleInfo.whaleName}${image.whaleInfo.whaleNumber}`;
                 
                 return (
                   <div 
@@ -235,7 +272,7 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
                     onClick={() => fetchImageMeasurements(image.id)}
                   >
                     <div className="image-info">
-                      <h5>{whaleName}{imageNumber}</h5>
+                      <h5>{displayName}</h5>
                       <p className="image-date">{formatDate(image.upload_date)}</p>
                       <div className="image-metadata">
                         <span>📏 {image.measurement_count} measurements</span>
@@ -296,7 +333,7 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
     <div className="saved-data-container">
       <h2>Saved Images & Measurements</h2>
       
-      {/* NEW: Toggle for grouping view */}
+      {/* Toggle for grouping view */}
       <div className="view-controls">
         <button 
           className={`view-toggle ${groupByWhale ? 'active' : ''}`}
@@ -354,7 +391,7 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
                         </>
                       )}
                       
-                      {/* NEW: Show whale information if available */}
+                      {/* Show whale information if available */}
                       {measurement.metadata && (
                         (() => {
                           const metadata = typeof measurement.metadata === 'string' 
