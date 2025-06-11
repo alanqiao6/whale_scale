@@ -1,277 +1,471 @@
-// File: sidebar.js
+// File: Sidebar.js
 // Authors: Alan Qiao, August Hao, Ciaran Burr
-// Purpose: This component renders the interactive sidebar UI in WhaleScale,
-// allowing users to upload an image, view or override extracted metadata, adjust configuration parameters (e.g. width segments, crosshair size/color),
-// and submit data to the backend for pixel dimension calculation via Collatrix.
-// Also enables CSV export via an exposed global export function and handles basic validation and error messaging.
+// Purpose: Interactive sidebar for WhaleScale that handles image metadata input,
+// focal length/altitude settings, width segment configuration, and pixel dimension calculation.
+// Provides real-time form validation and backend communication for measurement setup.
+// UPDATED: Added whale naming functionality with real-time ID generation
 
-"use client";
 import React, { useState, useEffect } from "react";
 import "./Sidebar.css";
 
-// CHANGE THIS LINE: Add onShowSavedData to the function parameters
-export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, onInputChange, isExtractingMetadata, onShowSavedData }) {
-  const [error, setError] = useState("");
-  const [inputConflict, setInputConflict] = useState(false);
-  
-  // Function to handle image upload from Sidebar
-  const handleImageUpload = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      onImageUpload(file); // Calls the function from App.js
-      setError("");
+export default function Sidebar({ 
+  metadata, 
+  formData, 
+  onImageUpload, 
+  onSubmit, 
+  onInputChange, 
+  isExtractingMetadata,
+  onShowSavedData,
+  currentWhaleId  // NEW: Receive current whale ID
+}) {
+  const [pixelDimension, setPixelDimension] = useState(null);
+  const [errors, setErrors] = useState({});
+  const [isCalculating, setIsCalculating] = useState(false);
+
+  // NEW: State for whale name suggestions
+  const [whaleNameSuggestions, setWhaleNameSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // NEW: Fetch whale name suggestions from existing images
+  const fetchWhaleNameSuggestions = async () => {
+    try {
+      const response = await fetch("/api/collatrix/get_user_images/", {
+        method: "GET",
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const images = data.images || [];
+        
+        // Extract unique whale names from filenames
+        const whaleNames = new Set();
+        images.forEach(img => {
+          const filename = img.filename || img.original_filename || "";
+          const nameMatch = filename.match(/^([A-Za-z_]+)\d*\./);
+          if (nameMatch) {
+            whaleNames.add(nameMatch[1]);
+          }
+        });
+        
+        setWhaleNameSuggestions(Array.from(whaleNames).sort());
+      }
+    } catch (error) {
+      console.error("Error fetching whale name suggestions:", error);
     }
   };
 
-  // Function to handle input changes
-  const handleChange = (name, value) => {
-    // Notify parent component of the change
-    onInputChange(name, value);
+  // NEW: Load suggestions when component mounts
+  useEffect(() => {
+    fetchWhaleNameSuggestions();
+  }, []);
 
-    setInputConflict(false);
+  const handleInputChange = (name, value) => {
+    onInputChange(name, value);
+    
+    // Clear errors when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: null
+      }));
+    }
+
+    // NEW: Show suggestions when typing whale name
+    if (name === "whaleName") {
+      setShowSuggestions(value.length > 0);
+    }
   };
 
-  const handleSubmit = async () => {
+  // NEW: Handle whale name suggestion selection
+  const handleWhaleSuggestionClick = (suggestion) => {
+    handleInputChange("whaleName", suggestion);
+    setShowSuggestions(false);
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    // Check for required fields based on calculation method
+    if (formData.focalLength && formData.altitude && formData.imageWidth) {
+      // Option A or B validation
+      if (!formData.fov && (!formData.sensorWidth)) {
+        newErrors.calculation = "Either FOV or sensor width is required for pixel dimension calculation";
+      }
+    }
+    
+    if (formData.focalLength && !formData.altitude) {
+      newErrors.altitude = "Altitude is required when focal length is provided";
+    }
+    
+    if (formData.altitude && !formData.focalLength) {
+      newErrors.focalLength = "Focal length is required when altitude is provided";
+    }
+
+    // NEW: Validate whale name
+    if (formData.whaleName && formData.whaleName.trim() === "") {
+      newErrors.whaleName = "Whale name cannot be empty";
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const calculatePixelDimension = async () => {
+    if (!validateForm()) return;
+    
+    setIsCalculating(true);
+    
     try {
-      setError("");
-  
-      // Validate that an image was uploaded (by checking formData.imageWidth, not metadata)
-      if (!formData.imageWidth || !formData.imageHeight) {
-        setError("⚠️ Please upload an image before submitting.");
-        return;
-      }
-  
-      // Validate width segments
-      if (!formData.widthSegments || isNaN(formData.widthSegments) || parseInt(formData.widthSegments) <= 0) {
-        setError("⚠️ Please enter a valid number of width segments.");
-        return;
-      }
-  
-      const payload = {
+      let payload = {
         altitude: parseFloat(formData.altitude),
-        focal_length: parseFloat(formData.focalLength),
-        image_width: parseInt(formData.imageWidth),
-        fov: parseFloat(formData.fov),
-        sensor_width: parseFloat(formData.sensorWidth)
+        image_width: parseInt(formData.imageWidth)
       };
-  
+
+      // Option A: Using FOV
+      if (formData.fov) {
+        payload.fov = parseFloat(formData.fov);
+      }
+      // Option B: Using focal length and sensor width
+      else if (formData.focalLength && formData.sensorWidth) {
+        payload.focal_length = parseFloat(formData.focalLength);
+        payload.sensor_width = parseFloat(formData.sensorWidth);
+      } else {
+        alert("Please provide either FOV or both focal length and sensor width");
+        setIsCalculating(false);
+        return;
+      }
+
       const response = await fetch("/api/collatrix/compute_pixel_dimension/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
       });
-  
-      const result = await response.json();
-  
-      if (response.ok && result.pixel_dimension) {
-        onSubmit({ ...formData, pixelDimension: result.pixel_dimension });
+
+      if (response.ok) {
+        const result = await response.json();
+        setPixelDimension(result.pixel_dimension);
+        console.log("Pixel dimension calculated:", result.pixel_dimension);
       } else {
-        throw new Error(result.error || "Failed to compute pixel dimension");
+        const errorText = await response.text();
+        console.error("Error calculating pixel dimension:", errorText);
+        alert("Error calculating pixel dimension. Check your inputs.");
       }
-    } catch (err) {
-      setError(`❌ Error: ${err.message}`);
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Network error calculating pixel dimension");
+    } finally {
+      setIsCalculating(false);
     }
   };
-  
-  // Enhanced export function with detailed debugging
-  const handleExport = () => {
-    console.log("Export button clicked");
+
+  const handleSubmit = () => {
+    if (!validateForm()) {
+      alert("Please fix the errors before submitting");
+      return;
+    }
+
+    const dataToSubmit = {
+      ...formData,
+      pixelDimension
+    };
     
-    // Check if the export function exists
-    if (typeof window.exportDataToCSV === 'function') {
-      console.log("Export function found, executing...");
-      try {
-        window.exportDataToCSV();
-        console.log("Export function executed successfully");
-      } catch (err) {
-        console.error("Error during export:", err);
-        setError(`❌ Export error: ${err.message}`);
-      }
+    onSubmit(dataToSubmit);
+  };
+
+  const exportData = () => {
+    if (window.exportDataToCSV) {
+      window.exportDataToCSV();
     } else {
-      console.error("Export function not found on window object");
-      setError("⚠️ Export function not available. Please submit data first.");
+      alert("Export function not available. Please make sure measurements are loaded.");
     }
   };
-
-  // Define a style for labels to ensure proper contrast
-  const labelStyle = {
-    color: "#FFFFFF", // White text for maximum contrast
-    fontWeight: "bold"
-  };
-
-  const renderInput = (label, name, disabled = false) => (
-    <div className="input-group">
-      <label htmlFor={`input-${name}`} style={labelStyle}>{label}</label>
-      <input
-        type="number"
-        id={`input-${name}`}
-        name={name}
-        value={formData[name]}
-        disabled={disabled || isExtractingMetadata}
-        onChange={(e) => handleChange(name, e.target.value)}
-        aria-describedby={`${name}-help`}
-      />
-      <span id={`${name}-help`} className="sr-only">Enter the {label.toLowerCase()}</span>
-    </div>
-  );
 
   return (
-    <div className="sidebar" role="complementary" aria-label="Configuration controls">
-      <div className="upload-section">
-        <label className="upload-button" htmlFor="image-upload" tabIndex="0" aria-label="Upload an image" onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            document.getElementById("image-upload").click(); // Trigger file input click
-          }
-        }}>
-          📄 Add Image
-          <input type="file" id="image-upload" accept="image/*" onChange={handleImageUpload} style={{ display: "none" }} aria-describedby="upload-help" />
-        </label>
-        <p id="upload-help" className="sr-only">Choose an image to upload for processing.</p>
-      </div>
-
-      {/* Loading message for metadata extraction */}
-      {isExtractingMetadata && (
-        <div style={{ 
-          padding: "10px", 
-          margin: "10px 0", 
-          backgroundColor: "#f0f8ff", 
-          border: "1px solid #007acc",
-          borderRadius: "4px",
-          textAlign: "center",
-          color: "#007acc",
-          fontWeight: "bold"
-        }}>
-          🔍 Scraping image metadata...
+    <div className="sidebar">
+      <div className="sidebar-content">
+        <h2>WhaleScale</h2>
+        
+        {/* NEW: Whale Naming Section */}
+        <div className="form-section">
+          <h3>🐋 Whale Identification</h3>
+          <div className="form-group whale-name-group">
+            <label htmlFor="whaleName">
+              Whale Name:
+              {currentWhaleId && (
+                <span className="whale-id-display">
+                  Current ID: <strong>{currentWhaleId}</strong>
+                </span>
+              )}
+            </label>
+            <div className="whale-name-input-container">
+              <input
+                type="text"
+                id="whaleName"
+                value={formData.whaleName || ""}
+                onChange={(e) => handleInputChange("whaleName", e.target.value)}
+                placeholder="Enter whale name (e.g., Moby, Orca1, BlueBay)"
+                className={errors.whaleName ? "error" : ""}
+                onFocus={() => setShowSuggestions(formData.whaleName && formData.whaleName.length > 0)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} // Delay to allow suggestion clicks
+              />
+              {showSuggestions && whaleNameSuggestions.length > 0 && (
+                <div className="whale-suggestions">
+                  {whaleNameSuggestions
+                    .filter(name => name.toLowerCase().includes((formData.whaleName || "").toLowerCase()))
+                    .map(suggestion => (
+                      <div 
+                        key={suggestion}
+                        className="whale-suggestion-item"
+                        onClick={() => handleWhaleSuggestionClick(suggestion)}
+                      >
+                        {suggestion}
+                      </div>
+                    ))
+                  }
+                </div>
+              )}
+            </div>
+            {errors.whaleName && <span className="error-text">{errors.whaleName}</span>}
+            <small className="help-text">
+              Images will be saved as {formData.whaleName || "WhaleName"}1.jpg, {formData.whaleName || "WhaleName"}2.jpg, etc.
+            </small>
+          </div>
         </div>
-      )}
 
-      {renderInput("Altitude (m)", "altitude", false)}
-      {renderInput("Altitude Offset (m)", "altitudeOffset", false)}
-      {renderInput("Image Width (px)", "imageWidth", false)}
-      {renderInput("Image Height (px)", "imageHeight", false)}
-      {renderInput("Focal Length (mm)", "focalLength", false)}
-      {renderInput("Field of View (°)", "fov", false)}
-      {renderInput("Sensor Width (mm)", "sensorWidth", false)}
+        <div className="form-section">
+          <h3>📷 Image Upload</h3>
+          <label htmlFor="image-upload-sidebar" className="upload-button">
+            <input
+              type="file"
+              id="image-upload-sidebar"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files[0];
+                if (file) onImageUpload(file);
+              }}
+              hidden
+            />
+            {isExtractingMetadata ? "Extracting Metadata..." : "Upload New Image"}
+          </label>
+          {isExtractingMetadata && (
+            <div className="loading-indicator">
+              <div className="spinner"></div>
+              <span>Processing image metadata...</span>
+            </div>
+          )}
+        </div>
 
-      <div className="input-group">
-      <label htmlFor="width-segments" style={labelStyle}>
-        # Width Segments <span aria-hidden="true">⚠️</span>
-        <span className="sr-only">required field</span>
-      </label>
-        <input 
-          type="number" 
-          id="width-segments" 
-          name="widthSegments"
-          value={formData.widthSegments} 
-          onChange={(e) => handleChange("widthSegments", e.target.value)} 
-          disabled={isExtractingMetadata}
-          aria-required="true"
-          aria-describedby="width-segments-help"
-        />
-        <span id="width-segments-help" className="sr-only">Enter the number of width segments. This field is required.</span>
+        <div className="form-section">
+          <h3>📐 Measurement Parameters</h3>
+          
+          <div className="form-group">
+            <label htmlFor="focalLength">Focal Length (mm):</label>
+            <input
+              type="number"
+              id="focalLength"
+              value={formData.focalLength || ""}
+              onChange={(e) => handleInputChange("focalLength", e.target.value)}
+              placeholder="e.g., 24"
+              className={errors.focalLength ? "error" : ""}
+            />
+            {errors.focalLength && <span className="error-text">{errors.focalLength}</span>}
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="altitude">Altitude (m):</label>
+            <input
+              type="number"
+              id="altitude"
+              value={formData.altitude || ""}
+              onChange={(e) => handleInputChange("altitude", e.target.value)}
+              placeholder="e.g., 25.5"
+              className={errors.altitude ? "error" : ""}
+            />
+            {errors.altitude && <span className="error-text">{errors.altitude}</span>}
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="altitudeOffset">Altitude Offset (m):</label>
+            <input
+              type="number"
+              id="altitudeOffset"
+              value={formData.altitudeOffset || ""}
+              onChange={(e) => handleInputChange("altitudeOffset", e.target.value)}
+              placeholder="e.g., 2.0"
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="imageWidth">Image Width (px):</label>
+            <input
+              type="number"
+              id="imageWidth"
+              value={formData.imageWidth || ""}
+              onChange={(e) => handleInputChange("imageWidth", e.target.value)}
+              placeholder="e.g., 4000"
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="imageHeight">Image Height (px):</label>
+            <input
+              type="number"
+              id="imageHeight"
+              value={formData.imageHeight || ""}
+              onChange={(e) => handleInputChange("imageHeight", e.target.value)}
+              placeholder="e.g., 3000"
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="fov">Field of View (°):</label>
+            <input
+              type="number"
+              id="fov"
+              value={formData.fov || ""}
+              onChange={(e) => handleInputChange("fov", e.target.value)}
+              placeholder="e.g., 84"
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="sensorWidth">Sensor Width (mm):</label>
+            <input
+              type="number"
+              id="sensorWidth"
+              value={formData.sensorWidth || ""}
+              onChange={(e) => handleInputChange("sensorWidth", e.target.value)}
+              placeholder="e.g., 13.2"
+            />
+          </div>
+        </div>
+
+        <div className="form-section">
+          <h3>📏 Ruler Configuration</h3>
+          
+          <div className="form-group">
+            <label htmlFor="widthSegments">Width Segments:</label>
+            <input
+              type="number"
+              id="widthSegments"
+              value={formData.widthSegments || ""}
+              onChange={(e) => handleInputChange("widthSegments", e.target.value)}
+              placeholder="e.g., 5"
+              min="0"
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="crosshairSize">Crosshair Size:</label>
+            <input
+              type="range"
+              id="crosshairSize"
+              min="10"
+              max="100"
+              value={formData.crosshairSize || 50}
+              onChange={(e) => handleInputChange("crosshairSize", e.target.value)}
+            />
+            <span className="range-value">{formData.crosshairSize || 50}</span>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="crosshairOpacity">Crosshair Opacity:</label>
+            <input
+              type="range"
+              id="crosshairOpacity"
+              min="0"
+              max="100"
+              value={formData.crosshairOpacity || 100}
+              onChange={(e) => handleInputChange("crosshairOpacity", e.target.value)}
+            />
+            <span className="range-value">{formData.crosshairOpacity || 100}%</span>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="segmentColor">Segment Color:</label>
+            <input
+              type="color"
+              id="segmentColor"
+              value={formData.segmentColor || "#FFFFC5"}
+              onChange={(e) => handleInputChange("segmentColor", e.target.value)}
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="crosshairColor">Crosshair Color:</label>
+            <input
+              type="color"
+              id="crosshairColor"
+              value={formData.crosshairColor || "#FF0000"}
+              onChange={(e) => handleInputChange("crosshairColor", e.target.value)}
+            />
+          </div>
+        </div>
+
+        {errors.calculation && (
+          <div className="error-message">
+            {errors.calculation}
+          </div>
+        )}
+
+        <div className="form-section">
+          <button 
+            className="calculate-button"
+            onClick={calculatePixelDimension}
+            disabled={isCalculating || !formData.altitude || !formData.imageWidth}
+          >
+            {isCalculating ? "Calculating..." : "Calculate Pixel Dimension"}
+          </button>
+
+          {pixelDimension && (
+            <div className="pixel-dimension-result">
+              <p><strong>Pixel Dimension:</strong> {pixelDimension.toFixed(6)} m/pixel</p>
+            </div>
+          )}
+
+          <button 
+            className="submit-button"
+            onClick={handleSubmit}
+            disabled={!pixelDimension}
+          >
+            Submit Parameters
+          </button>
+        </div>
+
+        <div className="form-section">
+          <h3>💾 Data Management</h3>
+          <button 
+            className="export-button"
+            onClick={exportData}
+          >
+            Export Data to CSV
+          </button>
+          
+          <button 
+            className="saved-data-button"
+            onClick={onShowSavedData}
+          >
+            View Saved Data
+          </button>
+        </div>
+
+        {/* NEW: Display current whale information */}
+        {currentWhaleId && (
+          <div className="form-section current-whale-info">
+            <h3>🎯 Current Session</h3>
+            <div className="whale-info-display">
+              <p><strong>Active Whale:</strong> {currentWhaleId}</p>
+              {formData.whaleName && (
+                <p><strong>Base Name:</strong> {formData.whaleName}</p>
+              )}
+              <small>All measurements will be saved under this whale ID</small>
+            </div>
+          </div>
+        )}
       </div>
-
-      <div className="input-group">
-        <label htmlFor="crosshair-size" style={labelStyle}>Crosshair Size</label>
-        <input
-          type="range"
-          id="crosshair-size"
-          name="crosshairSize"
-          min="0"
-          max="100"
-          value={formData.crosshairSize}
-          onChange={(e) => handleChange("crosshairSize", e.target.value)}
-          disabled={isExtractingMetadata}
-          aria-valuenow={formData.crosshairSize}
-          aria-valuemin="0"
-          aria-valuemax="100"
-          aria-label="Adjust crosshair size"
-        />
-      </div>
-
-      <div className="input-group">
-        <label htmlFor="crosshair-color" style={labelStyle}>Crosshair Color</label>
-        <input
-          type="color"
-          id="crosshair-color"
-          name="crosshairColor"
-          value={formData.crosshairColor || "#FF0000"}
-          onChange={(e) => handleChange("crosshairColor", e.target.value)}
-          disabled={isExtractingMetadata}
-          className="color-picker"
-          aria-label="Select crosshair color"
-        />
-      </div>
-
-      <div className="input-group">
-        <label htmlFor="segment-color" style={labelStyle}>Segment Color</label>
-        <input
-          type="color"
-          id="segment-color"
-          name="segmentColor"
-          value={formData.segmentColor}
-          onChange={(e) => handleChange("segmentColor", e.target.value)}
-          disabled={isExtractingMetadata}
-          className="color-picker"
-          aria-label="Select segment color"
-        />
-      </div>
-
-      {inputConflict && (
-        <p style={{ color: "#cc7000", fontWeight: "bold" }} role="alert">
-          ⚠️ Your input does not match extracted metadata.
-        </p>
-      )}
-
-      {error && (
-        <p style={{ color: "#d32f2f", fontWeight: "bold" }} role="alert" aria-live="assertive">
-          {error}
-        </p>
-      )}
-
-      <button 
-        className="submit-button" 
-        onClick={handleSubmit}
-        disabled={isExtractingMetadata}
-        aria-label="Submit configuration"
-      >
-        Submit
-      </button>
-      <p style={{ fontSize: "0.8em", color: "#000000", marginTop: "4px", marginBottom: "12px" }}>
-        <span aria-hidden="true">⚠️</span> <span style={{ fontWeight: "bold" }}>required field</span>
-      </p>
-      
-      {/* ADD THIS NEW BUTTON HERE - right after the export button */}
-      <button 
-        className="export-button" 
-        onClick={handleExport}
-        disabled={isExtractingMetadata}
-        aria-label="Export data to CSV"
-        style={{ marginBottom: "8px" }}
-      >
-        Export 📤
-      </button>
-      
-      {/* ADD THIS NEW BUTTON */}
-      <button
-        className="saved-data-button"
-        onClick={onShowSavedData}
-        disabled={isExtractingMetadata}
-        style={{
-          width: "100%",
-          padding: "10px",
-          background: "#2196F3",
-          color: "white",
-          border: "none",
-          borderRadius: "4px",
-          cursor: "pointer",
-          fontSize: "14px",
-          fontWeight: "bold"
-        }}
-        aria-label="View previously saved data and measurements"
-      >
-        📁 View Saved Data
-      </button>
     </div>
   );
 }

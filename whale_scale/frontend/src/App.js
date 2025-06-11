@@ -5,6 +5,7 @@
 // state management for measurement tools, dynamic tab switching, sidebar inputs, measurement submission (MorphoMetriX),
 // and backend-driven volume/body condition calculations.
 // Integrates core components (Sidebar, TopBar, ImageViewer, Data, About) and manages data flow between them
+// UPDATED: Added whale naming functionality with incremental numbering
 
 "use client"
 import React, { useState, useEffect } from "react"
@@ -13,7 +14,7 @@ import TopBar from "./components/TopBar"
 import ImageViewer from "./components/ImageViewer"
 import Data from "./components/Data"
 import About from "./components/About"
-import SavedData from "./components/SavedData"  // ADD THIS IMPORT
+import SavedData from "./components/SavedData"
 import "./App.css"
 import * as exifr from "exifr"
 
@@ -56,7 +57,8 @@ export default function App() {
     crosshairSize: 50,
     crosshairOpacity: 100,
     segmentColor: "#FFFFC5",
-    crosshairColor: "#FF0000"
+    crosshairColor: "#FF0000",
+    whaleName: ""  // NEW: Add whale name to form data
   })
   const [widthSegments, setWidthSegments] = useState(null)
   const [rulerData, setRulerData] = useState(null)
@@ -70,8 +72,53 @@ export default function App() {
   const [sidebarSubmitted, setSidebarSubmitted] = useState(false)
   // Add loading state for metadata extraction
   const [isExtractingMetadata, setIsExtractingMetadata] = useState(false)
-  // ADD THIS NEW STATE FOR SAVED DATA
   const [savedDataVisible, setSavedDataVisible] = useState(false)
+  
+  // NEW: Add state for whale naming
+  const [whaleNameCounts, setWhaleNameCounts] = useState({}) // Track count for each whale name
+  const [currentWhaleId, setCurrentWhaleId] = useState(null) // Current whale identifier with number
+
+  // NEW: Function to generate whale identifier with incremental number
+  const generateWhaleId = async (whaleName) => {
+    if (!whaleName || whaleName.trim() === "") {
+      return "unnamed_whale";
+    }
+    
+    const cleanName = whaleName.trim();
+    
+    try {
+      // Fetch existing images to count how many times this whale name has been used
+      const response = await fetch("/api/collatrix/get_user_images/", {
+        method: "GET",
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const images = data.images || [];
+        
+        // Count existing images with this whale name
+        const existingCount = images.filter(img => {
+          // Extract whale name from filename (e.g., "Moby1.jpg" -> "Moby")
+          const filename = img.filename || img.original_filename || "";
+          const nameMatch = filename.match(/^([A-Za-z_]+)\d*\./);
+          return nameMatch && nameMatch[1].toLowerCase() === cleanName.toLowerCase();
+        }).length;
+        
+        // Generate new ID with incremented number
+        const newNumber = existingCount + 1;
+        const whaleId = `${cleanName}${newNumber}`;
+        
+        console.log(`Generated whale ID: ${whaleId} (found ${existingCount} existing images)`);
+        return whaleId;
+      }
+    } catch (error) {
+      console.error("Error fetching existing images for whale naming:", error);
+    }
+    
+    // Fallback: just use the name with "1"
+    return `${cleanName}1`;
+  };
 
   // Handle real-time input changes from Sidebar
   const handleInputChange = (name, value) => {
@@ -96,16 +143,22 @@ export default function App() {
       setImage(imageUrl)
       setImageFile(file)
       
+      // NEW: Generate whale ID when image is uploaded
+      if (formData.whaleName) {
+        const whaleId = await generateWhaleId(formData.whaleName);
+        setCurrentWhaleId(whaleId);
+      }
+      
       // Start loading state
       setIsExtractingMetadata(true)
 
       try {
-        const formData = new FormData()
-        formData.append("image", file)
+        const formDataUpload = new FormData()
+        formDataUpload.append("image", file)
 
         const response = await fetch("/api/collatrix/extract_metadata/", {
           method: "POST",
-          body: formData,
+          body: formDataUpload,
         })
 
         if (response.ok) {
@@ -150,6 +203,12 @@ export default function App() {
     // but this ensures consistency
     setFormData(dataFromSidebar)
     setSidebarSubmitted(true)
+
+    // NEW: Generate whale ID when submitting if not already generated
+    if (dataFromSidebar.whaleName && !currentWhaleId) {
+      const whaleId = await generateWhaleId(dataFromSidebar.whaleName);
+      setCurrentWhaleId(whaleId);
+    }
 
     if (dataFromSidebar.pixelDimension) {
       setPixelDimension(dataFromSidebar.pixelDimension)
@@ -210,9 +269,19 @@ export default function App() {
     }
   }
 
-  // FIXED: saveMeasurementToDatabase function in App.js
+  // UPDATED: Modified saveMeasurementToDatabase to include whale name
   const saveMeasurementToDatabase = async (measurement) => {
     try {
+      // Use currentWhaleId or generate one if not available
+      let subjectName = currentWhaleId;
+      if (!subjectName && formData.whaleName) {
+        subjectName = await generateWhaleId(formData.whaleName);
+        setCurrentWhaleId(subjectName);
+      }
+      if (!subjectName) {
+        subjectName = imageFile?.name || "unnamed_whale";
+      }
+
       // For ruler_complete measurements, pass the metadata directly
       const measurementPayload = {
         measurement_type: measurement.measurement_type,
@@ -220,8 +289,11 @@ export default function App() {
         scaled_dimension: measurement.scaled_dimension || 0,
         coordinate_data: measurement.coordinate_data || [],
         // Pass the metadata directly (especially for ruler_complete measurements)
-        metadata: measurement.metadata || {
-          subject_name: measurement.subject_name,
+        metadata: {
+          ...measurement.metadata,
+          whale_name: formData.whaleName,
+          whale_id: subjectName,
+          subject_name: subjectName,
           user_image_path: measurement.user_image_path,
           image_timestamp: measurement.image_timestamp,
           measurement_timestamp: measurement.measurement_timestamp
@@ -257,15 +329,22 @@ export default function App() {
     }
   };
 
-  // FINAL FIXED: Modified handleBackendResult to properly handle ruler measurements
+  // UPDATED: Modified handleBackendResult to use whale ID for subject name
   const handleBackendResult = (result) => {
     console.log("Backend result received:", result);
     setBackendResult(result);
 
+    // Use currentWhaleId as subject name
+    const subjectName = currentWhaleId || formData.whaleName || imageFile?.name || "unnamed_whale";
+
     // Use measurement_type instead of type
     if (result.measurement_type === "curve_length") {
       // Save manual curve measurements immediately
-      saveMeasurementToDatabase(result);
+      const enhancedResult = {
+        ...result,
+        subject_name: subjectName
+      };
+      saveMeasurementToDatabase(enhancedResult);
       
       setManualCurveData({
         type: "manual_curve",
@@ -283,7 +362,8 @@ export default function App() {
           const simpleRulerMeasurement = {
             ...result,
             measurement_type: "ruler",
-            measurement_name: "Total Length Measurement"
+            measurement_name: "Total Length Measurement",
+            subject_name: subjectName
           };
           saveMeasurementToDatabase(simpleRulerMeasurement);
           
@@ -300,7 +380,10 @@ export default function App() {
             curveLength: result.scaled_dimension,
             widthSegments: [],
             segments: expectedSegments,
-            totalLengthResult: result, // Store for later saving
+            totalLengthResult: {
+              ...result,
+              subject_name: subjectName
+            }, // Store for later saving
           });
         }
       } else {
@@ -315,7 +398,10 @@ export default function App() {
             index: percentage,
             length: result.scaled_dimension.toFixed(4),
             coords: result.coordinate_data,
-            result: result // Store the individual segment result
+            result: {
+              ...result,
+              subject_name: subjectName
+            } // Store the individual segment result
           };
           
           const updatedWidthSegments = [...(prev.widthSegments || []), newSegment];
@@ -326,14 +412,16 @@ export default function App() {
             // Save the complete ruler measurement with all width segments
             const completeRulerMeasurement = {
               measurement_type: "ruler_complete",
-              measurement_name: `Ruler with ${expectedSegments} Width Segments`,
+              measurement_name: `${subjectName} - Ruler with ${expectedSegments} Width Segments`,
               scaled_dimension: prev.totalLengthResult.scaled_dimension,
               coordinate_data: prev.totalLengthResult.coordinate_data,
               metadata: {
                 total_length: prev.totalLengthResult,
                 width_segments: updatedWidthSegments.map(seg => seg.result),
                 segment_count: expectedSegments,
-                subject_name: prev.totalLengthResult.subject_name,
+                whale_name: formData.whaleName,
+                whale_id: subjectName,
+                subject_name: subjectName,
                 user_image_path: prev.totalLengthResult.user_image_path,
                 image_timestamp: prev.totalLengthResult.image_timestamp,
                 measurement_timestamp: new Date().toISOString()
@@ -352,7 +440,11 @@ export default function App() {
       }
     } else if (result.measurement_type === "area") {
       // Save area measurements immediately
-      saveMeasurementToDatabase(result);
+      const enhancedResult = {
+        ...result,
+        subject_name: subjectName
+      };
+      saveMeasurementToDatabase(enhancedResult);
       
       setAreaData({
         type: "area",
@@ -361,7 +453,11 @@ export default function App() {
       });
     } else if (result.measurement_type === "angle") {
       // Save angle measurements immediately
-      saveMeasurementToDatabase(result);
+      const enhancedResult = {
+        ...result,
+        subject_name: subjectName
+      };
+      saveMeasurementToDatabase(enhancedResult);
       
       setAngleData({
         type: "angle",
@@ -395,6 +491,17 @@ export default function App() {
         segments: widthSegments.length,
       });
       
+      // NEW: Extract and set whale name if available
+      if (metadata.whale_name) {
+        setFormData(prev => ({
+          ...prev,
+          whaleName: metadata.whale_name
+        }));
+      }
+      if (metadata.whale_id) {
+        setCurrentWhaleId(metadata.whale_id);
+      }
+      
       setBackendMessage(`✅ Loaded ruler measurement: ${(totalLength.scaled_dimension || measurement.scaled_dimension)?.toFixed(2)}m with ${widthSegments.length} width segments`);
       
     } else if (measurement.measurement_type === "ruler" || measurement.measurement_type === "TL") {
@@ -405,6 +512,18 @@ export default function App() {
         widthSegments: [],
         segments: 0,
       });
+      
+      // NEW: Extract and set whale name if available
+      const metadata = measurement.metadata || {};
+      if (metadata.whale_name) {
+        setFormData(prev => ({
+          ...prev,
+          whaleName: metadata.whale_name
+        }));
+      }
+      if (metadata.whale_id) {
+        setCurrentWhaleId(metadata.whale_id);
+      }
       
       setBackendMessage(`✅ Loaded total length measurement: ${measurement.scaled_dimension.toFixed(2)}m`);
       
@@ -433,6 +552,18 @@ export default function App() {
         curvePoints: measurement.coordinate_data,
       });
       
+      // NEW: Extract and set whale name if available
+      const metadata = measurement.metadata || {};
+      if (metadata.whale_name) {
+        setFormData(prev => ({
+          ...prev,
+          whaleName: metadata.whale_name
+        }));
+      }
+      if (metadata.whale_id) {
+        setCurrentWhaleId(metadata.whale_id);
+      }
+      
       setBackendMessage(`✅ Loaded saved curve: ${measurement.scaled_dimension.toFixed(2)}m`);
       
     } else if (measurement.measurement_type === "area") {
@@ -442,6 +573,18 @@ export default function App() {
         polygonPoints: measurement.coordinate_data,
       });
       
+      // NEW: Extract and set whale name if available
+      const metadata = measurement.metadata || {};
+      if (metadata.whale_name) {
+        setFormData(prev => ({
+          ...prev,
+          whaleName: metadata.whale_name
+        }));
+      }
+      if (metadata.whale_id) {
+        setCurrentWhaleId(metadata.whale_id);
+      }
+      
       setBackendMessage(`✅ Loaded saved area: ${measurement.scaled_dimension.toFixed(2)}m²`);
       
     } else if (measurement.measurement_type === "angle") {
@@ -450,6 +593,18 @@ export default function App() {
         angle: measurement.scaled_dimension,
         anglePoints: measurement.coordinate_data,
       });
+      
+      // NEW: Extract and set whale name if available
+      const metadata = measurement.metadata || {};
+      if (metadata.whale_name) {
+        setFormData(prev => ({
+          ...prev,
+          whaleName: metadata.whale_name
+        }));
+      }
+      if (metadata.whale_id) {
+        setCurrentWhaleId(metadata.whale_id);
+      }
       
       setBackendMessage(`✅ Loaded saved angle: ${measurement.scaled_dimension.toFixed(2)}°`);
     }
@@ -483,10 +638,13 @@ const handleVolumeCalculation = async () => {
     // Sort width segments by percentage/position
     const sortedSegments = widthSegments.sort((a, b) => parseFloat(a.index) - parseFloat(b.index));
     
+    // Use whale ID as Image_ID and Image name
+    const whaleId = currentWhaleId || formData.whaleName || imageFile?.name || "unnamed_whale";
+    
     // Create measurement object with TL and width measurements
     const measurementObj = {
-      Image_ID: imageFile?.name || "current_image",
-      Image: imageFile?.name || "current_image",
+      Image_ID: whaleId,
+      Image: whaleId,
       TL: rulerData.curveLength, // Use the actual curve length without division
     };
 
@@ -534,7 +692,7 @@ const handleVolumeCalculation = async () => {
         const baiKey = Object.keys(result).find(k => k.startsWith('BAIpar_') && result[k] > 0);
         const saKey = Object.keys(result).find(k => k.startsWith('SA_') && result[k] > 0);
         
-        let resultMessage = "🐋 Body Condition Results:\n";
+        let resultMessage = `🐋 Body Condition Results for ${whaleId}:\n`;
         
         if (bvKey && result[bvKey] > 0) {
           resultMessage += `**Body Volume (${bvKey}):** ${result[bvKey].toFixed(4)}\n`;
@@ -562,7 +720,8 @@ const handleVolumeCalculation = async () => {
           volume: bvKey ? result[bvKey] : null,
           areaIndex: baiKey ? result[baiKey] : null,
           surfaceArea: saKey ? result[saKey] : null,
-          fullResults: result
+          fullResults: result,
+          whaleId: whaleId // NEW: Store whale ID with body condition data
         });
       } else {
         setBackendMessage("⚠️ Volume calculation completed but no results returned");
@@ -587,7 +746,8 @@ const handleVolumeCalculation = async () => {
         onSubmit={handleSubmit}
         onInputChange={handleInputChange}
         isExtractingMetadata={isExtractingMetadata}
-        onShowSavedData={() => setSavedDataVisible(true)}  // ADD THIS PROP
+        onShowSavedData={() => setSavedDataVisible(true)}
+        currentWhaleId={currentWhaleId}  // NEW: Pass current whale ID to sidebar
       />
       <div className="main-content">
         <TopBar
@@ -643,7 +803,7 @@ const handleVolumeCalculation = async () => {
               crosshairColor={formData.crosshairColor}
               crosshairSize={parseInt(formData.crosshairSize) || 10}
               pixelDimension={pixelDimension}
-              subjectName={imageFile?.name || "whale_measurement"}
+              subjectName={currentWhaleId || formData.whaleName || imageFile?.name || "unnamed_whale"}  // UPDATED: Use whale ID
               formData={formData}
             />
             {backendMessage && (
@@ -676,6 +836,7 @@ const handleVolumeCalculation = async () => {
               angleData={angleData}
               bodyConditionData={bodyConditionData}
               pixelDimension={pixelDimension}
+              currentWhaleId={currentWhaleId}  // NEW: Pass whale ID to Data component
             />
           </>
         ) : (
