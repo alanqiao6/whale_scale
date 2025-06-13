@@ -5,6 +5,7 @@
 // and interaction with tool buttons (ruler, pencil, area, angle, help).
 // It also dynamically retrieves CSRF tokens and displays modals (AuthModal, HelpModal).
 // UPDATED: Added event listener for showing login modal from other components
+// FIXED: Dispatch auth change events to notify other components
 
 "use client"
 
@@ -93,9 +94,24 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
       if (response.ok) {
         const data = await response.json()
         setUser(data)
+        // FIXED: Dispatch auth change event when user state changes
+        window.dispatchEvent(new CustomEvent('authStateChanged', { 
+          detail: { user: data, isAuthenticated: true } 
+        }));
+      } else {
+        setUser(null)
+        // FIXED: Dispatch auth change event when user is not authenticated
+        window.dispatchEvent(new CustomEvent('authStateChanged', { 
+          detail: { user: null, isAuthenticated: false } 
+        }));
       }
     } catch (error) {
       console.error('Auth check failed:', error)
+      setUser(null)
+      // FIXED: Dispatch auth change event on error
+      window.dispatchEvent(new CustomEvent('authStateChanged', { 
+        detail: { user: null, isAuthenticated: false } 
+      }));
     }
   }
 
@@ -117,6 +133,10 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
       
       if (response.ok) {
         setUser(null)
+        // FIXED: Dispatch auth change event after logout
+        window.dispatchEvent(new CustomEvent('authStateChanged', { 
+          detail: { user: null, isAuthenticated: false } 
+        }));
         localStorage.clear()
         sessionStorage.clear()
         window.location.reload()
@@ -274,6 +294,10 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
         onAuthSuccess={(userData) => {
           setUser(userData)
           setShowAuthModal(false)
+          // FIXED: Dispatch auth change event after successful login
+          window.dispatchEvent(new CustomEvent('authStateChanged', { 
+            detail: { user: userData, isAuthenticated: true } 
+          }));
         }}
       />
       <HelpModal

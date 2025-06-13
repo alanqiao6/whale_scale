@@ -5,6 +5,7 @@
 // and submit data to the backend for pixel dimension calculation via Collatrix.
 // Also enables CSV export via an exposed global export function and handles basic validation and error messaging.
 // UPDATED: Added authentication check for saved data button
+// FIXED: Listen for auth state changes to update UI without page refresh
 
 "use client";
 import React, { useState, useEffect } from "react";
@@ -17,15 +18,31 @@ const API_BASE_URL = window.location.origin;
 export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, onInputChange, isExtractingMetadata, onShowSavedData }) {
   const [error, setError] = useState("");
   const [inputConflict, setInputConflict] = useState(false);
-  const [user, setUser] = useState(null); // NEW: Track authentication status
-  const [showLoginPrompt, setShowLoginPrompt] = useState(false); // NEW: Show login prompt modal
+  const [user, setUser] = useState(null); // Track authentication status
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false); // Show login prompt modal
   
-  // NEW: Check authentication status on component mount
+  // Check authentication status on component mount
   useEffect(() => {
     checkAuthStatus();
   }, []);
 
-  // NEW: Function to check if user is authenticated
+  // FIXED: Listen for auth state changes from other components
+  useEffect(() => {
+    const handleAuthStateChange = (event) => {
+      const { user: newUser, isAuthenticated } = event.detail;
+      console.log('Sidebar received auth state change:', { newUser, isAuthenticated });
+      setUser(isAuthenticated ? newUser : null);
+    };
+
+    window.addEventListener('authStateChanged', handleAuthStateChange);
+
+    // Cleanup event listener
+    return () => {
+      window.removeEventListener('authStateChanged', handleAuthStateChange);
+    };
+  }, []);
+
+  // Function to check if user is authenticated
   const checkAuthStatus = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/accounts/api/user/`, {
@@ -51,7 +68,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
     }
   };
 
-  // NEW: Handle saved data button click
+  // Handle saved data button click
   const handleSavedDataClick = () => {
     if (user) {
       // User is authenticated, show saved data
@@ -62,7 +79,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
     }
   };
 
-  // NEW: Close login prompt and redirect to login
+  // Close login prompt and redirect to login
   const handleLoginPromptClose = () => {
     setShowLoginPrompt(false);
   };
@@ -182,7 +199,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
         <p id="upload-help" className="sr-only">Choose an image to upload for processing.</p>
       </div>
 
-      {/* ONLY NEW ADDITION: Whale name input */}
+      {/* Whale name input */}
       <div className="input-group">
         <label htmlFor="whale-name" style={labelStyle}>Whale Name</label>
         <input
@@ -308,7 +325,6 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
         <span aria-hidden="true">⚠️</span> <span style={{ fontWeight: "bold" }}>required field</span>
       </p>
       
-      {/* ADD THIS NEW BUTTON HERE - right after the export button */}
       <button 
         className="export-button" 
         onClick={handleExport}
@@ -319,7 +335,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
         Export 📤
       </button>
       
-      {/* UPDATED: Authentication-protected saved data button */}
+      {/* UPDATED: Authentication-protected saved data button with real-time auth updates */}
       <button
         className="saved-data-button"
         onClick={handleSavedDataClick}
@@ -341,7 +357,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
         📁 {user ? "View Saved Data" : "View Saved Data (Login Required)"}
       </button>
 
-      {/* NEW: Login prompt modal */}
+      {/* Login prompt modal */}
       {showLoginPrompt && (
         <div style={{
           position: "fixed",
@@ -386,7 +402,6 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
                 onClick={() => {
                   handleLoginPromptClose();
                   // Trigger the login modal from TopBar
-                  // You'll need to pass this function down from App.js through TopBar
                   window.dispatchEvent(new CustomEvent('showLoginModal'));
                 }}
                 style={{
