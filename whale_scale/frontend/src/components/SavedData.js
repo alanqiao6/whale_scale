@@ -459,71 +459,81 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
       {selectedImageId && (
         <div className="measurements-list">
           <h3>Measurements for Selected Image</h3>
-          {imageMeasurements.length === 0 ? (
-            <p>No measurements found for this image.</p>
-          ) : (
-            <div className="measurements-grid">
-              {imageMeasurements.map((measurement) => {
-                const typeDisplay = getMeasurementTypeDisplay(measurement);
-                const isRulerComplete = measurement.measurement_type === 'ruler_complete';
-                
-                return (
-                  <div key={measurement.id} className={`measurement-card ${isRulerComplete ? 'ruler-complete' : ''}`}>
-                    <div className="measurement-header">
-                      <span className="measurement-type">
-                        {typeDisplay.icon} {typeDisplay.label}
-                      </span>
-                      <span className="measurement-date">
-                        {formatDate(measurement.created_date)}
-                      </span>
-                    </div>
-                    
-                    <div className="measurement-details">
-                      {measurement.measurement_name && (
-                        <p><strong>Name:</strong> {measurement.measurement_name}</p>
-                      )}
+          {(() => {
+            // FILTER OUT individual width segments and legacy TL_w measurements
+            const filteredMeasurements = imageMeasurements.filter(measurement => {
+              return measurement.measurement_type !== 'width_segment' && 
+                     !measurement.measurement_type.startsWith('TL_w');
+            });
+            
+            if (filteredMeasurements.length === 0) {
+              return <p>No measurements found for this image.</p>;
+            }
+            
+            return (
+              <div className="measurements-grid">
+                {filteredMeasurements.map((measurement) => {
+                  const typeDisplay = getMeasurementTypeDisplay(measurement);
+                  const isRulerComplete = measurement.measurement_type === 'ruler_complete';
+                  
+                  return (
+                    <div key={measurement.id} className={`measurement-card ${isRulerComplete ? 'ruler-complete' : ''}`}>
+                      <div className="measurement-header">
+                        <span className="measurement-type">
+                          {typeDisplay.icon} {typeDisplay.label}
+                        </span>
+                        <span className="measurement-date">
+                          {formatDate(measurement.created_date)}
+                        </span>
+                      </div>
                       
-                      {/* Render ruler details specially  */}
-                      {isRulerComplete ? (
-                        renderRulerDetails(measurement)
-                      ) : (
-                        <>
-                          <p><strong>Value:</strong> {measurement.scaled_dimension?.toFixed(4) || 'N/A'}</p>
-                          <p><strong>Unit:</strong> {typeDisplay.unit}</p>
-                        </>
-                      )}
+                      <div className="measurement-details">
+                        {measurement.measurement_name && (
+                          <p><strong>Name:</strong> {measurement.measurement_name}</p>
+                        )}
+                        
+                        {/* Render ruler details specially  */}
+                        {isRulerComplete ? (
+                          renderRulerDetails(measurement)
+                        ) : (
+                          <>
+                            <p><strong>Value:</strong> {measurement.scaled_dimension?.toFixed(4) || 'N/A'}</p>
+                            <p><strong>Unit:</strong> {typeDisplay.unit}</p>
+                          </>
+                        )}
+                        
+                        {/* Show whale information if available */}
+                        {measurement.metadata && (
+                          (() => {
+                            const metadata = typeof measurement.metadata === 'string' 
+                              ? (() => {
+                                  try { return JSON.parse(measurement.metadata); }
+                                  catch (e) { return {}; }
+                                })()
+                              : measurement.metadata;
+                            
+                            return (metadata.whale_name || metadata.whale_id) && (
+                              <div className="whale-info-in-measurement">
+                                {metadata.whale_name && <p><strong>Whale:</strong> {metadata.whale_name}</p>}
+                                {metadata.whale_id && <p><strong>Whale ID:</strong> {metadata.whale_id}</p>}
+                              </div>
+                            );
+                          })()
+                        )}
+                      </div>
                       
-                      {/* Show whale information if available */}
-                      {measurement.metadata && (
-                        (() => {
-                          const metadata = typeof measurement.metadata === 'string' 
-                            ? (() => {
-                                try { return JSON.parse(measurement.metadata); }
-                                catch (e) { return {}; }
-                              })()
-                            : measurement.metadata;
-                          
-                          return (metadata.whale_name || metadata.whale_id) && (
-                            <div className="whale-info-in-measurement">
-                              {metadata.whale_name && <p><strong>Whale:</strong> {metadata.whale_name}</p>}
-                              {metadata.whale_id && <p><strong>Whale ID:</strong> {metadata.whale_id}</p>}
-                            </div>
-                          );
-                        })()
-                      )}
+                      <button 
+                        className="load-measurement-btn"
+                        onClick={() => handleLoadMeasurement(measurement)}
+                      >
+                        Load into Viewer
+                      </button>
                     </div>
-                    
-                    <button 
-                      className="load-measurement-btn"
-                      onClick={() => handleLoadMeasurement(measurement)}
-                    >
-                      Load into Viewer
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>
