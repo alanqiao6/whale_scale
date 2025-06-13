@@ -1,6 +1,6 @@
 // File: SavedData.js
 // Purpose: Component to display and manage saved measurements and images
-// FIXED: Better whale name extraction and grouping logic
+// FIXED: Use metadata whale name instead of filename for grouping
 
 import React, { useState, useEffect } from "react";
 import "./SavedData.css";
@@ -35,7 +35,53 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
       
       if (response.ok) {
         const data = await response.json();
-        setSavedImages(data.images);
+        
+        // Fetch measurements for each image to get whale metadata
+        const imagesWithMetadata = await Promise.all(
+          data.images.map(async (image) => {
+            try {
+              const measurementResponse = await fetch(`/api/collatrix/get_image_measurements/?image_id=${image.id}`, {
+                method: "GET",
+                credentials: 'include',
+              });
+              
+              if (measurementResponse.ok) {
+                const measurementData = await measurementResponse.json();
+                const measurements = measurementData.measurements || [];
+                
+                // Extract whale metadata from the first measurement that has it
+                let whaleMetadata = null;
+                for (const measurement of measurements) {
+                  let metadata = measurement.metadata || measurement.measurement_metadata || {};
+                  
+                  if (typeof metadata === 'string') {
+                    try {
+                      metadata = JSON.parse(metadata);
+                    } catch (e) {
+                      metadata = {};
+                    }
+                  }
+                  
+                  if (metadata.whale_name || metadata.whale_id) {
+                    whaleMetadata = metadata;
+                    break;
+                  }
+                }
+                
+                return {
+                  ...image,
+                  whaleMetadata: whaleMetadata
+                };
+              }
+            } catch (error) {
+              console.error(`Error fetching measurements for image ${image.id}:`, error);
+            }
+            
+            return image;
+          })
+        );
+        
+        setSavedImages(imagesWithMetadata);
       } else {
         setError("Failed to fetch saved images");
       }
@@ -47,17 +93,52 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
     }
   };
 
-  // IMPROVED: Better whale name extraction logic
-  const extractWhaleInfo = (filename) => {
+  // FIXED: Extract whale info with priority to metadata over filename
+  const extractWhaleInfo = (image) => {
+    // First priority: Check if we have whale metadata from measurements
+    if (image.whaleMetadata) {
+      const metadata = image.whaleMetadata;
+      if (metadata.whale_name) {
+        // Extract number from whale_id if available, otherwise default to 1
+        const whaleNumber = metadata.whale_id ? 
+          metadata.whale_id.replace(metadata.whale_name, '') || "1" : "1";
+        
+        return {
+          whaleName: metadata.whale_name,
+          whaleNumber: whaleNumber,
+          source: 'metadata'
+        };
+      }
+      
+      if (metadata.whale_id) {
+        // Try to extract name and number from whale_id
+        const match = metadata.whale_id.match(/^([A-Za-z_]+)(\d*)$/);
+        if (match) {
+          return {
+            whaleName: match[1],
+            whaleNumber: match[2] || "1",
+            source: 'metadata'
+          };
+        }
+        
+        return {
+          whaleName: metadata.whale_id,
+          whaleNumber: "1",
+          source: 'metadata'
+        };
+      }
+    }
+    
+    // Fallback: Extract from filename
+    const filename = image.filename || image.original_filename;
     if (!filename) {
-      return { whaleName: "Unknown", whaleNumber: "1" };
+      return { whaleName: "Unknown", whaleNumber: "1", source: 'fallback' };
     }
 
     // Remove file extension
     const nameWithoutExt = filename.replace(/\.[^/.]+$/, "");
     
     // Try to match whale name and number patterns
-    // Patterns like: "Moby1", "whale_A2", "example_whale2", etc.
     const patterns = [
       /^([A-Za-z_]+)(\d+)$/, // Simple pattern: letters + number
       /^([A-Za-z_\s]+?)[\s_-]*(\d+)$/, // Letters with separators + number
@@ -67,8 +148,9 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
       const match = nameWithoutExt.match(pattern);
       if (match) {
         return {
-          whaleName: match[1].trim().replace(/[_\s]+$/, ''), // Clean trailing underscores/spaces
-          whaleNumber: match[2]
+          whaleName: match[1].trim().replace(/[_\s]+$/, ''),
+          whaleNumber: match[2],
+          source: 'filename'
         };
       }
     }
@@ -76,16 +158,18 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
     // Fallback: treat entire name as whale name
     return {
       whaleName: nameWithoutExt,
-      whaleNumber: "1"
+      whaleNumber: "1",
+      source: 'filename'
     };
   };
 
-  // IMPROVED: Group images by whale name with better extraction
+  // FIXED: Group images using metadata-first whale extraction
   const groupImagesByWhale = () => {
     const groups = {};
     
     savedImages.forEach(image => {
-      const { whaleName } = extractWhaleInfo(image.filename || image.original_filename);
+      const whaleInfo = extractWhaleInfo(image);
+      const whaleName = whaleInfo.whaleName;
       
       if (!groups[whaleName]) {
         groups[whaleName] = [];
@@ -93,7 +177,7 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
       
       groups[whaleName].push({
         ...image,
-        whaleInfo: extractWhaleInfo(image.filename || image.original_filename)
+        whaleInfo: whaleInfo
       });
     });
     
@@ -246,7 +330,7 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
     );
   };
 
-  // IMPROVED: Render whale-grouped view with better naming
+  // FIXED: Render whale-grouped view with metadata-based naming
   const renderWhaleGroupedView = () => {
     const whaleNames = Object.keys(whaleGroups).sort();
     
@@ -263,7 +347,12 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
             </div>
             <div className="whale-images-grid">
               {whaleGroups[whaleName].map((image) => {
-                const displayName = `${image.whaleInfo.whaleName}${image.whaleInfo.whaleNumber}`;
+                const whaleInfo = image.whaleInfo;
+                const displayName = `${whaleInfo.whaleName}${whaleInfo.whaleNumber}`;
+                
+                // Show source indicator for debugging
+                const sourceIndicator = whaleInfo.source === 'metadata' ? '✅' : 
+                                      whaleInfo.source === 'filename' ? '📄' : '❓';
                 
                 return (
                   <div 
@@ -272,13 +361,16 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
                     onClick={() => fetchImageMeasurements(image.id)}
                   >
                     <div className="image-info">
-                      <h5>{displayName}</h5>
+                      <h5>{sourceIndicator} {displayName}</h5>
                       <p className="image-date">{formatDate(image.upload_date)}</p>
                       <div className="image-metadata">
                         <span>📏 {image.measurement_count} measurements</span>
                         {image.camera_make && <span>📷 {image.camera_make}</span>}
                         {image.focal_length_mm && <span>🔍 {image.focal_length_mm}mm</span>}
                         {image.gps_altitude_m && <span>✈️ {image.gps_altitude_m}m</span>}
+                        <span style={{ fontSize: '11px', color: '#666' }}>
+                          Source: {whaleInfo.source}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -299,24 +391,34 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
 
     return (
       <div className="images-grid">
-        {savedImages.map((image) => (
-          <div 
-            key={image.id} 
-            className={`image-card ${selectedImageId === image.id ? 'selected' : ''}`}
-            onClick={() => fetchImageMeasurements(image.id)}
-          >
-            <div className="image-info">
-              <h4>{image.filename}</h4>
-              <p className="image-date">{formatDate(image.upload_date)}</p>
-              <div className="image-metadata">
-                <span>📏 {image.measurement_count} measurements</span>
-                {image.camera_make && <span>📷 {image.camera_make} {image.camera_model}</span>}
-                {image.focal_length_mm && <span>🔍 {image.focal_length_mm}mm</span>}
-                {image.gps_altitude_m && <span>✈️ {image.gps_altitude_m}m</span>}
+        {savedImages.map((image) => {
+          const whaleInfo = extractWhaleInfo(image);
+          const displayName = `${whaleInfo.whaleName}${whaleInfo.whaleNumber}`;
+          const sourceIndicator = whaleInfo.source === 'metadata' ? '✅' : 
+                                whaleInfo.source === 'filename' ? '📄' : '❓';
+          
+          return (
+            <div 
+              key={image.id} 
+              className={`image-card ${selectedImageId === image.id ? 'selected' : ''}`}
+              onClick={() => fetchImageMeasurements(image.id)}
+            >
+              <div className="image-info">
+                <h4>{sourceIndicator} {displayName}</h4>
+                <p className="image-date">{formatDate(image.upload_date)}</p>
+                <div className="image-metadata">
+                  <span>📏 {image.measurement_count} measurements</span>
+                  {image.camera_make && <span>📷 {image.camera_make} {image.camera_model}</span>}
+                  {image.focal_length_mm && <span>🔍 {image.focal_length_mm}mm</span>}
+                  {image.gps_altitude_m && <span>✈️ {image.gps_altitude_m}m</span>}
+                  <span style={{ fontSize: '11px', color: '#666' }}>
+                    Source: {whaleInfo.source}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
