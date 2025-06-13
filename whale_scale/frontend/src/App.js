@@ -544,15 +544,45 @@ export default function App() {
     }
   };
 
-  // UPDATED: handleLoadSavedMeasurement function to handle both ruler types
+  // UPDATED: handleLoadSavedMeasurement function for simplified ruler storage
   const handleLoadSavedMeasurement = (measurement) => {
     // FIRST: Clear existing measurement data when loading a saved measurement
     clearAllMeasurementData();
     
+    // Helper function to safely parse metadata
+    const getMetadata = (measurement) => {
+      let metadata = measurement.metadata || measurement.measurement_metadata || {};
+      
+      if (typeof metadata === 'string') {
+        try {
+          metadata = JSON.parse(metadata);
+        } catch (e) {
+          console.warn("Failed to parse metadata JSON:", metadata);
+          metadata = {};
+        }
+      }
+      
+      return metadata;
+    };
+    
+    const metadata = getMetadata(measurement);
+    
+    // Helper function to set whale information
+    const setWhaleInfo = (metadata) => {
+      if (metadata.whale_name) {
+        setFormData(prev => ({
+          ...prev,
+          whaleName: metadata.whale_name
+        }));
+      }
+      if (metadata.whale_id) {
+        setCurrentWhaleId(metadata.whale_id);
+      }
+    };
+    
     // Convert saved measurement back to frontend format
     if (measurement.measurement_type === "ruler_complete") {
       // This is a complete ruler measurement with width segments
-      const metadata = measurement.metadata || {};
       const totalLength = metadata.total_length || {};
       const widthSegments = metadata.width_segments || [];
       
@@ -571,17 +601,7 @@ export default function App() {
         segments: widthSegments.length,
       });
       
-      // Extract and set whale name if available
-      if (metadata.whale_name) {
-        setFormData(prev => ({
-          ...prev,
-          whaleName: metadata.whale_name
-        }));
-      }
-      if (metadata.whale_id) {
-        setCurrentWhaleId(metadata.whale_id);
-      }
-      
+      setWhaleInfo(metadata);
       setBackendMessage(`✅ Loaded ruler measurement: ${(totalLength.scaled_dimension || measurement.scaled_dimension)?.toFixed(2)}m with ${widthSegments.length} width segments`);
       
     } else if (measurement.measurement_type === "ruler" || measurement.measurement_type === "TL") {
@@ -593,37 +613,19 @@ export default function App() {
         segments: 0,
       });
       
-      // Extract and set whale name if available
-      const metadata = measurement.metadata || {};
-      if (metadata.whale_name) {
-        setFormData(prev => ({
-          ...prev,
-          whaleName: metadata.whale_name
-        }));
-      }
-      if (metadata.whale_id) {
-        setCurrentWhaleId(metadata.whale_id);
-      }
-      
+      setWhaleInfo(metadata);
       setBackendMessage(`✅ Loaded total length measurement: ${measurement.scaled_dimension.toFixed(2)}m`);
       
+    } else if (measurement.measurement_type === "width_segment") {
+      // IGNORE: Individual width segments since they're now part of ruler_complete
+      // These shouldn't appear in the UI anymore, but handle gracefully if they do
+      setBackendMessage(`ℹ️ Width segments are now part of ruler measurements. Please load the main ruler instead.`);
+      return;
+      
     } else if (measurement.measurement_type.startsWith("TL_w")) {
-      // This is a width segment - add to existing ruler data (legacy format)
-      setRulerData(prev => {
-        if (!prev) return null;
-        
-        const percentage = measurement.measurement_type.replace("TL_w", "");
-        const newSegment = {
-          index: percentage,
-          length: measurement.scaled_dimension.toFixed(4),
-          coords: measurement.coordinate_data
-        };
-        
-        return {
-          ...prev,
-          widthSegments: [...(prev.widthSegments || []), newSegment]
-        };
-      });
+      // LEGACY: Old width segment format - also ignore
+      setBackendMessage(`ℹ️ Legacy width segment detected. Please use the main ruler measurement instead.`);
+      return;
       
     } else if (measurement.measurement_type === "curve_length") {
       setManualCurveData({
@@ -632,18 +634,7 @@ export default function App() {
         curvePoints: measurement.coordinate_data,
       });
       
-      // Extract and set whale name if available
-      const metadata = measurement.metadata || {};
-      if (metadata.whale_name) {
-        setFormData(prev => ({
-          ...prev,
-          whaleName: metadata.whale_name
-        }));
-      }
-      if (metadata.whale_id) {
-        setCurrentWhaleId(metadata.whale_id);
-      }
-      
+      setWhaleInfo(metadata);
       setBackendMessage(`✅ Loaded saved curve: ${measurement.scaled_dimension.toFixed(2)}m`);
       
     } else if (measurement.measurement_type === "area") {
@@ -653,18 +644,7 @@ export default function App() {
         polygonPoints: measurement.coordinate_data,
       });
       
-      // Extract and set whale name if available
-      const metadata = measurement.metadata || {};
-      if (metadata.whale_name) {
-        setFormData(prev => ({
-          ...prev,
-          whaleName: metadata.whale_name
-        }));
-      }
-      if (metadata.whale_id) {
-        setCurrentWhaleId(metadata.whale_id);
-      }
-      
+      setWhaleInfo(metadata);
       setBackendMessage(`✅ Loaded saved area: ${measurement.scaled_dimension.toFixed(2)}m²`);
       
     } else if (measurement.measurement_type === "angle") {
@@ -674,19 +654,14 @@ export default function App() {
         anglePoints: measurement.coordinate_data,
       });
       
-      // Extract and set whale name if available
-      const metadata = measurement.metadata || {};
-      if (metadata.whale_name) {
-        setFormData(prev => ({
-          ...prev,
-          whaleName: metadata.whale_name
-        }));
-      }
-      if (metadata.whale_id) {
-        setCurrentWhaleId(metadata.whale_id);
-      }
-      
+      setWhaleInfo(metadata);
       setBackendMessage(`✅ Loaded saved angle: ${measurement.scaled_dimension.toFixed(2)}°`);
+      
+    } else {
+      // Handle any other measurement types
+      console.warn(`Unknown measurement type: ${measurement.measurement_type}`);
+      setBackendMessage(`⚠️ Unknown measurement type: ${measurement.measurement_type}`);
+      return;
     }
     
     // Switch to measure tab and close saved data view
