@@ -4,6 +4,7 @@
 // It manages tab switching (Measure, Xcertainty, About), authentication status (login/logout via Django backend),
 // and interaction with tool buttons (ruler, pencil, area, angle, help).
 // It also dynamically retrieves CSRF tokens and displays modals (AuthModal, HelpModal).
+// UPDATED: Added event listener for showing login modal from other components
 
 "use client"
 
@@ -60,6 +61,18 @@ export default function TopBar({ activeTab, setActiveTab, activeTool, setActiveT
     };
     
     fetchCsrfToken();
+
+    // NEW: Listen for login modal events from other components
+    const handleShowLoginModal = () => {
+      setShowAuthModal(true);
+    };
+
+    window.addEventListener('showLoginModal', handleShowLoginModal);
+
+    // Cleanup event listener
+    return () => {
+      window.removeEventListener('showLoginModal', handleShowLoginModal);
+    };
   }, [])
 
   const checkAuth = async () => {

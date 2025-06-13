@@ -4,16 +4,69 @@
 // allowing users to upload an image, view or override extracted metadata, adjust configuration parameters (e.g. width segments, crosshair size/color),
 // and submit data to the backend for pixel dimension calculation via Collatrix.
 // Also enables CSV export via an exposed global export function and handles basic validation and error messaging.
+// UPDATED: Added authentication check for saved data button
 
 "use client";
 import React, { useState, useEffect } from "react";
 import "./Sidebar.css";
 
+// Use window.location.origin to determine the base URL dynamically
+const API_BASE_URL = window.location.origin;
+
 // CHANGE THIS LINE: Add onShowSavedData to the function parameters
 export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, onInputChange, isExtractingMetadata, onShowSavedData }) {
   const [error, setError] = useState("");
   const [inputConflict, setInputConflict] = useState(false);
+  const [user, setUser] = useState(null); // NEW: Track authentication status
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false); // NEW: Show login prompt modal
   
+  // NEW: Check authentication status on component mount
+  useEffect(() => {
+    checkAuthStatus();
+  }, []);
+
+  // NEW: Function to check if user is authenticated
+  const checkAuthStatus = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/accounts/api/user/`, {
+        credentials: 'include'
+      });
+      
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        // User is not authenticated
+        setUser(null);
+        return;
+      }
+      
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data);
+      } else {
+        setUser(null);
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      setUser(null);
+    }
+  };
+
+  // NEW: Handle saved data button click
+  const handleSavedDataClick = () => {
+    if (user) {
+      // User is authenticated, show saved data
+      onShowSavedData();
+    } else {
+      // User is not authenticated, show login prompt
+      setShowLoginPrompt(true);
+    }
+  };
+
+  // NEW: Close login prompt and redirect to login
+  const handleLoginPromptClose = () => {
+    setShowLoginPrompt(false);
+  };
+
   // Function to handle image upload from Sidebar
   const handleImageUpload = (event) => {
     const file = event.target.files[0];
@@ -266,26 +319,92 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
         Export 📤
       </button>
       
-      {/* ADD THIS NEW BUTTON */}
+      {/* UPDATED: Authentication-protected saved data button */}
       <button
         className="saved-data-button"
-        onClick={onShowSavedData}
+        onClick={handleSavedDataClick}
         disabled={isExtractingMetadata}
         style={{
           width: "100%",
           padding: "10px",
-          background: "#2196F3",
+          background: user ? "#2196F3" : "#9E9E9E", // Gray if not authenticated
           color: "white",
           border: "none",
           borderRadius: "4px",
-          cursor: "pointer",
+          cursor: isExtractingMetadata ? "not-allowed" : (user ? "pointer" : "pointer"),
           fontSize: "14px",
-          fontWeight: "bold"
+          fontWeight: "bold",
+          opacity: isExtractingMetadata ? 0.5 : 1
         }}
-        aria-label="View previously saved data and measurements"
+        aria-label={user ? "View previously saved data and measurements" : "Login required to view saved data"}
       >
-        📁 View Saved Data
+        📁 {user ? "View Saved Data" : "View Saved Data (Login Required)"}
       </button>
+
+      {/* NEW: Login prompt modal */}
+      {showLoginPrompt && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0, 0, 0, 0.7)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: "white",
+            padding: "30px",
+            borderRadius: "8px",
+            maxWidth: "400px",
+            margin: "20px",
+            textAlign: "center",
+            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.3)"
+          }}>
+            <h3 style={{ color: "#333", marginBottom: "15px" }}>🔒 Login Required</h3>
+            <p style={{ color: "#666", marginBottom: "20px", lineHeight: "1.5" }}>
+              You need to be logged in to view and manage your saved measurements and whale data.
+            </p>
+            <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+              <button
+                onClick={handleLoginPromptClose}
+                style={{
+                  padding: "10px 20px",
+                  backgroundColor: "#f5f5f5",
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  color: "#333"
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  handleLoginPromptClose();
+                  // Trigger the login modal from TopBar
+                  // You'll need to pass this function down from App.js through TopBar
+                  window.dispatchEvent(new CustomEvent('showLoginModal'));
+                }}
+                style={{
+                  padding: "10px 20px",
+                  backgroundColor: "#2196F3",
+                  border: "none",
+                  borderRadius: "4px",
+                  color: "white",
+                  cursor: "pointer",
+                  fontWeight: "bold"
+                }}
+              >
+                Login
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
