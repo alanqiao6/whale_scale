@@ -49,7 +49,7 @@ export default function SavedData({ onLoadMeasurement, onLoadImage }) {
                 const measurementData = await measurementResponse.json();
                 const measurements = measurementData.measurements || [];
                 
-                // Extract whale metadata from the first measurement that has it
+                // Extract whale metadata from the first measurement that has it 
                 let whaleMetadata = null;
                 for (const measurement of measurements) {
                   let metadata = measurement.metadata || measurement.measurement_metadata || {};
