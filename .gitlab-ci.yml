@@ -1,6 +1,5 @@
 # This file defines the process taken by GitLab after a merge to a protected branch
 # Author: Jason Fitzpatrick
-# TEMPORARY FIX: Using git reset --hard to resolve divergent branches issue
 
 image: docker:24.0.5
 
@@ -22,9 +21,10 @@ deploy-prod:
     - chmod 600 gitlab_vcm
     - |
       ssh -o StrictHostKeyChecking=no -i gitlab_vcm $VCM_USER_PROD@$VCM_IP_PROD "
-      cd /home/vcm/APP_WHALESCALE/app_WhaleScale &&
-      git fetch origin &&
-      git reset --hard origin/main &&
+      cd /home/vcm/APP_WHALESCALE/app_WhaleScale && 
+      git fetch &&
+      git checkout main && 
+      git pull origin main && 
       export POSTGRES_DB='$POSTGRES_DB' &&
       export POSTGRES_USER='$POSTGRES_USER' &&
       export POSTGRES_PASSWORD='$POSTGRES_PASSWORD' &&
@@ -36,7 +36,7 @@ deploy-prod:
       export DEV_DEBUG='$DEV_DEBUG' &&
       export PROD_ALLOWED_HOSTS='$PROD_ALLOWED_HOSTS' &&
       export PROD_DEBUG='$PROD_DEBUG' &&
-      docker-compose -f docker-compose.prod.yml down -v &&
+      docker-compose -f docker-compose.prod.yml down -v && 
       docker-compose -f docker-compose.prod.yml up -d --build
       "
 
@@ -52,9 +52,10 @@ deploy-dev:
     - chmod 600 gitlab_vcm
     - |
       ssh -o StrictHostKeyChecking=no -i gitlab_vcm $VCM_USER_DEV@$VCM_IP_DEV "
-      cd /home/vcm/APP_WHALESCALE &&
-      git fetch origin &&
-      git reset --hard origin/dev &&
+      cd /home/vcm/APP_WHALESCALE && 
+      git fetch &&
+      git checkout dev && 
+      git pull origin dev && 
       export POSTGRES_DB='$POSTGRES_DB' &&
       export POSTGRES_USER='$POSTGRES_USER' &&
       export POSTGRES_PASSWORD='$POSTGRES_PASSWORD' &&
@@ -66,6 +67,6 @@ deploy-dev:
       export DEV_DEBUG='$DEV_DEBUG' &&
       export PROD_ALLOWED_HOSTS='$PROD_ALLOWED_HOSTS' &&
       export PROD_DEBUG='$PROD_DEBUG' &&
-      docker-compose -f docker-compose.dev.yml down -v &&
+      docker-compose -f docker-compose.dev.yml down -v && 
       docker-compose -f docker-compose.dev.yml up -d --build
       "
