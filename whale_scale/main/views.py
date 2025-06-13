@@ -459,93 +459,176 @@ class CollatriX(View):
             return JsonResponse({"error": "Invalid function name"}, status=400)
 
     def save_measurement(self, request):
-        """Save a measurement to the database with improved error handling"""
-        logger = logging.getLogger(__name__)
-        
-        try:
-            data = json.loads(request.body)
-            logger.info(f"Received measurement data: {data}")
-            
-            # Ensure session exists for anonymous users
-            if not request.session.session_key:
-                request.session.create()
-            
-            # Get current image from session 
-            image_id = request.session.get('current_image_id')
-            logger.info(f"Current image ID from session: {image_id}")
-            
-            if not image_id:
-                logger.error("No current image ID in session")
-                return JsonResponse({
-                    "error": "No current image in session. Please upload an image first."
-                }, status=400)
+            """Save a measurement to the database with improved whale name handling"""
+            logger = logging.getLogger(__name__)
             
             try:
-                image_record = UploadedImage.objects.get(id=image_id)
-                logger.info(f"Found image record: {image_record.filename}")
-            except UploadedImage.DoesNotExist:
-                logger.error(f"Image with ID {image_id} not found in database")
+                data = json.loads(request.body)
+                logger.info(f"Received measurement data: {data}")
+                
+                # Ensure session exists for anonymous users
+                if not request.session.session_key:
+                    request.session.create()
+                
+                # Get current image from session 
+                image_id = request.session.get('current_image_id')
+                logger.info(f"Current image ID from session: {image_id}")
+                
+                if not image_id:
+                    logger.error("No current image ID in session")
+                    return JsonResponse({
+                        "error": "No current image in session. Please upload an image first."
+                    }, status=400)
+                
+                try:
+                    image_record = UploadedImage.objects.get(id=image_id)
+                    logger.info(f"Found image record: {image_record.filename}")
+                except UploadedImage.DoesNotExist:
+                    logger.error(f"Image with ID {image_id} not found in database")
+                    return JsonResponse({
+                        "error": "Image not found in database"
+                    }, status=404)
+                
+                # Check session/user access
+                if request.user.is_authenticated:
+                    if image_record.user != request.user:
+                        logger.error("Authenticated user doesn't own this image")
+                        return JsonResponse({"error": "Access denied"}, status=403)
+                else:
+                    session_key = request.session.session_key
+                    if image_record.session_key != session_key:
+                        logger.error(f"Session mismatch: image session={image_record.session_key}, current session={session_key}")
+                        return JsonResponse({"error": "Session access denied"}, status=403)
+                
+                # Extract measurement data
+                measurement_type = data.get("measurement_type")
+                measurement_name = data.get("measurement_name", "User Measurement")
+                scaled_dimension = data.get("scaled_dimension", 0)
+                coordinate_data = data.get("coordinate_data", [])
+                metadata = data.get("metadata", {})
+                
+                if not measurement_type:
+                    return JsonResponse({
+                        "error": "measurement_type is required"
+                    }, status=400)
+                
+                # Ensure scaled_dimension is a number
+                try:
+                    scaled_dimension = float(scaled_dimension) if scaled_dimension is not None else 0.0
+                except (ValueError, TypeError):
+                    scaled_dimension = 0.0
+                
+                # FIXED: Update image record with whale information if provided
+                whale_name = metadata.get("whale_name")
+                whale_id = metadata.get("whale_id")
+                
+                if whale_name and not image_record.whale_name:
+                    # First time setting whale name for this image
+                    image_record.whale_name = whale_name
+                    image_record.whale_id = whale_id or image_record.generate_whale_id()
+                    image_record.save()
+                    logger.info(f"Updated image whale info: name={whale_name}, id={image_record.whale_id}")
+                elif whale_name and image_record.whale_name != whale_name:
+                    # Whale name changed - update it
+                    image_record.whale_name = whale_name
+                    image_record.whale_id = whale_id or image_record.generate_whale_id()
+                    image_record.save()
+                    logger.info(f"Changed image whale info: name={whale_name}, id={image_record.whale_id}")
+                
+                # Handle ruler measurements specially
+                if measurement_type == "ruler_complete":
+                    # This is a complete ruler measurement with width segments
+                    metadata = data.get("metadata", {})
+                    total_length = metadata.get("total_length", {})
+                    width_segments = metadata.get("width_segments", [])
+                    
+                    # Create the main ruler measurement
+                    main_measurement = Measurement.objects.create(
+                        image=image_record,
+                        measurement_type="ruler_complete",
+                        measurement_name=f"Ruler Measurement ({len(width_segments)} segments)",
+                        scaled_dimension=scaled_dimension,
+                        coordinate_data=coordinate_data,
+                        measurement_metadata={
+                            "total_length": total_length,
+                            "segment_count": len(width_segments),
+                            "width_segments_summary": [
+                                {
+                                    "segment": f"Width {i+1}",
+                                    "percentage": seg.get("measurement_type", "").replace("TL_w", ""),
+                                    "length": seg.get("scaled_dimension", 0)
+                                }
+                                for i, seg in enumerate(width_segments)
+                            ],
+                            "whale_name": whale_name,
+                            "whale_id": image_record.whale_id,
+                            **metadata  # Include all other metadata
+                        }
+                    )
+                    
+                    # Create child measurements for each width segment
+                    for i, segment in enumerate(width_segments):
+                        Measurement.objects.create(
+                            image=image_record,
+                            measurement_type="width_segment",
+                            measurement_name=f"Width Segment {i+1}",
+                            scaled_dimension=segment.get("scaled_dimension", 0),
+                            coordinate_data=segment.get("coordinate_data", []),
+                            measurement_metadata={
+                                "parent_measurement_id": main_measurement.id,
+                                "segment_number": i + 1,
+                                "percentage": segment.get("measurement_type", "").replace("TL_w", ""),
+                                "original_type": segment.get("measurement_type", ""),
+                                "whale_name": whale_name,
+                                "whale_id": image_record.whale_id,
+                            }
+                        )
+                    
+                    logger.info(f"Successfully created ruler measurement {main_measurement.id} with {len(width_segments)} width segments")
+                    
+                    return JsonResponse({
+                        "success": True, 
+                        "measurement_id": main_measurement.id,
+                        "width_segments_count": len(width_segments),
+                        "whale_id": image_record.whale_id,
+                        "message": f"Saved complete ruler measurement with {len(width_segments)} width segments"
+                    })
+                
+                else:
+                    # Handle other measurement types normally
+                    measurement = Measurement.objects.create(
+                        image=image_record,
+                        measurement_type=measurement_type,
+                        measurement_name=measurement_name,
+                        scaled_dimension=scaled_dimension,
+                        coordinate_data=coordinate_data,
+                        measurement_metadata={
+                            **metadata,
+                            "whale_name": whale_name,
+                            "whale_id": image_record.whale_id,
+                        }
+                    )
+                    
+                    logger.info(f"Successfully created measurement {measurement.id} for image {image_id}")
+                    
+                    return JsonResponse({
+                        "success": True, 
+                        "measurement_id": measurement.id,
+                        "whale_id": image_record.whale_id,
+                        "message": f"Saved {measurement_type} measurement successfully"
+                    })
+                    
+            except json.JSONDecodeError as e:
+                logger.error(f"Invalid JSON in request body: {str(e)}")
                 return JsonResponse({
-                    "error": "Image not found in database"
-                }, status=404)
-            
-            # Check session/user access
-            if request.user.is_authenticated:
-                if image_record.user != request.user:
-                    logger.error("Authenticated user doesn't own this image")
-                    return JsonResponse({"error": "Access denied"}, status=403)
-            else:
-                session_key = request.session.session_key
-                if image_record.session_key != session_key:
-                    logger.error(f"Session mismatch: image session={image_record.session_key}, current session={session_key}")
-                    return JsonResponse({"error": "Session access denied"}, status=403)
-            
-            # Extract and validate measurement data
-            measurement_type = data.get("measurement_type")
-            measurement_name = data.get("measurement_name", "User Measurement")
-            scaled_dimension = data.get("scaled_dimension", 0)
-            coordinate_data = data.get("coordinate_data", [])
-            
-            if not measurement_type:
-                return JsonResponse({
-                    "error": "measurement_type is required"
+                    "error": "Invalid JSON in request body"
                 }, status=400)
-            
-            # Ensure scaled_dimension is a number
-            try:
-                scaled_dimension = float(scaled_dimension) if scaled_dimension is not None else 0.0
-            except (ValueError, TypeError):
-                scaled_dimension = 0.0
-            
-            # Create measurement record using Django model (Measurement from .models)
-            measurement = Measurement.objects.create(
-                image=image_record,
-                measurement_type=measurement_type,
-                measurement_name=measurement_name,
-                scaled_dimension=scaled_dimension,
-                coordinate_data=coordinate_data,
-                measurement_metadata=data.get("metadata", {})
-            )
-            
-            logger.info(f"Successfully created measurement {measurement.id} for image {image_id}")
-            
-            return JsonResponse({
-                "success": True, 
-                "measurement_id": measurement.id,
-                "message": f"Saved {measurement_type} measurement successfully"
-            })
-            
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in request body: {str(e)}")
-            return JsonResponse({
-                "error": "Invalid JSON in request body"
-            }, status=400)
-        except Exception as e:
-            logger.error(f"Unexpected error saving measurement: {str(e)}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            return JsonResponse({
-                "error": f"Internal server error: {str(e)}"
-            }, status=500)
+            except Exception as e:
+                logger.error(f"Unexpected error saving measurement: {str(e)}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                return JsonResponse({
+                    "error": f"Internal server error: {str(e)}"
+                }, status=500)
 
     def get_or_create_session(self, request):
         """Get or create session for anonymous users"""
@@ -1123,7 +1206,7 @@ class CollatriX(View):
             return JsonResponse({"error": str(e)}, status=500)
 
     def get_user_images(self, request):
-        """Get all images for the current user or session"""
+        """Get all images for the current user or session with whale information"""
         if request.user.is_authenticated:
             images = UploadedImage.objects.filter(user=request.user)
         else:
@@ -1145,6 +1228,8 @@ class CollatriX(View):
                 "camera_make": img.camera_make,
                 "camera_model": img.camera_model,
                 "measurement_count": img.measurements.count(),
+                "whale_name": img.whale_name,  # NEW: Include whale name
+                "whale_id": img.whale_id,      # NEW: Include whale ID
             })
         
         return JsonResponse({"images": image_data})

@@ -1,7 +1,7 @@
 // File: app.js
 // Authors: Alan Qiao, August Hao, Ciaran Burr
 // Purpose: Serves as the main React component for the WhaleScale frontend.
-// FIXED: Clear measurement data when new image is uploaded and properly handle whale naming
+// FIXED: Proper whale numbering and automatic filename-based saving
 
 "use client"
 import React, { useState, useEffect } from "react"
@@ -70,9 +70,9 @@ export default function App() {
   const [isExtractingMetadata, setIsExtractingMetadata] = useState(false)
   const [savedDataVisible, setSavedDataVisible] = useState(false)
   
-  // NEW: Add state for whale naming
-  const [whaleNameCounts, setWhaleNameCounts] = useState({}) // Track count for each whale name
+  // Add state for whale naming
   const [currentWhaleId, setCurrentWhaleId] = useState(null) // Current whale identifier with number
+  const [imageId, setImageId] = useState(null) // Track current image ID
 
   // FIXED: Function to clear all measurement data and active tools
   const clearAllMeasurementData = () => {
@@ -89,16 +89,10 @@ export default function App() {
     console.log("Cleared all measurement data and active tools for new image");
   };
 
-  // NEW: Function to generate whale identifier with incremental number
-  const generateWhaleId = async (whaleName) => {
-    if (!whaleName || whaleName.trim() === "") {
-      return "unnamed_whale";
-    }
-    
-    const cleanName = whaleName.trim();
-    
+  // FIXED: Function to generate whale identifier with proper incremental numbering
+  const generateWhaleId = async (whaleName, imageFilename) => {
     try {
-      // Fetch existing images to count how many times this whale name has been used
+      // Fetch existing images to count properly
       const response = await fetch("/api/collatrix/get_user_images/", {
         method: "GET",
         credentials: 'include',
@@ -108,19 +102,63 @@ export default function App() {
         const data = await response.json();
         const images = data.images || [];
         
+        // If no whale name provided, use filename without extension
+        if (!whaleName || whaleName.trim() === "") {
+          const baseFilename = imageFilename ? 
+            imageFilename.replace(/\.[^/.]+$/, '') : "unnamed_whale";
+          return baseFilename;
+        }
+        
+        const cleanName = whaleName.trim();
+        
+        // Fetch measurements for each image to check whale metadata
+        const imagesWithWhaleNames = await Promise.all(
+          images.map(async (image) => {
+            try {
+              const measurementResponse = await fetch(`/api/collatrix/get_image_measurements/?image_id=${image.id}`, {
+                method: "GET",
+                credentials: 'include',
+              });
+              
+              if (measurementResponse.ok) {
+                const measurementData = await measurementResponse.json();
+                const measurements = measurementData.measurements || [];
+                
+                // Extract whale name from metadata
+                for (const measurement of measurements) {
+                  let metadata = measurement.metadata || measurement.measurement_metadata || {};
+                  
+                  if (typeof metadata === 'string') {
+                    try {
+                      metadata = JSON.parse(metadata);
+                    } catch (e) {
+                      metadata = {};
+                    }
+                  }
+                  
+                  if (metadata.whale_name) {
+                    return { ...image, whale_name: metadata.whale_name };
+                  }
+                }
+              }
+            } catch (error) {
+              console.error(`Error fetching measurements for image ${image.id}:`, error);
+            }
+            
+            return image;
+          })
+        );
+        
         // Count existing images with this whale name
-        const existingCount = images.filter(img => {
-          // Extract whale name from filename (e.g., "Moby1.jpg" -> "Moby")
-          const filename = img.filename || img.original_filename || "";
-          const nameMatch = filename.match(/^([A-Za-z_]+)\d*\./);
-          return nameMatch && nameMatch[1].toLowerCase() === cleanName.toLowerCase();
-        }).length;
+        const existingCount = imagesWithWhaleNames.filter(img => 
+          img.whale_name && img.whale_name.toLowerCase() === cleanName.toLowerCase()
+        ).length;
         
         // Generate new ID with incremented number
         const newNumber = existingCount + 1;
         const whaleId = `${cleanName}${newNumber}`;
         
-        console.log(`Generated whale ID: ${whaleId} (found ${existingCount} existing images)`);
+        console.log(`Generated whale ID: ${whaleId} (found ${existingCount} existing images with name "${cleanName}")`);
         return whaleId;
       }
     } catch (error) {
@@ -128,6 +166,7 @@ export default function App() {
     }
     
     // Fallback: just use the name with "1"
+    const cleanName = whaleName?.trim() || "unnamed_whale";
     return `${cleanName}1`;
   };
 
@@ -148,7 +187,7 @@ export default function App() {
     }
   }
 
-  // FIXED: Updated handleImageUpload to clear data and regenerate whale ID
+  // FIXED: Updated handleImageUpload to generate proper whale ID and auto-save
   const handleImageUpload = async (file) => {
     if (file) {
       // FIRST: Clear all existing measurement data when new image is uploaded
@@ -157,17 +196,6 @@ export default function App() {
       const imageUrl = URL.createObjectURL(file)
       setImage(imageUrl)
       setImageFile(file)
-      
-      // Generate new whale ID when image is uploaded (always regenerate)
-      if (formData.whaleName) {
-        console.log(`Generating new whale ID for: ${formData.whaleName}`);
-        const whaleId = await generateWhaleId(formData.whaleName);
-        setCurrentWhaleId(whaleId);
-        console.log(`Set current whale ID to: ${whaleId}`);
-      } else {
-        setCurrentWhaleId(null);
-        console.log("No whale name provided, cleared whale ID");
-      }
       
       // Start loading state
       setIsExtractingMetadata(true)
@@ -185,6 +213,9 @@ export default function App() {
           const backendMetadata = await response.json()
           console.log("Backend Metadata:", backendMetadata)
 
+          // Store the image ID for future reference
+          setImageId(backendMetadata.image_id);
+
           const newMetadata = {
             focalLength: backendMetadata.focal_length_mm || "",
             altitude: backendMetadata.gps_altitude_m || "",
@@ -201,10 +232,17 @@ export default function App() {
             ...prev,
             ...newMetadata
           }))
+
+          // FIXED: Generate whale ID after image is saved to database
+          const whaleId = await generateWhaleId(formData.whaleName, file.name);
+          setCurrentWhaleId(whaleId);
+          console.log(`Set current whale ID to: ${whaleId}`);
         } 
       } catch (error) {
         console.error("Error extracting metadata via backend:", error)
-        // Still try client-side extraction if server throws error
+        // Still try to generate whale ID even if metadata extraction fails
+        const whaleId = await generateWhaleId(formData.whaleName, file.name);
+        setCurrentWhaleId(whaleId);
       } finally {
         // End loading state
         setIsExtractingMetadata(false)
@@ -212,17 +250,14 @@ export default function App() {
     }
   }
 
-  // FIXED: Also regenerate whale ID when whale name changes
+  // FIXED: Regenerate whale ID when whale name changes
   useEffect(() => {
     const regenerateWhaleIdOnNameChange = async () => {
-      if (formData.whaleName && formData.whaleName.trim() !== "") {
-        console.log(`Whale name changed to: ${formData.whaleName}, regenerating ID...`);
-        const whaleId = await generateWhaleId(formData.whaleName);
+      if (imageFile) {
+        console.log(`Whale name changed to: "${formData.whaleName}", regenerating ID...`);
+        const whaleId = await generateWhaleId(formData.whaleName, imageFile.name);
         setCurrentWhaleId(whaleId);
         console.log(`Updated whale ID to: ${whaleId}`);
-      } else {
-        setCurrentWhaleId(null);
-        console.log("Whale name cleared, reset whale ID");
       }
     };
 
@@ -245,8 +280,8 @@ export default function App() {
     setSidebarSubmitted(true)
 
     // Generate whale ID when submitting if not already generated
-    if (dataFromSidebar.whaleName && !currentWhaleId) {
-      const whaleId = await generateWhaleId(dataFromSidebar.whaleName);
+    if (!currentWhaleId && imageFile) {
+      const whaleId = await generateWhaleId(dataFromSidebar.whaleName, imageFile.name);
       setCurrentWhaleId(whaleId);
     }
 
@@ -314,8 +349,8 @@ export default function App() {
     try {
       // Use currentWhaleId or generate one if not available
       let subjectName = currentWhaleId;
-      if (!subjectName && formData.whaleName) {
-        subjectName = await generateWhaleId(formData.whaleName);
+      if (!subjectName && imageFile) {
+        subjectName = await generateWhaleId(formData.whaleName, imageFile.name);
         setCurrentWhaleId(subjectName);
       }
       if (!subjectName) {
@@ -331,7 +366,7 @@ export default function App() {
         // Pass the metadata directly (especially for ruler_complete measurements)
         metadata: {
           ...measurement.metadata,
-          whale_name: formData.whaleName,
+          whale_name: formData.whaleName || (imageFile?.name ? imageFile.name.replace(/\.[^/.]+$/, '') : null),
           whale_id: subjectName,
           subject_name: subjectName,
           user_image_path: measurement.user_image_path,
@@ -375,7 +410,9 @@ export default function App() {
     setBackendResult(result);
 
     // Use currentWhaleId as subject name
-    const subjectName = currentWhaleId || formData.whaleName || imageFile?.name || "unnamed_whale";
+    const subjectName = currentWhaleId || 
+                       (formData.whaleName ? formData.whaleName + "1" : null) ||
+                       (imageFile?.name ? imageFile.name.replace(/\.[^/.]+$/, '') : "unnamed_whale");
 
     // Use measurement_type instead of type
     if (result.measurement_type === "curve_length") {
@@ -459,7 +496,7 @@ export default function App() {
                 total_length: prev.totalLengthResult,
                 width_segments: updatedWidthSegments.map(seg => seg.result),
                 segment_count: expectedSegments,
-                whale_name: formData.whaleName,
+                whale_name: formData.whaleName || (imageFile?.name ? imageFile.name.replace(/\.[^/.]+$/, '') : null),
                 whale_id: subjectName,
                 subject_name: subjectName,
                 user_image_path: prev.totalLengthResult.user_image_path,
@@ -534,7 +571,7 @@ export default function App() {
         segments: widthSegments.length,
       });
       
-      // NEW: Extract and set whale name if available
+      // Extract and set whale name if available
       if (metadata.whale_name) {
         setFormData(prev => ({
           ...prev,
@@ -556,7 +593,7 @@ export default function App() {
         segments: 0,
       });
       
-      // NEW: Extract and set whale name if available
+      // Extract and set whale name if available
       const metadata = measurement.metadata || {};
       if (metadata.whale_name) {
         setFormData(prev => ({
@@ -595,7 +632,7 @@ export default function App() {
         curvePoints: measurement.coordinate_data,
       });
       
-      // NEW: Extract and set whale name if available
+      // Extract and set whale name if available
       const metadata = measurement.metadata || {};
       if (metadata.whale_name) {
         setFormData(prev => ({
@@ -616,7 +653,7 @@ export default function App() {
         polygonPoints: measurement.coordinate_data,
       });
       
-      // NEW: Extract and set whale name if available
+      // Extract and set whale name if available
       const metadata = measurement.metadata || {};
       if (metadata.whale_name) {
         setFormData(prev => ({
@@ -637,7 +674,7 @@ export default function App() {
         anglePoints: measurement.coordinate_data,
       });
       
-      // NEW: Extract and set whale name if available
+      // Extract and set whale name if available
       const metadata = measurement.metadata || {};
       if (metadata.whale_name) {
         setFormData(prev => ({
@@ -682,7 +719,9 @@ const handleVolumeCalculation = async () => {
     const sortedSegments = widthSegments.sort((a, b) => parseFloat(a.index) - parseFloat(b.index));
     
     // Use whale ID as Image_ID and Image name
-    const whaleId = currentWhaleId || formData.whaleName || imageFile?.name || "unnamed_whale";
+    const whaleId = currentWhaleId || 
+                   (formData.whaleName ? formData.whaleName + "1" : null) ||
+                   (imageFile?.name ? imageFile.name.replace(/\.[^/.]+$/, '') : "unnamed_whale");
     
     // Create measurement object with TL and width measurements
     const measurementObj = {
@@ -764,7 +803,7 @@ const handleVolumeCalculation = async () => {
           areaIndex: baiKey ? result[baiKey] : null,
           surfaceArea: saKey ? result[saKey] : null,
           fullResults: result,
-          whaleId: whaleId // NEW: Store whale ID with body condition data
+          whaleId: whaleId // Store whale ID with body condition data
         });
       } else {
         setBackendMessage("⚠️ Volume calculation completed but no results returned");
@@ -790,7 +829,7 @@ const handleVolumeCalculation = async () => {
         onInputChange={handleInputChange}
         isExtractingMetadata={isExtractingMetadata}
         onShowSavedData={() => setSavedDataVisible(true)}
-        currentWhaleId={currentWhaleId}  // NEW: Pass current whale ID to sidebar
+        currentWhaleId={currentWhaleId}  // Pass current whale ID to sidebar
       />
       <div className="main-content">
         <TopBar
@@ -846,7 +885,9 @@ const handleVolumeCalculation = async () => {
               crosshairColor={formData.crosshairColor}
               crosshairSize={parseInt(formData.crosshairSize) || 10}
               pixelDimension={pixelDimension}
-              subjectName={currentWhaleId || formData.whaleName || imageFile?.name || "unnamed_whale"}  // UPDATED: Use whale ID
+              subjectName={currentWhaleId || 
+                          (formData.whaleName ? formData.whaleName + "1" : null) ||
+                          (imageFile?.name ? imageFile.name.replace(/\.[^/.]+$/, '') : "unnamed_whale")}
               formData={formData}
             />
             {backendMessage && (
@@ -879,7 +920,7 @@ const handleVolumeCalculation = async () => {
               angleData={angleData}
               bodyConditionData={bodyConditionData}
               pixelDimension={pixelDimension}
-              currentWhaleId={currentWhaleId}  // NEW: Pass whale ID to Data component
+              currentWhaleId={currentWhaleId}  // Pass whale ID to Data component
             />
           </>
         ) : (
