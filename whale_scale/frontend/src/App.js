@@ -284,9 +284,21 @@ export default function App() {
 
           console.log("Image uploaded and metadata extracted. Whale name will persist between images...");
           
-          // If there's already a whale name set, show a helpful message
+          // If there's already a whale name set, immediately generate ID for this new image
           if (formData.whaleName && formData.whaleName.trim() !== "") {
-            setBackendMessage(`📷 New image loaded. Whale name "${formData.whaleName}" will be kept and auto-incremented.`);
+            console.log(`Generating whale ID for existing whale name "${formData.whaleName}" on new image ${backendMetadata.image_id}`);
+            const whaleId = await generateWhaleId(formData.whaleName, file.name);
+            setCurrentWhaleId(whaleId);
+            
+            // Save to database immediately for this specific image
+            const saved = await saveWhaleNameToDatabase(formData.whaleName, whaleId, backendMetadata.image_id);
+            if (saved) {
+              console.log(`✅ Whale "${formData.whaleName}" (${whaleId}) assigned to new image ${backendMetadata.image_id}`);
+              setBackendMessage(`📷 New image loaded as ${whaleId}`);
+              setTimeout(() => setBackendMessage(""), 3000);
+            }
+          } else {
+            setBackendMessage(`📷 New image loaded. Enter whale name to assign ID.`);
             setTimeout(() => setBackendMessage(""), 3000);
           }
         } 
