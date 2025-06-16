@@ -840,6 +840,8 @@ const handleVolumeCalculation = async () => {
               </button>
               <SavedData 
                 onLoadMeasurement={handleLoadSavedMeasurement}
+                currentWhaleId={currentWhaleId}  // ADD THIS LINE
+                formData={formData}              // ADD THIS LINE
               />
             </div>
           </div>
