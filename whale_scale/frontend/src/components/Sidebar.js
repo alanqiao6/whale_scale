@@ -1,11 +1,7 @@
 // File: sidebar.js
 // Authors: Alan Qiao, August Hao, Ciaran Burr
-// Purpose: This component renders the interactive sidebar UI in WhaleScale,
-// allowing users to upload an image, view or override extracted metadata, adjust configuration parameters (e.g. width segments, crosshair size/color),
-// and submit data to the backend for pixel dimension calculation via Collatrix.
-// Also enables CSV export via an exposed global export function and handles basic validation and error messaging.
-// UPDATED: Added authentication check for saved data button
-// FIXED: Listen for auth state changes to update UI without page refresh
+// Purpose: Enhanced sidebar with whale name persistence between images
+// UPDATED: Added whale name persistence and auto-increment features
 
 "use client";
 import React, { useState, useEffect } from "react";
@@ -14,19 +10,18 @@ import "./Sidebar.css";
 // Use window.location.origin to determine the base URL dynamically
 const API_BASE_URL = window.location.origin;
 
-// CHANGE THIS LINE: Add onShowSavedData to the function parameters
-export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, onInputChange, isExtractingMetadata, onShowSavedData }) {
+export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, onInputChange, isExtractingMetadata, onShowSavedData, currentWhaleId }) {
   const [error, setError] = useState("");
   const [inputConflict, setInputConflict] = useState(false);
-  const [user, setUser] = useState(null); // Track authentication status
-  const [showLoginPrompt, setShowLoginPrompt] = useState(false); // Show login prompt modal
+  const [user, setUser] = useState(null);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   
   // Check authentication status on component mount
   useEffect(() => {
     checkAuthStatus();
   }, []);
 
-  // FIXED: Listen for auth state changes from other components
+  // Listen for auth state changes from other components
   useEffect(() => {
     const handleAuthStateChange = (event) => {
       const { user: newUser, isAuthenticated } = event.detail;
@@ -36,7 +31,6 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
 
     window.addEventListener('authStateChanged', handleAuthStateChange);
 
-    // Cleanup event listener
     return () => {
       window.removeEventListener('authStateChanged', handleAuthStateChange);
     };
@@ -51,7 +45,6 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
-        // User is not authenticated
         setUser(null);
         return;
       }
@@ -71,10 +64,8 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
   // Handle saved data button click
   const handleSavedDataClick = () => {
     if (user) {
-      // User is authenticated, show saved data
       onShowSavedData();
     } else {
-      // User is not authenticated, show login prompt
       setShowLoginPrompt(true);
     }
   };
@@ -88,24 +79,27 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
   const handleImageUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
-      onImageUpload(file); // Calls the function from App.js
+      onImageUpload(file);
       setError("");
     }
   };
 
   // Function to handle input changes
   const handleChange = (name, value) => {
-    // Notify parent component of the change
     onInputChange(name, value);
-
     setInputConflict(false);
+  };
+
+  // NEW: Function to clear whale name (useful for starting fresh)
+  const handleClearWhaleName = () => {
+    handleChange("whaleName", "");
   };
 
   const handleSubmit = async () => {
     try {
       setError("");
   
-      // Validate that an image was uploaded (by checking formData.imageWidth, not metadata)
+      // Validate that an image was uploaded
       if (!formData.imageWidth || !formData.imageHeight) {
         setError("⚠️ Please upload an image before submitting.");
         return;
@@ -147,7 +141,6 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
   const handleExport = () => {
     console.log("Export button clicked");
     
-    // Check if the export function exists
     if (typeof window.exportDataToCSV === 'function') {
       console.log("Export function found, executing...");
       try {
@@ -165,7 +158,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
 
   // Define a style for labels to ensure proper contrast
   const labelStyle = {
-    color: "#FFFFFF", // White text for maximum contrast
+    color: "#FFFFFF",
     fontWeight: "bold"
   };
 
@@ -190,7 +183,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       <div className="upload-section">
         <label className="upload-button" htmlFor="image-upload" tabIndex="0" aria-label="Upload an image" onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
-            document.getElementById("image-upload").click(); // Trigger file input click
+            document.getElementById("image-upload").click();
           }
         }}>
           📄 Add Image
@@ -199,18 +192,73 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
         <p id="upload-help" className="sr-only">Choose an image to upload for processing.</p>
       </div>
 
-      {/* Whale name input */}
+      {/* Enhanced whale name input with persistence info */}
       <div className="input-group">
-        <label htmlFor="whale-name" style={labelStyle}>Whale Name</label>
-        <input
-          type="text"
-          id="whale-name"
-          name="whaleName"
-          value={formData.whaleName || ""}
-          onChange={(e) => handleChange("whaleName", e.target.value)}
-          placeholder="Enter whale name"
-          disabled={isExtractingMetadata}
-        />
+        <label htmlFor="whale-name" style={labelStyle}>
+          Whale Name
+          {formData.whaleName && (
+            <span style={{ fontSize: '12px', color: '#4CAF50', marginLeft: '5px' }}>
+              (Persists between images)
+            </span>
+          )}
+        </label>
+        <div style={{ display: 'flex', gap: '5px' }}>
+          <input
+            type="text"
+            id="whale-name"
+            name="whaleName"
+            value={formData.whaleName || ""}
+            onChange={(e) => handleChange("whaleName", e.target.value)}
+            placeholder="Enter whale name"
+            disabled={isExtractingMetadata}
+            style={{ flex: 1 }}
+          />
+          {formData.whaleName && (
+            <button
+              type="button"
+              onClick={handleClearWhaleName}
+              style={{
+                padding: '4px 8px',
+                background: '#ff6b6b',
+                color: 'white',
+                border: 'none',
+                borderRadius: '3px',
+                cursor: 'pointer',
+                fontSize: '12px'
+              }}
+              title="Clear whale name"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+        
+        {/* Show current whale ID if available */}
+        {currentWhaleId && (
+          <div style={{ 
+            fontSize: '12px', 
+            color: '#666', 
+            marginTop: '3px',
+            padding: '3px 6px',
+            backgroundColor: '#f0f8ff',
+            borderRadius: '3px',
+            border: '1px solid #e0e0e0'
+          }}>
+            Current ID: <strong>{currentWhaleId}</strong>
+          </div>
+        )}
+        
+        {/* Helpful tip about persistence */}
+        {!formData.whaleName && (
+          <div style={{ 
+            fontSize: '11px', 
+            color: '#888', 
+            marginTop: '3px',
+            fontStyle: 'italic'
+          }}>
+            💡 Tip: Whale name will persist between images for batch processing
+          </div>
+        )}
       </div>
 
       {/* Loading message for metadata extraction */}
@@ -238,10 +286,10 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
       {renderInput("Sensor Width (mm)", "sensorWidth", false)}
 
       <div className="input-group">
-      <label htmlFor="width-segments" style={labelStyle}>
-        # Width Segments <span aria-hidden="true">⚠️</span>
-        <span className="sr-only">required field</span>
-      </label>
+        <label htmlFor="width-segments" style={labelStyle}>
+          # Width Segments <span aria-hidden="true">⚠️</span>
+          <span className="sr-only">required field</span>
+        </label>
         <input 
           type="number" 
           id="width-segments" 
@@ -335,7 +383,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
         Export 📤
       </button>
       
-      {/* UPDATED: Authentication-protected saved data button with real-time auth updates */}
+      {/* Authentication-protected saved data button */}
       <button
         className="saved-data-button"
         onClick={handleSavedDataClick}
@@ -343,7 +391,7 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
         style={{
           width: "100%",
           padding: "10px",
-          background: user ? "#2196F3" : "#9E9E9E", // Gray if not authenticated
+          background: user ? "#2196F3" : "#9E9E9E",
           color: "white",
           border: "none",
           borderRadius: "4px",
@@ -401,7 +449,6 @@ export default function Sidebar({ metadata, formData, onImageUpload, onSubmit, o
               <button
                 onClick={() => {
                   handleLoginPromptClose();
-                  // Trigger the login modal from TopBar
                   window.dispatchEvent(new CustomEvent('showLoginModal'));
                 }}
                 style={{

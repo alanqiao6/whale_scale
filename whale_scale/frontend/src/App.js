@@ -235,7 +235,7 @@ export default function App() {
     }
   }
 
-  // FIXED: Updated handleImageUpload to clear whale name when switching images
+  // FIXED: Updated handleImageUpload to PERSIST whale name between images
   const handleImageUpload = async (file) => {
     if (file) {
       // FIRST: Clear all existing measurement data when new image is uploaded
@@ -245,12 +245,9 @@ export default function App() {
       setImage(imageUrl)
       setImageFile(file)
       
-      // CLEAR whale name and ID when switching to new image
+      // KEEP whale name persistent - don't clear it
+      // Only clear currentWhaleId so it gets regenerated for the new image
       setCurrentWhaleId(null);
-      setFormData(prev => ({
-        ...prev,
-        whaleName: "" // Clear whale name for new image
-      }));
       
       // Start loading state
       setIsExtractingMetadata(true)
@@ -288,7 +285,13 @@ export default function App() {
             ...newMetadata
           }))
 
-          console.log("Image uploaded and metadata extracted. Ready for whale naming...");
+          console.log("Image uploaded and metadata extracted. Whale name will persist between images...");
+          
+          // If there's already a whale name set, show a helpful message
+          if (formData.whaleName && formData.whaleName.trim() !== "") {
+            setBackendMessage(`📷 New image loaded. Whale name "${formData.whaleName}" will be kept and auto-incremented.`);
+            setTimeout(() => setBackendMessage(""), 3000);
+          }
         } 
       } catch (error) {
         console.error("Error extracting metadata via backend:", error)
@@ -299,24 +302,33 @@ export default function App() {
     }
   }
 
-  // NEW: Effect to handle whale name changes and immediately save to database
+  // NEW: Effect to handle whale name persistence and auto-saving
   useEffect(() => {
     const saveWhaleNameWithDelay = async () => {
-      // Only proceed if we have an image loaded and a whale name
-      if (!imageId || !formData.whaleName || formData.whaleName.trim() === "") {
+      // Only proceed if we have an image loaded
+      if (!imageId) {
         return;
       }
 
-      // Generate whale ID
-      const whaleId = await generateWhaleId(formData.whaleName, imageFile?.name);
-      setCurrentWhaleId(whaleId);
-      
-      // IMMEDIATELY save to database
-      const saved = await saveWhaleNameToDatabase(formData.whaleName, whaleId, imageId);
-      if (saved) {
-        console.log(`✅ Whale "${formData.whaleName}" (${whaleId}) permanently saved to database`);
-      } else {
-        console.error(`❌ Failed to save whale "${formData.whaleName}" to database`);
+      // If there's a whale name, save it to database immediately
+      if (formData.whaleName && formData.whaleName.trim() !== "") {
+        // Generate whale ID for this specific image
+        const whaleId = await generateWhaleId(formData.whaleName, imageFile?.name);
+        setCurrentWhaleId(whaleId);
+        
+        // IMMEDIATELY save to database
+        const saved = await saveWhaleNameToDatabase(formData.whaleName, whaleId, imageId);
+        if (saved) {
+          console.log(`✅ Whale "${formData.whaleName}" (${whaleId}) permanently saved to database for image ${imageId}`);
+        } else {
+          console.error(`❌ Failed to save whale "${formData.whaleName}" to database`);
+        }
+      }
+      // If whale name is empty, still generate ID for the new image but don't save name
+      else if (!currentWhaleId) {
+        const whaleId = await generateWhaleId("", imageFile?.name);
+        setCurrentWhaleId(whaleId);
+        console.log(`Generated fallback whale ID: ${whaleId} for image ${imageId}`);
       }
     };
 
@@ -324,7 +336,7 @@ export default function App() {
     const timeoutId = setTimeout(saveWhaleNameWithDelay, 1000);
     
     return () => clearTimeout(timeoutId);
-  }, [formData.whaleName, imageId, imageFile?.name]);
+  }, [formData.whaleName, imageId, imageFile?.name, currentWhaleId]);
 
   const [measurementData, setMeasurementData] = useState(null)
 
