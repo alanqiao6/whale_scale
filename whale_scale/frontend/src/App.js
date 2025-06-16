@@ -185,8 +185,9 @@ export default function App() {
         
         console.log(`All whale IDs found for "${cleanName}":`, allWhaleIds);
         
-        // Extract numbers
-        const existingNumbers = allWhaleIds
+        // Remove duplicates and extract numbers
+        const uniqueWhaleIds = [...new Set(allWhaleIds)];
+        const existingNumbers = uniqueWhaleIds
           .map(whaleId => {
             const match = whaleId.match(/(\d+)$/);
             return match ? parseInt(match[1]) : 1;
@@ -195,14 +196,10 @@ export default function App() {
         
         console.log(`Existing numbers:`, existingNumbers);
         
-        // Find next number
+        // FIXED: Find the HIGHEST number and add 1 (proper incrementing)
         let nextNumber = 1;
-        for (const num of existingNumbers) {
-          if (num === nextNumber) {
-            nextNumber++;
-          } else {
-            break;
-          }
+        if (existingNumbers.length > 0) {
+          nextNumber = Math.max(...existingNumbers) + 1;
         }
         
         const whaleId = `${cleanName}${nextNumber}`;
