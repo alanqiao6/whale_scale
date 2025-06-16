@@ -298,7 +298,6 @@ export default function App() {
     }
   }
 
-  // FIXED: Improved useEffect with proper prevention of overwriting previous images
   useEffect(() => {
     const handleWhaleNameSaving = async () => {
       // Only proceed if we have an image loaded
@@ -323,13 +322,14 @@ export default function App() {
       // Only save if:
       // 1. The whale name actually changed from what was last saved, OR
       // 2. We don't have a currentWhaleId yet for this image, OR  
-      // 3. This is a completely new image (imageId changed)
+      // 3. This is a completely new image (imageId changed) AND we don't have a whale ID yet
       const whaleNameChanged = currentWhaleName !== lastSavedWhaleNameRef.current;
       const imageChanged = imageId !== lastSavedImageIdRef.current;
       const needsWhaleId = !currentWhaleId;
       
-      if (!whaleNameChanged && !imageChanged && !needsWhaleId && currentWhaleId) {
-        console.log("No changes detected, skipping save");
+      // CRITICAL FIX: Don't re-process if we already have everything saved for this combination
+      if (!whaleNameChanged && !needsWhaleId && imageId === lastSavedImageIdRef.current && currentWhaleId === lastGeneratedWhaleIdRef.current) {
+        console.log("Everything already saved correctly, skipping save");
         return;
       }
 
