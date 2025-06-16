@@ -63,6 +63,7 @@ export default function App() {
   const [sidebarSubmitted, setSidebarSubmitted] = useState(false)
   const [isExtractingMetadata, setIsExtractingMetadata] = useState(false)
   const [savedDataVisible, setSavedDataVisible] = useState(false)
+  const [skipWhaleProcessing, setSkipWhaleProcessing] = useState(false)
   
   const [currentWhaleId, setCurrentWhaleId] = useState(null)
   const [imageId, setImageId] = useState(null)
@@ -86,7 +87,7 @@ export default function App() {
     setSidebarSubmitted(false);
     setActiveTool(null);
     setPixelDimension(null);
-    console.log("Cleared all measurement data and active tools for new image");
+    console.log("Cleared all measurement data and active tools - whale ID preserved");
   };
 
   // FIXED: Function to save whale name and ID to database immediately with proper tracking
@@ -128,7 +129,7 @@ export default function App() {
     }
   };
 
-  // FIXED: Improved generateWhaleId with better database consistency and real-time updates
+  // FIXED: Improved generateWhaleId with sequential numbering (no gaps)
   const generateWhaleId = async (whaleName, imageFilename, forceRefresh = false) => {
     try {
       // If no whale name provided, use filename without extension
@@ -176,7 +177,7 @@ export default function App() {
         const allWhaleIds = Array.from(whaleIds);
         console.log(`All whale IDs found for "${cleanName}":`, allWhaleIds);
         
-        // FIXED: Extract numbers and find the next available number
+        // FIXED: Extract numbers and find the next sequential number (no gap filling)
         const existingNumbers = allWhaleIds
           .map(whaleId => {
             // Extract number from end of whale ID (e.g., "Moby1" -> 1, "Moby2" -> 2)
@@ -188,16 +189,11 @@ export default function App() {
         
         console.log(`Existing numbers for "${cleanName}":`, existingNumbers);
         
-        // Find the next available number
+        // FIXED: Always use the next sequential number after the highest (no gap filling)
         let nextNumber = 1;
         if (existingNumbers.length > 0) {
-          // Find the first gap in the sequence, or use max + 1
-          for (let i = 1; i <= Math.max(...existingNumbers) + 1; i++) {
-            if (!existingNumbers.includes(i)) {
-              nextNumber = i;
-              break;
-            }
-          }
+          // Use the highest number + 1 (no gap filling)
+          nextNumber = Math.max(...existingNumbers) + 1;
         }
         
         const whaleId = `${cleanName}${nextNumber}`;
@@ -233,6 +229,9 @@ export default function App() {
   // FIXED: Updated handleImageUpload to properly handle whale name persistence
   const handleImageUpload = async (file) => {
     if (file) {
+      // CRITICAL: Enable whale processing for new image
+      setSkipWhaleProcessing(false);
+      
       // FIRST: Clear all existing measurement data when new image is uploaded
       clearAllMeasurementData();
       
@@ -241,10 +240,10 @@ export default function App() {
       setImageFile(file)
       
       // KEEP whale name persistent - don't clear it
-      // Only clear currentWhaleId so it gets regenerated for the new image
+      // CRITICAL FIX: Only clear currentWhaleId and tracking refs when uploading NEW image
       setCurrentWhaleId(null);
       
-      // Clear tracking refs for new image
+      // Clear tracking refs for new image ONLY
       lastSavedWhaleNameRef.current = "";
       lastSavedImageIdRef.current = null;
       lastGeneratedWhaleIdRef.current = "";
@@ -325,21 +324,24 @@ export default function App() {
 
       const currentWhaleName = formData.whaleName?.trim() || "";
       
+      // BULLETPROOF FIX: Don't re-process if we already have everything saved for this combination
+      // This check must be FIRST and COMPREHENSIVE to prevent any unnecessary saves
+      if (currentWhaleName === lastSavedWhaleNameRef.current && 
+          imageId === lastSavedImageIdRef.current && 
+          currentWhaleId === lastGeneratedWhaleIdRef.current &&
+          currentWhaleId && 
+          currentWhaleName &&
+          lastSavedWhaleNameRef.current !== "" &&
+          lastSavedImageIdRef.current !== null) {
+        console.log(`Everything already saved correctly: whale "${currentWhaleName}" (${currentWhaleId}) for image ${imageId}, skipping save`);
+        return;
+      }
+
       // FIXED: Check if we actually need to update (avoid unnecessary saves AND prevent overwriting)
-      // Only save if:
-      // 1. The whale name actually changed from what was last saved, OR
-      // 2. We don't have a currentWhaleId yet for this image, OR  
-      // 3. This is a completely new image (imageId changed) AND we don't have a whale ID yet
       const whaleNameChanged = currentWhaleName !== lastSavedWhaleNameRef.current;
       const imageChanged = imageId !== lastSavedImageIdRef.current;
       const needsWhaleId = !currentWhaleId;
       
-      // CRITICAL FIX: Don't re-process if we already have everything saved for this combination
-      if (!whaleNameChanged && !needsWhaleId && imageId === lastSavedImageIdRef.current && currentWhaleId === lastGeneratedWhaleIdRef.current) {
-        console.log("Everything already saved correctly, skipping save");
-        return;
-      }
-
       // FIXED: If this is just an image change but whale name didn't change,
       // and we already have the name saved for a previous image,
       // DON'T re-process - just generate new ID for new image
@@ -367,6 +369,12 @@ export default function App() {
             isSavingRef.current = false;
           }
         }, 800);
+        return;
+      }
+
+      // FIXED: Only proceed if there's actually a change that needs processing
+      if (!whaleNameChanged && !needsWhaleId) {
+        console.log("No whale name changes or missing whale ID, skipping");
         return;
       }
 
@@ -710,6 +718,9 @@ export default function App() {
 
   // UPDATED: handleLoadSavedMeasurement function for simplified ruler storage
   const handleLoadSavedMeasurement = (measurement) => {
+    // CRITICAL: Set skip flag to prevent whale processing during load
+    setSkipWhaleProcessing(true);
+    
     // FIRST: Clear existing measurement data when loading a saved measurement
     clearAllMeasurementData();
     
@@ -831,6 +842,11 @@ export default function App() {
     // Switch to measure tab and close saved data view
     setActiveTab("measure");
     setSavedDataVisible(false);
+    
+    // CRITICAL: Re-enable whale processing after load is complete
+    setTimeout(() => {
+      setSkipWhaleProcessing(false);
+    }, 100);
     
     // Clear the message after a few seconds
     setTimeout(() => {
