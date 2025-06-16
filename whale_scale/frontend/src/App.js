@@ -150,56 +150,71 @@ export default function App() {
         const data = await response.json();
         const images = data.images || [];
         
-        const allWhaleIds = new Set(); // Use Set to automatically handle duplicates
+        const imageWhaleIds = new Map(); // Map to track whale ID -> image ID relationship
         
         // FIXED: Check both database whale_name field AND measurement metadata
+        // but only count unique whale IDs per unique image, and prioritize database over measurements
         for (const image of images) {
-          // Check database whale_name field first
-          if (image.whale_name && image.whale_name.toLowerCase() === cleanName.toLowerCase() && image.whale_id) {
-            console.log(`Found whale in database: ${image.whale_name} with ID: ${image.whale_id}`);
-            allWhaleIds.add(image.whale_id);
-          }
+          let whaleIdForThisImage = null;
           
-          // Also check measurements for this image
-          try {
-            const measurementResponse = await fetch(`/api/collatrix/get_image_measurements/?image_id=${image.id}`, {
-              method: "GET",
-              credentials: 'include',
-              headers: {
-                'Cache-Control': 'no-cache',
-              }
-            });
-            
-            if (measurementResponse.ok) {
-              const measurementData = await measurementResponse.json();
-              const measurements = measurementData.measurements || [];
-              
-              measurements.forEach(measurement => {
-                let metadata = measurement.metadata || measurement.measurement_metadata || {};
-                
-                if (typeof metadata === 'string') {
-                  try {
-                    metadata = JSON.parse(metadata);
-                  } catch (e) {
-                    metadata = {};
-                  }
-                }
-                
-                if (metadata.whale_name && metadata.whale_name.toLowerCase() === cleanName.toLowerCase() && metadata.whale_id) {
-                  console.log(`Found whale in measurement: ${metadata.whale_name} with ID: ${metadata.whale_id}`);
-                  allWhaleIds.add(metadata.whale_id);
+          // Check database whale_name field first (most reliable and current)
+          if (image.whale_name && image.whale_name.toLowerCase() === cleanName.toLowerCase() && image.whale_id) {
+            console.log(`Found whale in database: ${image.whale_name} with ID: ${image.whale_id} for image ${image.id}`);
+            whaleIdForThisImage = image.whale_id;
+          }
+          // FIXED: Only check measurements if database doesn't have the whale name we're looking for
+          // This prevents counting old measurement data when the image has been reassigned
+          else if (!image.whale_name || image.whale_name.toLowerCase() !== cleanName.toLowerCase()) {
+            try {
+              const measurementResponse = await fetch(`/api/collatrix/get_image_measurements/?image_id=${image.id}`, {
+                method: "GET",
+                credentials: 'include',
+                headers: {
+                  'Cache-Control': 'no-cache',
                 }
               });
+              
+              if (measurementResponse.ok) {
+                const measurementData = await measurementResponse.json();
+                const measurements = measurementData.measurements || [];
+                
+                // Find the first matching whale ID in measurements for this image
+                for (const measurement of measurements) {
+                  let metadata = measurement.metadata || measurement.measurement_metadata || {};
+                  
+                  if (typeof metadata === 'string') {
+                    try {
+                      metadata = JSON.parse(metadata);
+                    } catch (e) {
+                      metadata = {};
+                    }
+                  }
+                  
+                  if (metadata.whale_name && metadata.whale_name.toLowerCase() === cleanName.toLowerCase() && metadata.whale_id) {
+                    console.log(`Found whale in measurement: ${metadata.whale_name} with ID: ${metadata.whale_id} for image ${image.id}`);
+                    whaleIdForThisImage = metadata.whale_id;
+                    break; // Take the first match per image
+                  }
+                }
+              }
+            } catch (error) {
+              console.error(`Error checking measurements for image ${image.id}:`, error);
             }
-          } catch (error) {
-            console.error(`Error checking measurements for image ${image.id}:`, error);
+          }
+          
+          // If we found a whale ID for this image, store it
+          if (whaleIdForThisImage) {
+            imageWhaleIds.set(whaleIdForThisImage, image.id);
           }
         }
         
-        console.log(`All whale IDs found for "${cleanName}":`, Array.from(allWhaleIds));
+        const allWhaleIds = Array.from(imageWhaleIds.keys());
+        
+        console.log(`All whale IDs found for "${cleanName}":`, allWhaleIds);
+        console.log(`Whale ID to Image mapping:`, Object.fromEntries(imageWhaleIds));
         
         // FIXED: Extract numbers and find the next available number
-        const existingNumbers = Array.from(allWhaleIds)
+        const existingNumbers = allWhaleIds
           .map(whaleId => {
             const match = whaleId.match(/(\d+)$/);
             return match ? parseInt(match[1]) : 0;
