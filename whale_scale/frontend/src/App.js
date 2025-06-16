@@ -206,7 +206,7 @@ export default function App() {
     }
   }
 
-  // FIXED: Updated handleImageUpload to generate proper whale ID and auto-save
+  // FIXED: Updated handleImageUpload to NOT generate whale ID immediately
   const handleImageUpload = async (file) => {
     if (file) {
       // FIRST: Clear all existing measurement data when new image is uploaded
@@ -252,16 +252,11 @@ export default function App() {
             ...newMetadata
           }))
 
-          // FIXED: Generate whale ID after image is saved to database
-          const whaleId = await generateWhaleId(formData.whaleName, file.name);
-          setCurrentWhaleId(whaleId);
-          console.log(`Set current whale ID to: ${whaleId}`);
+          // DON'T generate whale ID here yet - wait for user to set whale name
+          console.log("Image uploaded and metadata extracted. Waiting for whale name...");
         } 
       } catch (error) {
         console.error("Error extracting metadata via backend:", error)
-        // Still try to generate whale ID even if metadata extraction fails
-        const whaleId = await generateWhaleId(formData.whaleName, file.name);
-        setCurrentWhaleId(whaleId);
       } finally {
         // End loading state
         setIsExtractingMetadata(false)
@@ -269,22 +264,26 @@ export default function App() {
     }
   }
 
-  // FIXED: Regenerate whale ID when whale name changes
+  // FIXED: Generate whale ID when whale name changes OR when image is first uploaded with existing name
   useEffect(() => {
-    const regenerateWhaleIdOnNameChange = async () => {
-      if (imageFile) {
-        console.log(`Whale name changed to: "${formData.whaleName}", regenerating ID...`);
+    const generateWhaleIdWhenReady = async () => {
+      // Only generate if we have both an image and a whale name
+      if (imageFile && imageId && formData.whaleName && formData.whaleName.trim() !== "") {
+        console.log(`Generating whale ID for: "${formData.whaleName}"`);
         const whaleId = await generateWhaleId(formData.whaleName, imageFile.name);
         setCurrentWhaleId(whaleId);
-        console.log(`Updated whale ID to: ${whaleId}`);
+        console.log(`Set current whale ID to: ${whaleId}`);
+      } else if (imageFile && imageId && (!formData.whaleName || formData.whaleName.trim() === "")) {
+        // No whale name set, use filename-based fallback
+        console.log("No whale name set, using filename-based ID");
+        const whaleId = await generateWhaleId("", imageFile.name);
+        setCurrentWhaleId(whaleId);
+        console.log(`Set filename-based whale ID to: ${whaleId}`);
       }
     };
 
-    // Only regenerate if we have an image loaded
-    if (image && imageFile) {
-      regenerateWhaleIdOnNameChange();
-    }
-  }, [formData.whaleName, image, imageFile]);
+    generateWhaleIdWhenReady();
+  }, [formData.whaleName, imageFile, imageId]); // Trigger when whale name, image file, or image ID changes
 
   const [measurementData, setMeasurementData] = useState(null)
 
