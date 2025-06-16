@@ -7,7 +7,7 @@ import React from 'react';
 import './About.css';
 
 const About = () => {
-  // Team member data structure containing information about each developer
+  // Team member data structure containing information about each developer 
   const teamMembers = [
     {
       name: "Jason Fitzpatrick",
