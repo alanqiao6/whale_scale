@@ -1,6 +1,6 @@
 // File: SavedData.js
 // Purpose: Component to display and manage saved measurements and images
-// FIXED: Real-time whale name updates and proper current session awareness
+// ADDED: Delete functionality for images and measurements
 
 import React, { useState, useEffect } from "react";
 import "./SavedData.css";
@@ -13,6 +13,7 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
   const [error, setError] = useState(null);
   const [groupByWhale, setGroupByWhale] = useState(true);
   const [whaleGroups, setWhaleGroups] = useState({});
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // For delete confirmation modal
 
   useEffect(() => {
     fetchSavedImages();
@@ -23,7 +24,7 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
     if (savedImages.length > 0) {
       groupImagesByWhale();
     }
-  }, [savedImages, currentWhaleId, formData]); // FIXED: Added dependencies for real-time updates
+  }, [savedImages, currentWhaleId, formData]);
 
   const fetchSavedImages = async () => {
     setLoading(true);
@@ -90,6 +91,102 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
       setError("Error connecting to server");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Delete image function
+  const deleteImage = async (imageId) => {
+    try {
+      const response = await fetch(`/api/collatrix/delete_image/${imageId}/`, {
+        method: "POST",
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log("Image deleted:", result.message);
+        
+        // Remove from local state
+        setSavedImages(prev => prev.filter(img => img.id !== imageId));
+        
+        // Clear selected image if it was deleted
+        if (selectedImageId === imageId) {
+          setSelectedImageId(null);
+          setImageMeasurements([]);
+        }
+        
+        // Show success message
+        setError(null);
+        
+        return { success: true, message: result.message };
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete image');
+      }
+    } catch (error) {
+      console.error("Error deleting image:", error);
+      setError(`Failed to delete image: ${error.message}`);
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Delete measurement function
+  const deleteMeasurement = async (measurementId) => {
+    try {
+      const response = await fetch(`/api/collatrix/delete_measurement/${measurementId}/`, {
+        method: "POST",
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log("Measurement deleted:", result.message);
+        
+        // Remove from local state
+        setImageMeasurements(prev => prev.filter(m => m.id !== measurementId));
+        
+        // Update image measurement count
+        setSavedImages(prev => prev.map(img => {
+          if (img.id === selectedImageId) {
+            return { ...img, measurement_count: img.measurement_count - 1 };
+          }
+          return img;
+        }));
+        
+        setError(null);
+        return { success: true, message: result.message };
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete measurement');
+      }
+    } catch (error) {
+      console.error("Error deleting measurement:", error);
+      setError(`Failed to delete measurement: ${error.message}`);
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Handle delete confirmation
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm) return;
+    
+    setLoading(true);
+    let result;
+    
+    if (deleteConfirm.type === 'image') {
+      result = await deleteImage(deleteConfirm.id);
+    } else if (deleteConfirm.type === 'measurement') {
+      result = await deleteMeasurement(deleteConfirm.id);
+    }
+    
+    setLoading(false);
+    setDeleteConfirm(null);
+    
+    if (result.success) {
+      // Show success message temporarily
+      const successMessage = result.message;
+      setError(`✅ ${successMessage}`);
+      setTimeout(() => setError(null), 3000);
     }
   };
 
@@ -388,7 +485,7 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
     );
   };
 
-  // FIXED: Render whale-grouped view with real-time session updates
+  // FIXED: Render whale-grouped view with real-time session updates and delete buttons
   const renderWhaleGroupedView = () => {
     const whaleNames = Object.keys(whaleGroups).sort();
     
@@ -418,13 +515,47 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
                   <div 
                     key={image.id} 
                     className={`image-card whale-image-card ${selectedImageId === image.id ? 'selected' : ''} ${whaleInfo.isCurrent ? 'current-session' : ''}`}
-                    onClick={() => fetchImageMeasurements(image.id)}
                     style={{
                       border: whaleInfo.isCurrent ? '3px solid #2196F3' : '1px solid #ddd',
-                      backgroundColor: whaleInfo.isCurrent ? '#f0f8ff' : 'white'
+                      backgroundColor: whaleInfo.isCurrent ? '#f0f8ff' : 'white',
+                      position: 'relative'
                     }}
                   >
-                    <div className="image-info">
+                    {/* Delete button */}
+                    <button
+                      className="delete-image-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteConfirm({
+                          type: 'image',
+                          id: image.id,
+                          name: displayName,
+                          details: `${image.measurement_count} measurements`
+                        });
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: '5px',
+                        right: '5px',
+                        background: '#ff4444',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '20px',
+                        height: '20px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 10
+                      }}
+                      title={`Delete ${displayName}`}
+                    >
+                      ×
+                    </button>
+                    
+                    <div className="image-info" onClick={() => fetchImageMeasurements(image.id)}>
                       <h5>
                         {sourceIndicator} {displayName}
                         {whaleInfo.isCurrent && <span style={{ color: '#2196F3', fontSize: '12px', marginLeft: '5px' }}>(Current)</span>}
@@ -450,7 +581,7 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
     );
   };
 
-  // Render standard list view with current session awareness
+  // Render standard list view with current session awareness and delete buttons
   const renderStandardView = () => {
     if (savedImages.length === 0) {
       return <p>No saved images found. Upload and analyze some images to see them here!</p>;
@@ -470,13 +601,47 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
             <div 
               key={image.id} 
               className={`image-card ${selectedImageId === image.id ? 'selected' : ''} ${whaleInfo.isCurrent ? 'current-session' : ''}`}
-              onClick={() => fetchImageMeasurements(image.id)}
               style={{
                 border: whaleInfo.isCurrent ? '3px solid #2196F3' : '1px solid #ddd',
-                backgroundColor: whaleInfo.isCurrent ? '#f0f8ff' : 'white'
+                backgroundColor: whaleInfo.isCurrent ? '#f0f8ff' : 'white',
+                position: 'relative'
               }}
             >
-              <div className="image-info">
+              {/* Delete button */}
+              <button
+                className="delete-image-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeleteConfirm({
+                    type: 'image',
+                    id: image.id,
+                    name: displayName,
+                    details: `${image.measurement_count} measurements`
+                  });
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '5px',
+                  right: '5px',
+                  background: '#ff4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '20px',
+                  height: '20px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 10
+                }}
+                title={`Delete ${displayName}`}
+              >
+                ×
+              </button>
+              
+              <div className="image-info" onClick={() => fetchImageMeasurements(image.id)}>
                 <h4>
                   {sourceIndicator} {displayName}
                   {whaleInfo.isCurrent && <span style={{ color: '#2196F3', fontSize: '12px', marginLeft: '5px' }}>(Current)</span>}
@@ -570,7 +735,40 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
                   const isRulerComplete = measurement.measurement_type === 'ruler_complete';
                   
                   return (
-                    <div key={measurement.id} className={`measurement-card ${isRulerComplete ? 'ruler-complete' : ''}`}>
+                    <div key={measurement.id} className={`measurement-card ${isRulerComplete ? 'ruler-complete' : ''}`} style={{ position: 'relative' }}>
+                      {/* Delete measurement button */}
+                      <button
+                        className="delete-measurement-btn"
+                        onClick={() => {
+                          setDeleteConfirm({
+                            type: 'measurement',
+                            id: measurement.id,
+                            name: `${typeDisplay.label}`,
+                            details: `${measurement.scaled_dimension?.toFixed(2) || 'N/A'} ${typeDisplay.unit}`
+                          });
+                        }}
+                        style={{
+                          position: 'absolute',
+                          top: '8px',
+                          right: '8px',
+                          background: '#ff4444',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '50%',
+                          width: '18px',
+                          height: '18px',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          zIndex: 10
+                        }}
+                        title={`Delete ${typeDisplay.label}`}
+                      >
+                        ×
+                      </button>
+                      
                       <div className="measurement-header">
                         <span className="measurement-type">
                           {typeDisplay.icon} {typeDisplay.label}
@@ -627,6 +825,82 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
               </div>
             );
           })()}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '30px',
+            borderRadius: '8px',
+            maxWidth: '400px',
+            margin: '20px',
+            textAlign: 'center',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
+          }}>
+            <h3 style={{ color: '#d32f2f', marginBottom: '15px' }}>🗑️ Confirm Delete</h3>
+            <p style={{ color: '#333', marginBottom: '10px', lineHeight: '1.5' }}>
+              Are you sure you want to delete this {deleteConfirm.type}?
+            </p>
+            <p style={{ color: '#666', marginBottom: '20px', fontWeight: 'bold' }}>
+              {deleteConfirm.name}
+            </p>
+            {deleteConfirm.details && (
+              <p style={{ color: '#666', marginBottom: '20px', fontSize: '14px' }}>
+                {deleteConfirm.details}
+              </p>
+            )}
+            {deleteConfirm.type === 'image' && (
+              <p style={{ color: '#d32f2f', marginBottom: '20px', fontSize: '13px' }}>
+                ⚠️ This will also delete all measurements for this image!
+              </p>
+            )}
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#f5f5f5',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  color: '#333'
+                }}
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#d32f2f',
+                  border: 'none',
+                  borderRadius: '4px',
+                  color: 'white',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  fontWeight: 'bold',
+                  opacity: loading ? 0.6 : 1
+                }}
+                disabled={loading}
+              >
+                {loading ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -455,9 +455,105 @@ class CollatriX(View):
         elif function_name == "get_image_measurements":
             image_id = request.GET.get('image_id')
             return self.get_image_measurements(request, image_id)
+        elif function_name.startswith("delete_image/"):
+            image_id = function_name.split("/")[1]
+            return self.delete_image(request, image_id)
+        elif function_name.startswith("delete_measurement/"):
+            measurement_id = function_name.split("/")[1]
+            return self.delete_measurement(request, measurement_id)
         else:
             return JsonResponse({"error": "Invalid function name"}, status=400)
+        
+    def delete_image(self, request, image_id):
+        """Delete an image and all its measurements"""
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Get the image
+            try:
+                image = UploadedImage.objects.get(id=image_id)
+            except UploadedImage.DoesNotExist:
+                return JsonResponse({'error': 'Image not found'}, status=404)
+            
+            # Check permissions
+            if request.user.is_authenticated:
+                if image.user != request.user:
+                    return JsonResponse({'error': 'Access denied'}, status=403)
+            else:
+                session_key = request.session.session_key
+                if image.session_key != session_key:
+                    return JsonResponse({'error': 'Session access denied'}, status=403)
+            
+            # Store info for response
+            whale_info = f" for {image.whale_id}" if image.whale_id else ""
+            filename = image.filename
+            measurement_count = image.measurements.count()
+            
+            # Delete the image (this will cascade delete all measurements)
+            image.delete()
+            
+            logger.info(f"Successfully deleted image {image_id} ({filename}) with {measurement_count} measurements")
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Deleted {filename}{whale_info} and {measurement_count} measurements'
+            })
+            
+        except Exception as e:
+            logger.error(f"Error deleting image {image_id}: {str(e)}")
+            return JsonResponse({'error': 'Failed to delete image'}, status=500)
 
+    def delete_measurement(self, request, measurement_id):
+        """Delete a specific measurement"""
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Get the measurement
+            try:
+                measurement = Measurement.objects.get(id=measurement_id)
+            except Measurement.DoesNotExist:
+                return JsonResponse({'error': 'Measurement not found'}, status=404)
+            
+            # Check permissions through the image
+            image = measurement.image
+            if request.user.is_authenticated:
+                if image.user != request.user:
+                    return JsonResponse({'error': 'Access denied'}, status=403)
+            else:
+                session_key = request.session.session_key
+                if image.session_key != session_key:
+                    return JsonResponse({'error': 'Session access denied'}, status=403)
+            
+            # Store info for response
+            measurement_type = measurement.measurement_type
+            whale_info = f" for {image.whale_id}" if image.whale_id else ""
+            
+            # If this is a ruler_complete measurement, also delete child width_segments
+            if measurement.measurement_type == "ruler_complete":
+                # Find and delete child width segments
+                child_segments = Measurement.objects.filter(
+                    image=image,
+                    measurement_type="width_segment",
+                    measurement_metadata__parent_measurement_id=measurement.id
+                )
+                child_count = child_segments.count()
+                child_segments.delete()
+                logger.info(f"Deleted {child_count} child width segments")
+            
+            # Delete the measurement
+            measurement.delete()
+            
+            logger.info(f"Successfully deleted {measurement_type} measurement {measurement_id}{whale_info}")
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Deleted {measurement_type} measurement{whale_info}'
+            })
+            
+        except Exception as e:
+            logger.error(f"Error deleting measurement {measurement_id}: {str(e)}")
+            return JsonResponse({'error': 'Failed to delete measurement'}, status=500)
+    
     def save_measurement(self, request):
             """Save a measurement to the database with improved whale name handling"""
             logger = logging.getLogger(__name__)
@@ -645,7 +741,7 @@ class CollatriX(View):
             user_session.save()
         
         return session_key
-
+    
     def extract_metadata(self, request):
         """
         Extracts metadata from an uploaded image and saves to database.
