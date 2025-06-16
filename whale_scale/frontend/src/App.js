@@ -418,7 +418,7 @@ export default function App() {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [formData.whaleName, imageId, imageFile?.name, currentWhaleId]); // Added currentWhaleId to dependencies
+  }, [formData.whaleName, imageId, imageFile?.name]); // REMOVED currentWhaleId from dependencies to prevent loop
 
   const [measurementData, setMeasurementData] = useState(null)
 
