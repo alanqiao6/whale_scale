@@ -297,7 +297,7 @@ export default function App() {
     }
   }
 
-  // FINAL FIX: Enhanced useEffect with immediate state protection
+  // CORRECTED ULTIMATE FIX: Allow updates from fallback IDs to proper whale names
   useEffect(() => {
     const handleWhaleNameSaving = async () => {
       // CRITICAL: Don't process if we're in skip mode
@@ -324,18 +324,32 @@ export default function App() {
 
       const currentWhaleName = formData.whaleName?.trim() || "";
       
-      // ULTIMATE FIX: Check if we already have a whale ID for this image and whale name
-      // This prevents the double-processing issue completely
+      // CORRECTED ULTIMATE PROTECTION: Only prevent reprocessing if we have a PROPER whale ID
+      // (not a fallback ID like "example_whale1" or filename-based ID)
+      const isFallbackId = currentWhaleId && (
+        currentWhaleId.startsWith('example_whale') || 
+        currentWhaleId.includes('_whale') ||
+        !currentWhaleName || // If no whale name but we have an ID, it's probably a fallback
+        !currentWhaleId.toLowerCase().includes(currentWhaleName.toLowerCase())
+      );
+      
       if (currentWhaleId && 
           currentWhaleName && 
-          currentWhaleName === formData.whaleName?.trim()) {
-        console.log(`ULTIMATE PROTECTION: Image ${imageId} already has whale ID ${currentWhaleId} for "${currentWhaleName}", preventing any reprocessing`);
+          currentWhaleName === formData.whaleName?.trim() &&
+          !isFallbackId) { // ONLY protect if it's NOT a fallback ID
+        console.log(`ULTIMATE PROTECTION: Image ${imageId} already has proper whale ID ${currentWhaleId} for "${currentWhaleName}", preventing any reprocessing`);
         
         // Update tracking refs immediately to prevent future processing
         lastSavedWhaleNameRef.current = currentWhaleName;
         lastSavedImageIdRef.current = imageId;
         lastGeneratedWhaleIdRef.current = currentWhaleId;
         return;
+      }
+
+      // ALLOW FALLBACK ID UPDATES: If we have a fallback ID, allow it to be updated to proper whale name
+      if (isFallbackId && currentWhaleName) {
+        console.log(`ALLOWING UPDATE: Converting fallback ID ${currentWhaleId} to proper whale name "${currentWhaleName}" for image ${imageId}`);
+        // Continue processing to update the fallback ID
       }
 
       // BULLETPROOF FIX #1: Don't re-process if we already have everything saved for this combination
@@ -345,16 +359,18 @@ export default function App() {
           currentWhaleId && 
           currentWhaleName &&
           lastSavedWhaleNameRef.current !== "" &&
-          lastSavedImageIdRef.current !== null) {
+          lastSavedImageIdRef.current !== null &&
+          !isFallbackId) { // Don't skip if it's a fallback ID
         console.log(`BULLETPROOF: Everything already saved correctly: whale "${currentWhaleName}" (${currentWhaleId}) for image ${imageId}, skipping save`);
         return;
       }
 
-      // BULLETPROOF FIX #2: NEVER overwrite an existing whale ID for the same image
+      // BULLETPROOF FIX #2: NEVER overwrite a proper whale ID for the same image
       if (currentWhaleId && 
           imageId === lastSavedImageIdRef.current && 
-          currentWhaleName === lastSavedWhaleNameRef.current) {
-        console.log(`PROTECTION: Image ${imageId} already has whale ID ${currentWhaleId}, preventing overwrite`);
+          currentWhaleName === lastSavedWhaleNameRef.current &&
+          !isFallbackId) { // Don't protect fallback IDs
+        console.log(`PROTECTION: Image ${imageId} already has proper whale ID ${currentWhaleId}, preventing overwrite`);
         return;
       }
 
@@ -362,9 +378,10 @@ export default function App() {
       const whaleNameChanged = currentWhaleName !== lastSavedWhaleNameRef.current;
       const imageChanged = imageId !== lastSavedImageIdRef.current;
       const needsWhaleId = !currentWhaleId;
+      const needsProperWhaleId = isFallbackId && currentWhaleName; // Need to convert fallback to proper
       
-      // If we have a whale ID and neither the image nor whale name changed, do nothing
-      if (currentWhaleId && !whaleNameChanged && !imageChanged) {
+      // If we have a proper whale ID and neither the image nor whale name changed, do nothing
+      if (currentWhaleId && !whaleNameChanged && !imageChanged && !needsProperWhaleId) {
         console.log(`STABILITY: No changes detected for image ${imageId} with whale ID ${currentWhaleId}, keeping stable`);
         return;
       }
@@ -374,7 +391,7 @@ export default function App() {
 
       try {
         // For image changes with existing whale name, generate new ID for new image only
-        if (imageChanged && !whaleNameChanged && currentWhaleName !== "" && !needsWhaleId) {
+        if (imageChanged && !whaleNameChanged && currentWhaleName !== "" && !needsWhaleId && !needsProperWhaleId) {
           console.log(`NEW IMAGE: Image changed from ${lastSavedImageIdRef.current} to ${imageId}, generating new ID for new image only`);
           
           const whaleId = await generateWhaleId(currentWhaleName, imageFile?.name, true);
@@ -396,21 +413,21 @@ export default function App() {
         }
 
         // Only proceed for actual new scenarios that need processing
-        if (!whaleNameChanged && !needsWhaleId) {
-          console.log("No whale name changes or missing whale ID, skipping");
+        if (!whaleNameChanged && !needsWhaleId && !needsProperWhaleId) {
+          console.log("No whale name changes, missing whale ID, or fallback conversion needed, skipping");
           return;
         }
 
-        // Process whale name changes or first-time assignments
+        // Process whale name changes, first-time assignments, or fallback conversions
         if (currentWhaleName !== "") {
-          console.log(`Processing whale name: "${currentWhaleName}" for image ${imageId}`);
+          console.log(`Processing whale name: "${currentWhaleName}" for image ${imageId}${needsProperWhaleId ? ' (converting from fallback)' : ''}`);
           
-          // Force refresh for real-time updates when whale name changes
-          const forceRefresh = whaleNameChanged;
+          // Force refresh for real-time updates when whale name changes or converting fallback
+          const forceRefresh = whaleNameChanged || needsProperWhaleId;
           const whaleId = await generateWhaleId(currentWhaleName, imageFile?.name, forceRefresh);
           
-          // Only update if whale ID is different OR if we don't have one yet
-          if (whaleId !== currentWhaleId || !currentWhaleId) {
+          // Only update if whale ID is different OR if we don't have one yet OR converting fallback
+          if (whaleId !== currentWhaleId || !currentWhaleId || needsProperWhaleId) {
             setCurrentWhaleId(whaleId);
             
             // Update tracking refs IMMEDIATELY to prevent double processing
@@ -421,7 +438,7 @@ export default function App() {
             // Save to database for current image
             const saved = await saveWhaleNameToDatabase(currentWhaleName, whaleId, imageId);
             if (saved) {
-              console.log(`✅ Whale "${currentWhaleName}" (${whaleId}) saved to database for image ${imageId}`);
+              console.log(`✅ Whale "${currentWhaleName}" (${whaleId}) saved to database for image ${imageId}${needsProperWhaleId ? ' (converted from fallback)' : ''}`);
               setBackendMessage(`🐋 Assigned as ${whaleId}`);
               setTimeout(() => setBackendMessage(""), 3000);
             }
