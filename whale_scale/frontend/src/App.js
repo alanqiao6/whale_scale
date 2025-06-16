@@ -90,10 +90,16 @@ export default function App() {
     console.log("Cleared all measurement data and active tools - whale ID preserved");
   };
 
-  // FIXED: Function to save whale name and ID to database immediately with proper tracking
+  // FIND this function in your code (around line 96) and REPLACE it with this:
+
   const saveWhaleNameToDatabase = async (whaleName, whaleId, imageId) => {
     try {
       console.log(`Saving whale name "${whaleName}" and ID "${whaleId}" to database for image ${imageId}`);
+      
+      // CRITICAL FIX: Update tracking refs IMMEDIATELY when starting save (MOVE THIS TO THE TOP)
+      lastSavedWhaleNameRef.current = whaleName;
+      lastSavedImageIdRef.current = imageId;
+      lastGeneratedWhaleIdRef.current = whaleId;
       
       const response = await fetch("/api/collatrix/update_whale_info/", {
         method: "POST",
@@ -112,19 +118,21 @@ export default function App() {
       if (response.ok) {
         const result = await response.json();
         console.log("Whale info saved to database:", result);
-        
-        // FIXED: Update tracking refs immediately after successful save
-        lastSavedWhaleNameRef.current = whaleName;
-        lastSavedImageIdRef.current = imageId;
-        lastGeneratedWhaleIdRef.current = whaleId;
-        
         return true;
       } else {
         console.error("Failed to save whale info to database:", response.status);
+        // Reset refs on failure
+        lastSavedWhaleNameRef.current = "";
+        lastSavedImageIdRef.current = null;
+        lastGeneratedWhaleIdRef.current = "";
         return false;
       }
     } catch (error) {
       console.error("Error saving whale info to database:", error);
+      // Reset refs on failure
+      lastSavedWhaleNameRef.current = "";
+      lastSavedImageIdRef.current = null;
+      lastGeneratedWhaleIdRef.current = "";
       return false;
     }
   };
