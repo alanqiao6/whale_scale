@@ -91,7 +91,6 @@ export default function App() {
 
   const generateWhaleId = async (whaleName, imageFilename) => {
     try {
-      // If no whale name provided, use filename without extension
       if (!whaleName || whaleName.trim() === "") {
         const baseFilename = imageFilename ? 
           imageFilename.replace(/\.[^/.]+$/, '') : "unnamed_whale";
@@ -100,7 +99,10 @@ export default function App() {
       
       const cleanName = whaleName.trim();
       
-      // Fetch existing images to count properly
+      // Wait a bit for any pending measurements to save
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Then check images
       const response = await fetch("/api/collatrix/get_user_images/", {
         method: "GET",
         credentials: 'include',
@@ -110,73 +112,57 @@ export default function App() {
         const data = await response.json();
         const images = data.images || [];
         
-        // Fetch measurements for each image to check whale metadata
-        const imagesWithWhaleNames = await Promise.all(
-          images.map(async (image) => {
-            try {
-              const measurementResponse = await fetch(`/api/collatrix/get_image_measurements/?image_id=${image.id}`, {
-                method: "GET",
-                credentials: 'include',
-              });
+        const allWhaleIds = [];
+        
+        // Check ALL images for whale names
+        for (const image of images) {
+          try {
+            const measurementResponse = await fetch(`/api/collatrix/get_image_measurements/?image_id=${image.id}`, {
+              method: "GET",
+              credentials: 'include',
+            });
+            
+            if (measurementResponse.ok) {
+              const measurementData = await measurementResponse.json();
+              const measurements = measurementData.measurements || [];
               
-              if (measurementResponse.ok) {
-                const measurementData = await measurementResponse.json();
-                const measurements = measurementData.measurements || [];
+              measurements.forEach(measurement => {
+                let metadata = measurement.metadata || measurement.measurement_metadata || {};
                 
-                // Extract whale name from metadata
-                for (const measurement of measurements) {
-                  let metadata = measurement.metadata || measurement.measurement_metadata || {};
-                  
-                  if (typeof metadata === 'string') {
-                    try {
-                      metadata = JSON.parse(metadata);
-                    } catch (e) {
-                      metadata = {};
-                    }
-                  }
-                  
-                  if (metadata.whale_name) {
-                    console.log(`Found whale: ${metadata.whale_name} with ID: ${metadata.whale_id}`);
-                    return { 
-                      ...image, 
-                      whale_name: metadata.whale_name,
-                      whale_id: metadata.whale_id 
-                    };
+                if (typeof metadata === 'string') {
+                  try {
+                    metadata = JSON.parse(metadata);
+                  } catch (e) {
+                    metadata = {};
                   }
                 }
-              }
-            } catch (error) {
-              console.error(`Error fetching measurements for image ${image.id}:`, error);
+                
+                if (metadata.whale_name && metadata.whale_name.toLowerCase() === cleanName.toLowerCase() && metadata.whale_id) {
+                  console.log(`Found whale: ${metadata.whale_name} with ID: ${metadata.whale_id}`);
+                  allWhaleIds.push(metadata.whale_id);
+                }
+              });
             }
-            
-            return image;
-          })
-        );
+          } catch (error) {
+            console.error(`Error checking image ${image.id}:`, error);
+          }
+        }
         
-        // Filter and extract numbers for the specific whale name
-        const existingWhaleNumbers = imagesWithWhaleNames
-          .filter(img => {
-            const hasWhaleName = img.whale_name && img.whale_name.toLowerCase() === cleanName.toLowerCase();
-            console.log(`Image ${img.id}: whale_name="${img.whale_name}", matches="${hasWhaleName}"`);
-            return hasWhaleName;
-          })
-          .map(img => {
-            // Extract number from whale_id
-            if (img.whale_id) {
-              const match = img.whale_id.match(/(\d+)$/);
-              const number = match ? parseInt(match[1]) : 1;
-              console.log(`Extracted number ${number} from whale_id: ${img.whale_id}`);
-              return number;
-            }
-            return 1;
+        console.log(`All whale IDs found for "${cleanName}":`, allWhaleIds);
+        
+        // Extract numbers
+        const existingNumbers = allWhaleIds
+          .map(whaleId => {
+            const match = whaleId.match(/(\d+)$/);
+            return match ? parseInt(match[1]) : 1;
           })
           .sort((a, b) => a - b);
         
-        console.log(`Existing whale numbers for "${cleanName}":`, existingWhaleNumbers);
+        console.log(`Existing numbers:`, existingNumbers);
         
-        // Find the next available number
+        // Find next number
         let nextNumber = 1;
-        for (const num of existingWhaleNumbers) {
+        for (const num of existingNumbers) {
           if (num === nextNumber) {
             nextNumber++;
           } else {
@@ -189,11 +175,9 @@ export default function App() {
         return whaleId;
       }
     } catch (error) {
-      console.error("Error fetching existing images for whale naming:", error);
+      console.error("Error:", error);
     }
     
-    // Fallback: just use the name with "1"
-    const cleanName = whaleName?.trim() || "unnamed_whale";
     return `${cleanName}1`;
   };
 
