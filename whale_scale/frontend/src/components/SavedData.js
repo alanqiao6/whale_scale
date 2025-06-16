@@ -1,6 +1,6 @@
 // File: SavedData.js
 // Purpose: Component to display and manage saved measurements and images
-// FIXED: Better whale name persistence and display
+// FIXED: Proper whale name persistence and display with correct current session handling
 
 import React, { useState, useEffect } from "react";
 import "./SavedData.css";
@@ -191,18 +191,26 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
     }
   };
 
-  // IMPROVED: Enhanced whale info extraction with better database precedence
+  // FIXED: Enhanced whale info extraction with proper precedence and current session handling
   const extractWhaleInfo = (image) => {
     console.log('Extracting whale info for image:', image.id, image.filename);
     
-    // PRIORITY 1: Check if this is THE EXACT current session image
+    // FIXED: Check if this is THE EXACT current session image with proper ID matching
     const isExactCurrentSessionImage = currentImageId && (image.id === currentImageId);
     console.log('Is exact current session image?', isExactCurrentSessionImage);
 
     if (isExactCurrentSessionImage && currentWhaleId && formData?.whaleName) {
-      // Use current session data for real-time updates - ONLY for the exact current image
-      const baseWhaleName = formData.whaleName;
-      const whaleNumber = currentWhaleId ? currentWhaleId.replace(baseWhaleName, '') || "1" : "1";
+      // FIXED: Use current session data ONLY for the exact current image - extract number properly
+      const baseWhaleName = formData.whaleName.trim();
+      
+      // Extract number from currentWhaleId properly (e.g., "Moby2" -> "2")
+      let whaleNumber = "1";
+      if (currentWhaleId) {
+        const match = currentWhaleId.match(new RegExp(`^${baseWhaleName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\d+)$`));
+        if (match && match[1]) {
+          whaleNumber = match[1];
+        }
+      }
       
       console.log('Using current session data:', { baseWhaleName, whaleNumber, currentWhaleId });
       
@@ -214,27 +222,35 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
       };
     }
 
-    // PRIORITY 2: Check database whale fields FIRST (most authoritative for saved data)
-    if (image.whale_name) {
+    // PRIORITY 1: Check database whale fields FIRST (most authoritative for saved data)
+    if (image.whale_name && image.whale_name.trim() !== "") {
       console.log('Using database whale_name:', image.whale_name, 'whale_id:', image.whale_id);
-      const whaleNumber = image.whale_id ? 
-        image.whale_id.replace(image.whale_name, '') || "1" : "1";
+      
+      let whaleNumber = "1";
+      if (image.whale_id) {
+        // Extract number from whale_id (e.g., "Moby1" -> "1", "Moby2" -> "2")
+        const match = image.whale_id.match(new RegExp(`^${image.whale_name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\d+)$`));
+        if (match && match[1]) {
+          whaleNumber = match[1];
+        }
+      }
       
       return {
-        whaleName: image.whale_name,
+        whaleName: image.whale_name.trim(),
         whaleNumber: whaleNumber,
         source: 'database',
         isCurrent: false
       };
     }
 
-    if (image.whale_id) {
-      console.log('Using database whale_id:', image.whale_id);
-      const match = image.whale_id.match(/^([A-Za-z_]+)(\d*)$/);
+    if (image.whale_id && image.whale_id.trim() !== "") {
+      console.log('Using database whale_id only:', image.whale_id);
+      // Try to extract name and number from whale_id
+      const match = image.whale_id.match(/^([A-Za-z_]+)(\d+)$/);
       if (match) {
         return {
           whaleName: match[1],
-          whaleNumber: match[2] || "1",
+          whaleNumber: match[2],
           source: 'database',
           isCurrent: false
         };
@@ -248,30 +264,36 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
       };
     }
 
-    // PRIORITY 3: Check metadata from measurements
+    // PRIORITY 2: Check metadata from measurements (only if database fields are empty)
     if (image.whaleMetadata) {
       console.log('Using measurement metadata:', image.whaleMetadata);
       const metadata = image.whaleMetadata;
-      if (metadata.whale_name) {
-        // Extract number from whale_id if available, otherwise default to 1
-        const whaleNumber = metadata.whale_id ? 
-          metadata.whale_id.replace(metadata.whale_name, '') || "1" : "1";
+      
+      if (metadata.whale_name && metadata.whale_name.trim() !== "") {
+        let whaleNumber = "1";
+        if (metadata.whale_id) {
+          // Extract number from whale_id
+          const match = metadata.whale_id.match(new RegExp(`^${metadata.whale_name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\d+)$`));
+          if (match && match[1]) {
+            whaleNumber = match[1];
+          }
+        }
         
         return {
-          whaleName: metadata.whale_name,
+          whaleName: metadata.whale_name.trim(),
           whaleNumber: whaleNumber,
           source: 'metadata',
           isCurrent: false
         };
       }
       
-      if (metadata.whale_id) {
+      if (metadata.whale_id && metadata.whale_id.trim() !== "") {
         // Try to extract name and number from whale_id
-        const match = metadata.whale_id.match(/^([A-Za-z_]+)(\d*)$/);
+        const match = metadata.whale_id.match(/^([A-Za-z_]+)(\d+)$/);
         if (match) {
           return {
             whaleName: match[1],
-            whaleNumber: match[2] || "1",
+            whaleNumber: match[2],
             source: 'metadata',
             isCurrent: false
           };
@@ -323,7 +345,7 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
     };
   };
 
-  // IMPROVED: Group images using enhanced whale extraction with session awareness
+  // FIXED: Group images using enhanced whale extraction with proper session awareness
   const groupImagesByWhale = () => {
     const groups = {};
     
@@ -493,7 +515,7 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
     );
   };
 
-  // UPDATED: Render whale-grouped view with better database precedence
+  // FIXED: Render whale-grouped view with proper database precedence and current session display
   const renderWhaleGroupedView = () => {
     const whaleNames = Object.keys(whaleGroups).sort();
     
@@ -511,6 +533,7 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
             <div className="whale-images-grid">
               {whaleGroups[whaleName].map((image) => {
                 const whaleInfo = image.whaleInfo;
+                // FIXED: Proper display name construction
                 const displayName = `${whaleInfo.whaleName}${whaleInfo.whaleNumber}`;
                 
                 // Enhanced source indicator with current session highlight

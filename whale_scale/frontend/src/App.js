@@ -1,7 +1,7 @@
 // File: app.js
 // Authors: Alan Qiao, August Hao, Ciaran Burr
 // Purpose: Serves as the main React component for the WhaleScale frontend.
-// FIXED: Proper whale name persistence to database with correct ID counting
+// FIXED: Proper whale name persistence to database with correct ID counting and real-time updates
 
 "use client"
 import React, { useState, useEffect, useRef } from "react"
@@ -67,11 +67,12 @@ export default function App() {
   const [currentWhaleId, setCurrentWhaleId] = useState(null)
   const [imageId, setImageId] = useState(null)
 
-  // FIXED: Add refs to prevent race conditions
+  // FIXED: Add refs to prevent race conditions and ensure proper tracking
   const saveTimeoutRef = useRef(null);
   const isSavingRef = useRef(false);
   const lastSavedWhaleNameRef = useRef("");
   const lastSavedImageIdRef = useRef(null);
+  const lastGeneratedWhaleIdRef = useRef("");
 
   // FIXED: Function to clear all measurement data and active tools
   const clearAllMeasurementData = () => {
@@ -88,7 +89,7 @@ export default function App() {
     console.log("Cleared all measurement data and active tools for new image");
   };
 
-  // FIXED: Function to save whale name and ID to database immediately
+  // FIXED: Function to save whale name and ID to database immediately with proper tracking
   const saveWhaleNameToDatabase = async (whaleName, whaleId, imageId) => {
     try {
       console.log(`Saving whale name "${whaleName}" and ID "${whaleId}" to database for image ${imageId}`);
@@ -110,6 +111,12 @@ export default function App() {
       if (response.ok) {
         const result = await response.json();
         console.log("Whale info saved to database:", result);
+        
+        // FIXED: Update tracking refs immediately after successful save
+        lastSavedWhaleNameRef.current = whaleName;
+        lastSavedImageIdRef.current = imageId;
+        lastGeneratedWhaleIdRef.current = whaleId;
+        
         return true;
       } else {
         console.error("Failed to save whale info to database:", response.status);
@@ -121,8 +128,8 @@ export default function App() {
     }
   };
 
-  // FIXED: Improved generateWhaleId with better race condition handling
-  const generateWhaleId = async (whaleName, imageFilename) => {
+  // FIXED: Improved generateWhaleId with better database consistency and real-time updates
+  const generateWhaleId = async (whaleName, imageFilename, forceRefresh = false) => {
     try {
       // If no whale name provided, use filename without extension
       if (!whaleName || whaleName.trim() === "") {
@@ -133,16 +140,18 @@ export default function App() {
       
       const cleanName = whaleName.trim();
       
-      // FIXED: Wait longer for any pending database operations to complete
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // FIXED: Only wait if not forcing refresh (real-time updates need immediate response)
+      if (!forceRefresh) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
       
-      // Get fresh data from database
+      // Get fresh data from database with cache busting
       const response = await fetch("/api/collatrix/get_user_images/", {
         method: "GET",
         credentials: 'include',
-        // Add cache-busting parameter to ensure fresh data
         headers: {
           'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
         }
       });
       
@@ -150,81 +159,34 @@ export default function App() {
         const data = await response.json();
         const images = data.images || [];
         
-        const imageWhaleIds = new Map(); // Map to track whale ID -> image ID relationship
+        // FIXED: Collect all whale IDs for this whale name from database ONLY
+        // This ensures consistency and prevents counting measurement metadata twice
+        const whaleIds = new Set();
         
-        // FIXED: Check both database whale_name field AND measurement metadata
-        // but only count unique whale IDs per unique image, and ensure consistency
         for (const image of images) {
-          let whaleIdForThisImage = null;
-          
-          // Check database whale_name field first (most reliable and current)
-          if (image.whale_name && image.whale_name.toLowerCase() === cleanName.toLowerCase() && 
-              image.whale_id && image.whale_id.toLowerCase().startsWith(cleanName.toLowerCase())) {
-            console.log(`Found whale in database: ${image.whale_name} with ID: ${image.whale_id} for image ${image.id}`);
-            whaleIdForThisImage = image.whale_id;
-          }
-          // FIXED: Only check measurements if database doesn't have the whale name we're looking for
-          // This prevents counting old measurement data when the image has been reassigned
-          else if (!image.whale_name || image.whale_name.toLowerCase() !== cleanName.toLowerCase()) {
-            try {
-              const measurementResponse = await fetch(`/api/collatrix/get_image_measurements/?image_id=${image.id}`, {
-                method: "GET",
-                credentials: 'include',
-                headers: {
-                  'Cache-Control': 'no-cache',
-                }
-              });
-              
-              if (measurementResponse.ok) {
-                const measurementData = await measurementResponse.json();
-                const measurements = measurementData.measurements || [];
-                
-                // Find the first matching whale ID in measurements for this image
-                for (const measurement of measurements) {
-                  let metadata = measurement.metadata || measurement.measurement_metadata || {};
-                  
-                  if (typeof metadata === 'string') {
-                    try {
-                      metadata = JSON.parse(metadata);
-                    } catch (e) {
-                      metadata = {};
-                    }
-                  }
-                  
-                  if (metadata.whale_name && metadata.whale_name.toLowerCase() === cleanName.toLowerCase() && 
-                      metadata.whale_id && metadata.whale_id.toLowerCase().startsWith(cleanName.toLowerCase())) {
-                    console.log(`Found whale in measurement: ${metadata.whale_name} with ID: ${metadata.whale_id} for image ${image.id}`);
-                    whaleIdForThisImage = metadata.whale_id;
-                    break; // Take the first match per image
-                  }
-                }
-              }
-            } catch (error) {
-              console.error(`Error checking measurements for image ${image.id}:`, error);
+          // PRIORITY: Check database whale_name field FIRST
+          if (image.whale_name && image.whale_name.toLowerCase() === cleanName.toLowerCase()) {
+            if (image.whale_id && image.whale_id.toLowerCase().startsWith(cleanName.toLowerCase())) {
+              whaleIds.add(image.whale_id);
+              console.log(`Found whale in database: ${image.whale_name} with ID: ${image.whale_id} for image ${image.id}`);
             }
-          }
-          
-          // If we found a whale ID for this image, store it
-          if (whaleIdForThisImage) {
-            imageWhaleIds.set(whaleIdForThisImage, image.id);
           }
         }
         
-        const allWhaleIds = Array.from(imageWhaleIds.keys());
-        
+        const allWhaleIds = Array.from(whaleIds);
         console.log(`All whale IDs found for "${cleanName}":`, allWhaleIds);
-        console.log(`Whale ID to Image mapping:`, Object.fromEntries(imageWhaleIds));
         
         // FIXED: Extract numbers and find the next available number
         const existingNumbers = allWhaleIds
           .map(whaleId => {
+            // Extract number from end of whale ID (e.g., "Moby1" -> 1, "Moby2" -> 2)
             const match = whaleId.match(/(\d+)$/);
             return match ? parseInt(match[1]) : 0;
           })
           .filter(num => num > 0) // Only keep valid numbers
           .sort((a, b) => a - b);
         
-        console.log(`Existing numbers:`, existingNumbers);
+        console.log(`Existing numbers for "${cleanName}":`, existingNumbers);
         
         // Find the next available number
         let nextNumber = 1;
@@ -268,7 +230,7 @@ export default function App() {
     }
   }
 
-  // FIXED: Updated handleImageUpload to PERSIST whale name between images
+  // FIXED: Updated handleImageUpload to properly handle whale name persistence
   const handleImageUpload = async (file) => {
     if (file) {
       // FIRST: Clear all existing measurement data when new image is uploaded
@@ -281,6 +243,11 @@ export default function App() {
       // KEEP whale name persistent - don't clear it
       // Only clear currentWhaleId so it gets regenerated for the new image
       setCurrentWhaleId(null);
+      
+      // Clear tracking refs for new image
+      lastSavedWhaleNameRef.current = "";
+      lastSavedImageIdRef.current = null;
+      lastGeneratedWhaleIdRef.current = "";
       
       // Start loading state
       setIsExtractingMetadata(true)
@@ -319,9 +286,6 @@ export default function App() {
           }))
 
           console.log("Image uploaded and metadata extracted. Whale name will persist between images...");
-          
-          // FIXED: Trigger whale ID generation through the effect system
-          // This will be handled by the useEffect below
           setBackendMessage(`📷 New image loaded. Processing whale assignment...`);
           
         } 
@@ -334,7 +298,7 @@ export default function App() {
     }
   }
 
-  // FIXED: Improved useEffect with proper race condition prevention
+  // FIXED: Improved useEffect with proper real-time updates and race condition prevention
   useEffect(() => {
     const handleWhaleNameSaving = async () => {
       // Only proceed if we have an image loaded
@@ -353,16 +317,18 @@ export default function App() {
         return;
       }
 
-      // Check if we actually need to save (avoid duplicate saves)
       const currentWhaleName = formData.whaleName?.trim() || "";
+      
+      // FIXED: Check if we actually need to update (avoid unnecessary saves)
       if (currentWhaleName === lastSavedWhaleNameRef.current && 
           imageId === lastSavedImageIdRef.current && 
+          currentWhaleId === lastGeneratedWhaleIdRef.current &&
           currentWhaleId) {
         console.log("No changes detected, skipping save");
         return;
       }
 
-      // Set timeout to debounce rapid changes
+      // FIXED: Shorter debounce for real-time responsiveness
       saveTimeoutRef.current = setTimeout(async () => {
         try {
           isSavingRef.current = true;
@@ -370,11 +336,12 @@ export default function App() {
           if (currentWhaleName !== "") {
             console.log(`Processing whale name: "${currentWhaleName}" for image ${imageId}`);
             
-            // Generate whale ID for this specific image
-            const whaleId = await generateWhaleId(currentWhaleName, imageFile?.name);
+            // FIXED: Force refresh for real-time updates when whale name changes
+            const forceRefresh = currentWhaleName !== lastSavedWhaleNameRef.current;
+            const whaleId = await generateWhaleId(currentWhaleName, imageFile?.name, forceRefresh);
             
-            // Only update if it's actually different to prevent loops
-            if (whaleId !== currentWhaleId) {
+            // Always update if whale ID is different OR if we don't have one yet
+            if (whaleId !== currentWhaleId || !currentWhaleId) {
               setCurrentWhaleId(whaleId);
               
               // IMMEDIATELY save to database
@@ -383,10 +350,6 @@ export default function App() {
                 console.log(`✅ Whale "${currentWhaleName}" (${whaleId}) permanently saved to database for image ${imageId}`);
                 setBackendMessage(`🐋 Assigned as ${whaleId}`);
                 setTimeout(() => setBackendMessage(""), 3000);
-                
-                // Update our tracking refs
-                lastSavedWhaleNameRef.current = currentWhaleName;
-                lastSavedImageIdRef.current = imageId;
               } else {
                 console.error(`❌ Failed to save whale "${currentWhaleName}" to database`);
                 setBackendMessage(`❌ Failed to save whale name`);
@@ -408,7 +371,7 @@ export default function App() {
         } finally {
           isSavingRef.current = false;
         }
-      }, 1500); // Increased debounce time to prevent race conditions
+      }, 800); // FIXED: Reduced debounce time for more responsive updates
     };
 
     handleWhaleNameSaving();
@@ -503,10 +466,10 @@ export default function App() {
     }
   }
 
-  // UPDATED: Modified saveMeasurementToDatabase to include whale name
+  // UPDATED: Modified saveMeasurementToDatabase to include whale name with proper ID
   const saveMeasurementToDatabase = async (measurement) => {
     try {
-      // Use currentWhaleId or generate one if not available
+      // FIXED: Use the current whale ID consistently
       let subjectName = currentWhaleId;
       if (!subjectName && imageFile) {
         subjectName = await generateWhaleId(formData.whaleName, imageFile.name);
@@ -563,14 +526,14 @@ export default function App() {
     }
   };
 
-  // UPDATED: Modified handleBackendResult to use whale ID for subject name
+  // UPDATED: Modified handleBackendResult to use consistent whale ID
   const handleBackendResult = (result) => {
     console.log("Backend result received:", result);
     setBackendResult(result);
 
-    // Use currentWhaleId as subject name
+    // FIXED: Use currentWhaleId consistently
     const subjectName = currentWhaleId || 
-                       (formData.whaleName ? formData.whaleName + "1" : null) ||
+                       (formData.whaleName ? `${formData.whaleName}1` : null) ||
                        (imageFile?.name ? imageFile.name.replace(/\.[^/.]+$/, '') : "unnamed_whale");
 
     // Use measurement_type instead of type
@@ -852,9 +815,9 @@ const handleVolumeCalculation = async () => {
     // Sort width segments by percentage/position
     const sortedSegments = widthSegments.sort((a, b) => parseFloat(a.index) - parseFloat(b.index));
     
-    // Use whale ID as Image_ID and Image name
+    // FIXED: Use current whale ID consistently
     const whaleId = currentWhaleId || 
-                   (formData.whaleName ? formData.whaleName + "1" : null) ||
+                   (formData.whaleName ? `${formData.whaleName}1` : null) ||
                    (imageFile?.name ? imageFile.name.replace(/\.[^/.]+$/, '') : "unnamed_whale");
     
     // Create measurement object with TL and width measurements
@@ -1003,7 +966,7 @@ const handleVolumeCalculation = async () => {
                 currentWhaleId={currentWhaleId}
                 formData={formData}
                 currentImageId={imageId} 
-                key={`${currentWhaleId}-${formData.whaleName}`}
+                key={`${currentWhaleId}-${formData.whaleName}-${imageId}`}
               />
             </div>
           </div>
@@ -1025,7 +988,7 @@ const handleVolumeCalculation = async () => {
               crosshairSize={parseInt(formData.crosshairSize) || 10}
               pixelDimension={pixelDimension}
               subjectName={currentWhaleId || 
-                          (formData.whaleName ? formData.whaleName + "1" : null) ||
+                          (formData.whaleName ? `${formData.whaleName}1` : null) ||
                           (imageFile?.name ? imageFile.name.replace(/\.[^/.]+$/, '') : "unnamed_whale")}
               formData={formData}
             />
