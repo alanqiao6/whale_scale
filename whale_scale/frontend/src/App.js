@@ -298,6 +298,7 @@ export default function App() {
     }
   }
 
+  // FIXED: Improved useEffect with proper prevention of overwriting previous images
   useEffect(() => {
     const handleWhaleNameSaving = async () => {
       // Only proceed if we have an image loaded
