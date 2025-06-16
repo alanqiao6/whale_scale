@@ -92,6 +92,15 @@ export default function App() {
   // FIXED: Function to generate whale identifier with proper incremental numbering
   const generateWhaleId = async (whaleName, imageFilename) => {
     try {
+      // If no whale name provided, use filename without extension
+      if (!whaleName || whaleName.trim() === "") {
+        const baseFilename = imageFilename ? 
+          imageFilename.replace(/\.[^/.]+$/, '') : "unnamed_whale";
+        return `${baseFilename}1`;
+      }
+      
+      const cleanName = whaleName.trim();
+      
       // Fetch existing images to count properly
       const response = await fetch("/api/collatrix/get_user_images/", {
         method: "GET",
@@ -101,15 +110,6 @@ export default function App() {
       if (response.ok) {
         const data = await response.json();
         const images = data.images || [];
-        
-        // If no whale name provided, use filename without extension
-        if (!whaleName || whaleName.trim() === "") {
-          const baseFilename = imageFilename ? 
-            imageFilename.replace(/\.[^/.]+$/, '') : "unnamed_whale";
-          return baseFilename;
-        }
-        
-        const cleanName = whaleName.trim();
         
         // Fetch measurements for each image to check whale metadata
         const imagesWithWhaleNames = await Promise.all(
@@ -145,20 +145,39 @@ export default function App() {
               console.error(`Error fetching measurements for image ${image.id}:`, error);
             }
             
-            return image;
+            // Also check database fields
+            return {
+              ...image,
+              whale_name: image.whale_name || (image.whale_id ? image.whale_id.replace(/\d+$/, '') : null)
+            };
           })
         );
         
-        // Count existing images with this whale name
-        const existingCount = imagesWithWhaleNames.filter(img => 
-          img.whale_name && img.whale_name.toLowerCase() === cleanName.toLowerCase()
-        ).length;
+        // Count existing images with this exact whale name (case-insensitive)
+        const existingWhaleNumbers = imagesWithWhaleNames
+          .filter(img => img.whale_name && img.whale_name.toLowerCase() === cleanName.toLowerCase())
+          .map(img => {
+            // Extract number from whale_id or default to 1
+            if (img.whale_id) {
+              const match = img.whale_id.match(/(\d+)$/);
+              return match ? parseInt(match[1]) : 1;
+            }
+            return 1;
+          })
+          .sort((a, b) => a - b); // Sort numbers ascending
         
-        // Generate new ID with incremented number
-        const newNumber = existingCount + 1;
-        const whaleId = `${cleanName}${newNumber}`;
+        // Find the next available number
+        let nextNumber = 1;
+        for (const num of existingWhaleNumbers) {
+          if (num === nextNumber) {
+            nextNumber++;
+          } else {
+            break;
+          }
+        }
         
-        console.log(`Generated whale ID: ${whaleId} (found ${existingCount} existing images with name "${cleanName}")`);
+        const whaleId = `${cleanName}${nextNumber}`;
+        console.log(`Generated whale ID: ${whaleId} (existing numbers: [${existingWhaleNumbers.join(', ')}])`);
         return whaleId;
       }
     } catch (error) {
