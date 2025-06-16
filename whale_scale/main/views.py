@@ -436,7 +436,22 @@ class CollatriX(View):
         """
         Routes requests to the appropriate function based on the URL path.
         """
-        if function_name == "calculate_body_condition":
+        # Handle delete requests with URL parameters
+        if function_name.startswith("delete_image/"):
+            # Extract image_id from the function_name
+            try:
+                image_id = function_name.split("/")[1]
+                return self.delete_image(request, image_id)
+            except (IndexError, ValueError):
+                return JsonResponse({"error": "Invalid image ID"}, status=400)
+        elif function_name.startswith("delete_measurement/"):
+            # Extract measurement_id from the function_name
+            try:
+                measurement_id = function_name.split("/")[1]
+                return self.delete_measurement(request, measurement_id)
+            except (IndexError, ValueError):
+                return JsonResponse({"error": "Invalid measurement ID"}, status=400)
+        elif function_name == "calculate_body_condition":
             return self.calculate_body_condition(request)
         elif function_name == "save_measurement":
             return self.save_measurement(request)
@@ -455,12 +470,6 @@ class CollatriX(View):
         elif function_name == "get_image_measurements":
             image_id = request.GET.get('image_id')
             return self.get_image_measurements(request, image_id)
-        elif function_name.startswith("delete_image/"):
-            image_id = function_name.split("/")[1]
-            return self.delete_image(request, image_id)
-        elif function_name.startswith("delete_measurement/"):
-            measurement_id = function_name.split("/")[1]
-            return self.delete_measurement(request, measurement_id)
         else:
             return JsonResponse({"error": "Invalid function name"}, status=400)
         
@@ -530,15 +539,22 @@ class CollatriX(View):
             
             # If this is a ruler_complete measurement, also delete child width_segments
             if measurement.measurement_type == "ruler_complete":
-                # Find and delete child width segments
-                child_segments = Measurement.objects.filter(
-                    image=image,
-                    measurement_type="width_segment",
-                    measurement_metadata__parent_measurement_id=measurement.id
-                )
-                child_count = child_segments.count()
-                child_segments.delete()
-                logger.info(f"Deleted {child_count} child width segments")
+                # Find and delete child width segments using a safer query
+                try:
+                    # Use __contains to search in the JSON field
+                    child_segments = Measurement.objects.filter(
+                        image=image,
+                        measurement_type="width_segment"
+                    ).extra(
+                        where=["JSON_EXTRACT(measurement_metadata, '$.parent_measurement_id') = %s"],
+                        params=[measurement.id]
+                    )
+                    child_count = child_segments.count()
+                    child_segments.delete()
+                    logger.info(f"Deleted {child_count} child width segments")
+                except Exception as e:
+                    logger.warning(f"Could not delete child segments: {str(e)}")
+                    # Continue with deleting the main measurement even if child deletion fails
             
             # Delete the measurement
             measurement.delete()
@@ -552,6 +568,7 @@ class CollatriX(View):
             
         except Exception as e:
             logger.error(f"Error deleting measurement {measurement_id}: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return JsonResponse({'error': 'Failed to delete measurement'}, status=500)
     
     def save_measurement(self, request):
