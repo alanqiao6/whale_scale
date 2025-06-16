@@ -297,7 +297,7 @@ export default function App() {
     }
   }
 
-  // FIXED: Enhanced useEffect with bulletproof protection against overwriting existing whale IDs
+  // FINAL FIX: Enhanced useEffect with immediate state protection
   useEffect(() => {
     const handleWhaleNameSaving = async () => {
       // CRITICAL: Don't process if we're in skip mode
@@ -324,6 +324,20 @@ export default function App() {
 
       const currentWhaleName = formData.whaleName?.trim() || "";
       
+      // ULTIMATE FIX: Check if we already have a whale ID for this image and whale name
+      // This prevents the double-processing issue completely
+      if (currentWhaleId && 
+          currentWhaleName && 
+          currentWhaleName === formData.whaleName?.trim()) {
+        console.log(`ULTIMATE PROTECTION: Image ${imageId} already has whale ID ${currentWhaleId} for "${currentWhaleName}", preventing any reprocessing`);
+        
+        // Update tracking refs immediately to prevent future processing
+        lastSavedWhaleNameRef.current = currentWhaleName;
+        lastSavedImageIdRef.current = imageId;
+        lastGeneratedWhaleIdRef.current = currentWhaleId;
+        return;
+      }
+
       // BULLETPROOF FIX #1: Don't re-process if we already have everything saved for this combination
       if (currentWhaleName === lastSavedWhaleNameRef.current && 
           imageId === lastSavedImageIdRef.current && 
@@ -337,7 +351,6 @@ export default function App() {
       }
 
       // BULLETPROOF FIX #2: NEVER overwrite an existing whale ID for the same image
-      // This is the critical fix - if we have a currentWhaleId and the same imageId, NEVER regenerate
       if (currentWhaleId && 
           imageId === lastSavedImageIdRef.current && 
           currentWhaleName === lastSavedWhaleNameRef.current) {
@@ -356,79 +369,85 @@ export default function App() {
         return;
       }
 
-      // For image changes with existing whale name, generate new ID for new image only
-      if (imageChanged && !whaleNameChanged && currentWhaleName !== "" && !needsWhaleId) {
-        console.log(`NEW IMAGE: Image changed from ${lastSavedImageIdRef.current} to ${imageId}, generating new ID for new image only`);
-        
-        saveTimeoutRef.current = setTimeout(async () => {
-          try {
-            isSavingRef.current = true;
-            
-            const whaleId = await generateWhaleId(currentWhaleName, imageFile?.name, true);
+      // IMMEDIATE STATE UPDATE: Set saving flag immediately to prevent race conditions
+      isSavingRef.current = true;
+
+      try {
+        // For image changes with existing whale name, generate new ID for new image only
+        if (imageChanged && !whaleNameChanged && currentWhaleName !== "" && !needsWhaleId) {
+          console.log(`NEW IMAGE: Image changed from ${lastSavedImageIdRef.current} to ${imageId}, generating new ID for new image only`);
+          
+          const whaleId = await generateWhaleId(currentWhaleName, imageFile?.name, true);
+          setCurrentWhaleId(whaleId);
+          
+          // Update tracking refs IMMEDIATELY
+          lastSavedWhaleNameRef.current = currentWhaleName;
+          lastSavedImageIdRef.current = imageId;
+          lastGeneratedWhaleIdRef.current = whaleId;
+          
+          // Save to database for NEW image only
+          const saved = await saveWhaleNameToDatabase(currentWhaleName, whaleId, imageId);
+          if (saved) {
+            console.log(`✅ New image ${imageId}: Whale "${currentWhaleName}" assigned as ${whaleId}`);
+            setBackendMessage(`🐋 Assigned as ${whaleId}`);
+            setTimeout(() => setBackendMessage(""), 3000);
+          }
+          return;
+        }
+
+        // Only proceed for actual new scenarios that need processing
+        if (!whaleNameChanged && !needsWhaleId) {
+          console.log("No whale name changes or missing whale ID, skipping");
+          return;
+        }
+
+        // Process whale name changes or first-time assignments
+        if (currentWhaleName !== "") {
+          console.log(`Processing whale name: "${currentWhaleName}" for image ${imageId}`);
+          
+          // Force refresh for real-time updates when whale name changes
+          const forceRefresh = whaleNameChanged;
+          const whaleId = await generateWhaleId(currentWhaleName, imageFile?.name, forceRefresh);
+          
+          // Only update if whale ID is different OR if we don't have one yet
+          if (whaleId !== currentWhaleId || !currentWhaleId) {
             setCurrentWhaleId(whaleId);
             
-            // Save to database for NEW image only
+            // Update tracking refs IMMEDIATELY to prevent double processing
+            lastSavedWhaleNameRef.current = currentWhaleName;
+            lastSavedImageIdRef.current = imageId;
+            lastGeneratedWhaleIdRef.current = whaleId;
+            
+            // Save to database for current image
             const saved = await saveWhaleNameToDatabase(currentWhaleName, whaleId, imageId);
             if (saved) {
-              console.log(`✅ New image ${imageId}: Whale "${currentWhaleName}" assigned as ${whaleId}`);
+              console.log(`✅ Whale "${currentWhaleName}" (${whaleId}) saved to database for image ${imageId}`);
               setBackendMessage(`🐋 Assigned as ${whaleId}`);
               setTimeout(() => setBackendMessage(""), 3000);
             }
-          } catch (error) {
-            console.error("Error in whale name saving for new image:", error);
-          } finally {
-            isSavingRef.current = false;
           }
-        }, 800);
-        return;
-      }
-
-      // Only proceed for actual new scenarios that need processing
-      if (!whaleNameChanged && !needsWhaleId) {
-        console.log("No whale name changes or missing whale ID, skipping");
-        return;
-      }
-
-      // Process whale name changes or first-time assignments
-      saveTimeoutRef.current = setTimeout(async () => {
-        try {
-          isSavingRef.current = true;
-
-          if (currentWhaleName !== "") {
-            console.log(`Processing whale name: "${currentWhaleName}" for image ${imageId}`);
-            
-            // Force refresh for real-time updates when whale name changes
-            const forceRefresh = whaleNameChanged;
-            const whaleId = await generateWhaleId(currentWhaleName, imageFile?.name, forceRefresh);
-            
-            // Only update if whale ID is different OR if we don't have one yet
-            if (whaleId !== currentWhaleId || !currentWhaleId) {
-              setCurrentWhaleId(whaleId);
-              
-              // Save to database for current image
-              const saved = await saveWhaleNameToDatabase(currentWhaleName, whaleId, imageId);
-              if (saved) {
-                console.log(`✅ Whale "${currentWhaleName}" (${whaleId}) saved to database for image ${imageId}`);
-                setBackendMessage(`🐋 Assigned as ${whaleId}`);
-                setTimeout(() => setBackendMessage(""), 3000);
-              }
-            }
-          } else if (!currentWhaleId) {
-            // Generate fallback ID for empty whale name
-            const whaleId = await generateWhaleId("", imageFile?.name);
-            setCurrentWhaleId(whaleId);
-            console.log(`Generated fallback whale ID: ${whaleId} for image ${imageId}`);
-            setBackendMessage(`📷 Image loaded as ${whaleId}. Enter whale name to assign proper ID.`);
-            setTimeout(() => setBackendMessage(""), 4000);
-          }
-        } catch (error) {
-          console.error("Error in whale name saving:", error);
-          setBackendMessage(`❌ Error processing whale name`);
-          setTimeout(() => setBackendMessage(""), 3000);
-        } finally {
-          isSavingRef.current = false;
+        } else if (!currentWhaleId) {
+          // Generate fallback ID for empty whale name
+          const whaleId = await generateWhaleId("", imageFile?.name);
+          setCurrentWhaleId(whaleId);
+          
+          // Update tracking refs IMMEDIATELY
+          lastSavedWhaleNameRef.current = "";
+          lastSavedImageIdRef.current = imageId;
+          lastGeneratedWhaleIdRef.current = whaleId;
+          
+          console.log(`Generated fallback whale ID: ${whaleId} for image ${imageId}`);
+          setBackendMessage(`📷 Image loaded as ${whaleId}. Enter whale name to assign proper ID.`);
+          setTimeout(() => setBackendMessage(""), 4000);
         }
-      }, 800);
+      } catch (error) {
+        console.error("Error in whale name saving:", error);
+        setBackendMessage(`❌ Error processing whale name`);
+        setTimeout(() => setBackendMessage(""), 3000);
+      } finally {
+        // Always reset the saving flag
+        isSavingRef.current = false;
+      }
     };
 
     handleWhaleNameSaving();
