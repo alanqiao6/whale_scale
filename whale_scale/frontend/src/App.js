@@ -297,6 +297,7 @@ export default function App() {
       }
     }
   }
+
   // FIXED: Improved useEffect with proper prevention of overwriting previous images
   useEffect(() => {
     const handleWhaleNameSaving = async () => {
