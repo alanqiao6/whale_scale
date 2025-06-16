@@ -22,8 +22,9 @@ deploy-prod:
     - |
       ssh -o StrictHostKeyChecking=no -i gitlab_vcm $VCM_USER_PROD@$VCM_IP_PROD "
       cd /home/vcm/APP_WHALESCALE/app_WhaleScale && 
-      git fetch origin &&
-      git reset --hard origin/main &&
+      git fetch &&
+      git checkout main && 
+      git pull origin main && 
       export POSTGRES_DB='$POSTGRES_DB' &&
       export POSTGRES_USER='$POSTGRES_USER' &&
       export POSTGRES_PASSWORD='$POSTGRES_PASSWORD' &&
