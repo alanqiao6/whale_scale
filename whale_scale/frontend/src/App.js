@@ -153,12 +153,13 @@ export default function App() {
         const imageWhaleIds = new Map(); // Map to track whale ID -> image ID relationship
         
         // FIXED: Check both database whale_name field AND measurement metadata
-        // but only count unique whale IDs per unique image, and prioritize database over measurements
+        // but only count unique whale IDs per unique image, and ensure consistency
         for (const image of images) {
           let whaleIdForThisImage = null;
           
           // Check database whale_name field first (most reliable and current)
-          if (image.whale_name && image.whale_name.toLowerCase() === cleanName.toLowerCase() && image.whale_id) {
+          if (image.whale_name && image.whale_name.toLowerCase() === cleanName.toLowerCase() && 
+              image.whale_id && image.whale_id.toLowerCase().startsWith(cleanName.toLowerCase())) {
             console.log(`Found whale in database: ${image.whale_name} with ID: ${image.whale_id} for image ${image.id}`);
             whaleIdForThisImage = image.whale_id;
           }
@@ -190,7 +191,8 @@ export default function App() {
                     }
                   }
                   
-                  if (metadata.whale_name && metadata.whale_name.toLowerCase() === cleanName.toLowerCase() && metadata.whale_id) {
+                  if (metadata.whale_name && metadata.whale_name.toLowerCase() === cleanName.toLowerCase() && 
+                      metadata.whale_id && metadata.whale_id.toLowerCase().startsWith(cleanName.toLowerCase())) {
                     console.log(`Found whale in measurement: ${metadata.whale_name} with ID: ${metadata.whale_id} for image ${image.id}`);
                     whaleIdForThisImage = metadata.whale_id;
                     break; // Take the first match per image
