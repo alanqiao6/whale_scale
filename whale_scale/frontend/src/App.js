@@ -91,6 +91,7 @@ export default function App() {
 
   const generateWhaleId = async (whaleName, imageFilename) => {
     try {
+      // If no whale name provided, use filename without extension
       if (!whaleName || whaleName.trim() === "") {
         const baseFilename = imageFilename ? 
           imageFilename.replace(/\.[^/.]+$/, '') : "unnamed_whale";
@@ -178,6 +179,8 @@ export default function App() {
       console.error("Error:", error);
     }
     
+    // Fallback: just use the name with "1"
+    const cleanName = whaleName?.trim() || "unnamed_whale";
     return `${cleanName}1`;
   };
 
