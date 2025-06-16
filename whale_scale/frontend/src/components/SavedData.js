@@ -93,19 +93,21 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
     }
   };
 
-  // FIXED: Enhanced whale info extraction with current session awareness
+  // FIXED: Enhanced whale info extraction with proper current session detection
   const extractWhaleInfo = (image) => {
-    // PRIORITY 1: If this is the current session image and we have current whale info, use that
-    const isCurrentSessionImage = currentWhaleId && (
-      // Check if the current whale ID matches this image's whale data
-      (image.whale_id && currentWhaleId.startsWith(image.whale_id?.replace(/\d+$/, ''))) ||
-      // Or if we have form data whale name that matches
-      (formData?.whaleName && image.whale_name === formData.whaleName) ||
-      // Or if the image was recently uploaded (same session, recent timestamp)
-      (new Date() - new Date(image.upload_date) < 5 * 60 * 1000) // Within 5 minutes
+    // PRIORITY 1: Check if this is THE current session image (exact match with currentWhaleId)
+    const isExactCurrentImage = currentWhaleId && formData?.whaleName && (
+      // Must match the exact current whale ID
+      (image.whale_id === currentWhaleId) ||
+      // OR be the most recent image with matching whale name (uploaded in last 2 minutes)
+      (formData.whaleName === image.whale_name && 
+       new Date() - new Date(image.upload_date) < 2 * 60 * 1000) ||
+      // OR be the most recent image overall if no whale_name set yet (uploaded in last 2 minutes)
+      (!image.whale_name && 
+       new Date() - new Date(image.upload_date) < 2 * 60 * 1000)
     );
 
-    if (isCurrentSessionImage && formData?.whaleName) {
+    if (isExactCurrentImage && formData?.whaleName) {
       // Use current session data for real-time updates
       const baseWhaleName = formData.whaleName;
       const whaleNumber = currentWhaleId ? currentWhaleId.replace(baseWhaleName, '') || "1" : "1";
