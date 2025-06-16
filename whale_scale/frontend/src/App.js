@@ -77,6 +77,8 @@ export default function App() {
 
   // FIXED: Function to clear all measurement data and active tools
   const clearAllMeasurementData = () => {
+    setSkipWhaleProcessing(true);
+
     setRulerData(null);
     setManualCurveData(null);
     setAreaData(null);
@@ -88,6 +90,7 @@ export default function App() {
     setActiveTool(null);
     setPixelDimension(null);
     console.log("Cleared all measurement data and active tools - whale ID preserved");
+    setTimeout(() => setSkipWhaleProcessing(false), 100);
   };
 
   // FIND this function in your code (around line 96) and REPLACE it with this:
