@@ -440,7 +440,9 @@ class CollatriX(View):
         logger = logging.getLogger(__name__)
         logger.info(f"CollatriX POST request: function_name={function_name}")
         
-        if function_name == "delete_image":
+        if function_name == "update_whale_info":
+            return self.update_whale_info(request)
+        elif function_name == "delete_image":
             image_id = request.GET.get('image_id') or request.POST.get('image_id')
             logger.info(f"Delete image request: image_id={image_id}")
             if not image_id:
@@ -474,6 +476,68 @@ class CollatriX(View):
         else:
             logger.warning(f"Invalid function name: {function_name}")
             return JsonResponse({"error": f"Invalid function name: {function_name}"}, status=400)
+
+    def update_whale_info(self, request):
+        """Update whale name and ID for an image immediately"""
+        logger = logging.getLogger(__name__)
+        
+        try:
+            data = json.loads(request.body)
+            image_id = data.get('image_id')
+            whale_name = data.get('whale_name', '').strip()
+            whale_id = data.get('whale_id', '').strip()
+            
+            logger.info(f"Updating whale info for image {image_id}: name='{whale_name}', id='{whale_id}'")
+            
+            if not image_id:
+                return JsonResponse({'error': 'image_id is required'}, status=400)
+            
+            try:
+                image = UploadedImage.objects.get(id=image_id)
+            except UploadedImage.DoesNotExist:
+                logger.error(f"Image {image_id} not found")
+                return JsonResponse({'error': 'Image not found'}, status=404)
+            
+            # Check permissions
+            if request.user.is_authenticated:
+                if image.user != request.user:
+                    logger.error(f"Access denied: user {request.user.id} trying to update image owned by {image.user}")
+                    return JsonResponse({'error': 'Access denied'}, status=403)
+            else:
+                session_key = request.session.session_key
+                if not session_key:
+                    logger.error("No session key found")
+                    return JsonResponse({'error': 'Session access denied'}, status=403)
+                if image.session_key != session_key:
+                    logger.error(f"Session mismatch: image session={image.session_key}, current session={session_key}")
+                    return JsonResponse({'error': 'Session access denied'}, status=403)
+            
+            # Update whale information
+            old_whale_name = image.whale_name
+            old_whale_id = image.whale_id
+            
+            image.whale_name = whale_name if whale_name else None
+            image.whale_id = whale_id if whale_id else None
+            image.save()
+            
+            logger.info(f"Successfully updated whale info for image {image_id}")
+            logger.info(f"Changed from '{old_whale_name}' ({old_whale_id}) to '{whale_name}' ({whale_id})")
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Updated whale info to {whale_name} ({whale_id})',
+                'whale_name': image.whale_name,
+                'whale_id': image.whale_id
+            })
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in request body: {str(e)}")
+            return JsonResponse({'error': 'Invalid JSON in request body'}, status=400)
+        except Exception as e:
+            logger.error(f"Unexpected error updating whale info: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return JsonResponse({'error': f'Internal server error: {str(e)}'}, status=500)
+
 
     def delete_image(self, request, image_id):
         """Delete an image and all its measurements"""
