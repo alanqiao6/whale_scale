@@ -192,14 +192,26 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
     }
   };
 
-  // FIXED: More precise current session detection that respects saved whale names
+  // FIXED: Restored working current session detection
   const extractWhaleInfo = (image) => {
-    // PRIORITY 1: Check if this is THE EXACT current session image
-    // Only apply current session logic to the EXACT current image, not similar whale names
-    const isExactCurrentSessionImage = currentImageId && (image.id === currentImageId);
+    // PRIORITY 1: Check if this is THE current session image
+    // Use multiple conditions to properly identify current session
+    const isCurrentSessionImage = currentWhaleId && formData?.whaleName && (
+      // Exact whale ID match
+      (image.whale_id === currentWhaleId) ||
+      // Recent upload (within 5 minutes) AND whale name matches
+      (formData.whaleName === image.whale_name && 
+       new Date() - new Date(image.upload_date) < 5 * 60 * 1000) ||
+      // Recent upload AND no whale_name set yet in image but we have one in form
+      (!image.whale_name && 
+       new Date() - new Date(image.upload_date) < 5 * 60 * 1000) ||
+      // Whale metadata matches current session
+      (image.whaleMetadata?.whale_name === formData.whaleName &&
+       new Date() - new Date(image.upload_date) < 5 * 60 * 1000)
+    );
 
-    if (isExactCurrentSessionImage && currentWhaleId && formData?.whaleName) {
-      // Only use current session data for the EXACT current image
+    if (isCurrentSessionImage) {
+      // Use current session data for real-time updates
       const baseWhaleName = formData.whaleName;
       const whaleNumber = currentWhaleId ? currentWhaleId.replace(baseWhaleName, '') || "1" : "1";
       
@@ -211,7 +223,7 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
       };
     }
 
-    // PRIORITY 2: Check if we have whale metadata from measurements (RESPECT SAVED DATA)
+    // PRIORITY 2: Check if we have whale metadata from measurements
     if (image.whaleMetadata) {
       const metadata = image.whaleMetadata;
       if (metadata.whale_name) {
@@ -248,7 +260,7 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
       }
     }
 
-    // PRIORITY 3: Check database whale fields (RESPECT SAVED DATA)
+    // PRIORITY 3: Check database whale fields
     if (image.whale_name) {
       const whaleNumber = image.whale_id ? 
         image.whale_id.replace(image.whale_name, '') || "1" : "1";
