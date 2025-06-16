@@ -333,7 +333,15 @@ export default function App() {
           currentWhaleName &&
           lastSavedWhaleNameRef.current !== "" &&
           lastSavedImageIdRef.current !== null) {
-        console.log(`Everything already saved correctly: whale "${currentWhaleName}" (${currentWhaleId}) for image ${imageId}, skipping save`);
+        console.log(`BULLETPROOF: Everything already saved correctly: whale "${currentWhaleName}" (${currentWhaleId}) for image ${imageId}, skipping save`);
+        return;
+      }
+
+      // EXTRA PROTECTION: If we have a currentWhaleId and it matches what was last generated, don't re-process
+      if (currentWhaleId && currentWhaleId === lastGeneratedWhaleIdRef.current && 
+          currentWhaleName === lastSavedWhaleNameRef.current &&
+          imageId === lastSavedImageIdRef.current) {
+        console.log(`EXTRA PROTECTION: Whale ID already correctly assigned: ${currentWhaleId}, skipping`);
         return;
       }
 
