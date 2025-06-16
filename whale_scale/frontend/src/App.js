@@ -298,7 +298,7 @@ export default function App() {
     }
   }
 
-  // FIXED: Improved useEffect with proper real-time updates and race condition prevention
+  // FIXED: Improved useEffect with proper prevention of overwriting previous images
   useEffect(() => {
     const handleWhaleNameSaving = async () => {
       // Only proceed if we have an image loaded
@@ -319,12 +319,47 @@ export default function App() {
 
       const currentWhaleName = formData.whaleName?.trim() || "";
       
-      // FIXED: Check if we actually need to update (avoid unnecessary saves)
-      if (currentWhaleName === lastSavedWhaleNameRef.current && 
-          imageId === lastSavedImageIdRef.current && 
-          currentWhaleId === lastGeneratedWhaleIdRef.current &&
-          currentWhaleId) {
+      // FIXED: Check if we actually need to update (avoid unnecessary saves AND prevent overwriting)
+      // Only save if:
+      // 1. The whale name actually changed from what was last saved, OR
+      // 2. We don't have a currentWhaleId yet for this image, OR  
+      // 3. This is a completely new image (imageId changed)
+      const whaleNameChanged = currentWhaleName !== lastSavedWhaleNameRef.current;
+      const imageChanged = imageId !== lastSavedImageIdRef.current;
+      const needsWhaleId = !currentWhaleId;
+      
+      if (!whaleNameChanged && !imageChanged && !needsWhaleId && currentWhaleId) {
         console.log("No changes detected, skipping save");
+        return;
+      }
+
+      // FIXED: If this is just an image change but whale name didn't change,
+      // and we already have the name saved for a previous image,
+      // DON'T re-process - just generate new ID for new image
+      if (imageChanged && !whaleNameChanged && currentWhaleName !== "" && !needsWhaleId) {
+        console.log(`Image changed from ${lastSavedImageIdRef.current} to ${imageId}, but whale name "${currentWhaleName}" didn't change. Generating new ID for new image.`);
+        
+        // Generate new whale ID for the new image without affecting previous images
+        saveTimeoutRef.current = setTimeout(async () => {
+          try {
+            isSavingRef.current = true;
+            
+            const whaleId = await generateWhaleId(currentWhaleName, imageFile?.name, true);
+            setCurrentWhaleId(whaleId);
+            
+            // Save to database for NEW image only
+            const saved = await saveWhaleNameToDatabase(currentWhaleName, whaleId, imageId);
+            if (saved) {
+              console.log(`✅ New image ${imageId}: Whale "${currentWhaleName}" assigned as ${whaleId}`);
+              setBackendMessage(`🐋 Assigned as ${whaleId}`);
+              setTimeout(() => setBackendMessage(""), 3000);
+            }
+          } catch (error) {
+            console.error("Error in whale name saving for new image:", error);
+          } finally {
+            isSavingRef.current = false;
+          }
+        }, 800);
         return;
       }
 
@@ -337,14 +372,14 @@ export default function App() {
             console.log(`Processing whale name: "${currentWhaleName}" for image ${imageId}`);
             
             // FIXED: Force refresh for real-time updates when whale name changes
-            const forceRefresh = currentWhaleName !== lastSavedWhaleNameRef.current;
+            const forceRefresh = whaleNameChanged;
             const whaleId = await generateWhaleId(currentWhaleName, imageFile?.name, forceRefresh);
             
             // Always update if whale ID is different OR if we don't have one yet
             if (whaleId !== currentWhaleId || !currentWhaleId) {
               setCurrentWhaleId(whaleId);
               
-              // IMMEDIATELY save to database
+              // IMMEDIATELY save to database for CURRENT image only
               const saved = await saveWhaleNameToDatabase(currentWhaleName, whaleId, imageId);
               if (saved) {
                 console.log(`✅ Whale "${currentWhaleName}" (${whaleId}) permanently saved to database for image ${imageId}`);
@@ -371,7 +406,7 @@ export default function App() {
         } finally {
           isSavingRef.current = false;
         }
-      }, 800); // FIXED: Reduced debounce time for more responsive updates
+      }, 800);
     };
 
     handleWhaleNameSaving();
@@ -382,7 +417,7 @@ export default function App() {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [formData.whaleName, imageId, imageFile?.name]); // Keep dependencies minimal
+  }, [formData.whaleName, imageId, imageFile?.name, currentWhaleId]); // Added currentWhaleId to dependencies
 
   const [measurementData, setMeasurementData] = useState(null)
 
