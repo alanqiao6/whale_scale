@@ -436,21 +436,22 @@ class CollatriX(View):
         """
         Routes requests to the appropriate function based on the URL path.
         """
-        # Handle delete requests with URL parameters
-        if function_name.startswith("delete_image/"):
-            # Extract image_id from the function_name
-            try:
-                image_id = function_name.split("/")[1]
-                return self.delete_image(request, image_id)
-            except (IndexError, ValueError):
-                return JsonResponse({"error": "Invalid image ID"}, status=400)
-        elif function_name.startswith("delete_measurement/"):
-            # Extract measurement_id from the function_name
-            try:
-                measurement_id = function_name.split("/")[1]
-                return self.delete_measurement(request, measurement_id)
-            except (IndexError, ValueError):
-                return JsonResponse({"error": "Invalid measurement ID"}, status=400)
+        # Add logging to debug
+        logger = logging.getLogger(__name__)
+        logger.info(f"CollatriX POST request: function_name={function_name}")
+        
+        if function_name == "delete_image":
+            image_id = request.GET.get('image_id') or request.POST.get('image_id')
+            logger.info(f"Delete image request: image_id={image_id}")
+            if not image_id:
+                return JsonResponse({"error": "image_id parameter required"}, status=400)
+            return self.delete_image(request, image_id)
+        elif function_name == "delete_measurement":
+            measurement_id = request.GET.get('measurement_id') or request.POST.get('measurement_id')
+            logger.info(f"Delete measurement request: measurement_id={measurement_id}")
+            if not measurement_id:
+                return JsonResponse({"error": "measurement_id parameter required"}, status=400)
+            return self.delete_measurement(request, measurement_id)
         elif function_name == "calculate_body_condition":
             return self.calculate_body_condition(request)
         elif function_name == "save_measurement":
@@ -471,26 +472,38 @@ class CollatriX(View):
             image_id = request.GET.get('image_id')
             return self.get_image_measurements(request, image_id)
         else:
-            return JsonResponse({"error": "Invalid function name"}, status=400)
-        
+            logger.warning(f"Invalid function name: {function_name}")
+            return JsonResponse({"error": f"Invalid function name: {function_name}"}, status=400)
+
     def delete_image(self, request, image_id):
         """Delete an image and all its measurements"""
         logger = logging.getLogger(__name__)
+        logger.info(f"Starting delete_image for ID: {image_id}")
         
         try:
             # Get the image
             try:
                 image = UploadedImage.objects.get(id=image_id)
+                logger.info(f"Found image: {image.filename}")
             except UploadedImage.DoesNotExist:
+                logger.error(f"Image not found: {image_id}")
                 return JsonResponse({'error': 'Image not found'}, status=404)
+            except ValueError as e:
+                logger.error(f"Invalid image ID format: {image_id}, error: {str(e)}")
+                return JsonResponse({'error': 'Invalid image ID format'}, status=400)
             
             # Check permissions
             if request.user.is_authenticated:
                 if image.user != request.user:
+                    logger.error(f"Access denied: user {request.user.id} trying to delete image owned by {image.user}")
                     return JsonResponse({'error': 'Access denied'}, status=403)
             else:
                 session_key = request.session.session_key
+                if not session_key:
+                    logger.error("No session key found")
+                    return JsonResponse({'error': 'Session access denied'}, status=403)
                 if image.session_key != session_key:
+                    logger.error(f"Session mismatch: image session={image.session_key}, current session={session_key}")
                     return JsonResponse({'error': 'Session access denied'}, status=403)
             
             # Store info for response
@@ -510,27 +523,39 @@ class CollatriX(View):
             
         except Exception as e:
             logger.error(f"Error deleting image {image_id}: {str(e)}")
-            return JsonResponse({'error': 'Failed to delete image'}, status=500)
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return JsonResponse({'error': f'Failed to delete image: {str(e)}'}, status=500)
 
     def delete_measurement(self, request, measurement_id):
         """Delete a specific measurement"""
         logger = logging.getLogger(__name__)
+        logger.info(f"Starting delete_measurement for ID: {measurement_id}")
         
         try:
             # Get the measurement
             try:
                 measurement = Measurement.objects.get(id=measurement_id)
+                logger.info(f"Found measurement: {measurement.measurement_type}")
             except Measurement.DoesNotExist:
+                logger.error(f"Measurement not found: {measurement_id}")
                 return JsonResponse({'error': 'Measurement not found'}, status=404)
+            except ValueError as e:
+                logger.error(f"Invalid measurement ID format: {measurement_id}, error: {str(e)}")
+                return JsonResponse({'error': 'Invalid measurement ID format'}, status=400)
             
             # Check permissions through the image
             image = measurement.image
             if request.user.is_authenticated:
                 if image.user != request.user:
+                    logger.error(f"Access denied: user {request.user.id} trying to delete measurement from image owned by {image.user}")
                     return JsonResponse({'error': 'Access denied'}, status=403)
             else:
                 session_key = request.session.session_key
+                if not session_key:
+                    logger.error("No session key found")
+                    return JsonResponse({'error': 'Session access denied'}, status=403)
                 if image.session_key != session_key:
+                    logger.error(f"Session mismatch: image session={image.session_key}, current session={session_key}")
                     return JsonResponse({'error': 'Session access denied'}, status=403)
             
             # Store info for response
@@ -538,38 +563,55 @@ class CollatriX(View):
             whale_info = f" for {image.whale_id}" if image.whale_id else ""
             
             # If this is a ruler_complete measurement, also delete child width_segments
+            child_count = 0
             if measurement.measurement_type == "ruler_complete":
-                # Find and delete child width segments using a safer query
                 try:
-                    # Use __contains to search in the JSON field
+                    # Get all width segments for this image
                     child_segments = Measurement.objects.filter(
                         image=image,
                         measurement_type="width_segment"
-                    ).extra(
-                        where=["JSON_EXTRACT(measurement_metadata, '$.parent_measurement_id') = %s"],
-                        params=[measurement.id]
                     )
-                    child_count = child_segments.count()
-                    child_segments.delete()
+                    
+                    # Filter by checking the metadata in Python
+                    children_to_delete = []
+                    for child in child_segments:
+                        try:
+                            metadata = child.measurement_metadata
+                            if isinstance(metadata, str):
+                                metadata = json.loads(metadata)
+                            if metadata and metadata.get("parent_measurement_id") == measurement.id:
+                                children_to_delete.append(child)
+                        except (json.JSONDecodeError, TypeError, AttributeError):
+                            continue
+                    
+                    # Delete the found children
+                    for child in children_to_delete:
+                        child.delete()
+                    
+                    child_count = len(children_to_delete)
                     logger.info(f"Deleted {child_count} child width segments")
                 except Exception as e:
                     logger.warning(f"Could not delete child segments: {str(e)}")
-                    # Continue with deleting the main measurement even if child deletion fails
+                    # Continue with deleting the main measurement
             
             # Delete the measurement
             measurement.delete()
             
             logger.info(f"Successfully deleted {measurement_type} measurement {measurement_id}{whale_info}")
             
+            message = f'Deleted {measurement_type} measurement{whale_info}'
+            if child_count > 0:
+                message += f' and {child_count} width segments'
+            
             return JsonResponse({
                 'success': True,
-                'message': f'Deleted {measurement_type} measurement{whale_info}'
+                'message': message
             })
             
         except Exception as e:
             logger.error(f"Error deleting measurement {measurement_id}: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
-            return JsonResponse({'error': 'Failed to delete measurement'}, status=500)
+            return JsonResponse({'error': f'Failed to delete measurement: {str(e)}'}, status=500)
     
     def save_measurement(self, request):
             """Save a measurement to the database with improved whale name handling"""

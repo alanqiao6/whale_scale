@@ -97,7 +97,7 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
   // Delete image function
   const deleteImage = async (imageId) => {
     try {
-      const response = await fetch(`/api/collatrix/delete_image/${imageId}/`, {
+      const response = await fetch(`/api/collatrix/delete_image/?image_id=${imageId}`, {
         method: "POST",
         credentials: 'include',
       });
@@ -133,7 +133,7 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
   // Delete measurement function
   const deleteMeasurement = async (measurementId) => {
     try {
-      const response = await fetch(`/api/collatrix/delete_measurement/${measurementId}/`, {
+      const response = await fetch(`/api/collatrix/delete_measurement/?measurement_id=${measurementId}`, {
         method: "POST",
         credentials: 'include',
       });
