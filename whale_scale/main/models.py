@@ -177,3 +177,72 @@ class UserSession(models.Model):
     
     def __str__(self):
         return f"Session {self.session_key}"
+    
+
+class XcertaintyAnalysis(models.Model):
+    """Stores Xcertainty Bayesian analysis results"""
+    
+    # Link to whale data
+    whale_name = models.CharField(max_length=100, db_index=True)
+    whale_id = models.CharField(max_length=100, db_index=True)
+    
+    # Analysis metadata
+    analysis_type = models.CharField(max_length=50, choices=[
+        ('independent_length', 'Independent Length'),
+        ('nondecreasing_length', 'Non-decreasing Length'),
+        ('growth_curve', 'Growth Curve'),
+        ('calibration', 'Calibration'),
+    ])
+    created_date = models.DateTimeField(auto_now_add=True)
+    
+    # Analysis parameters
+    niter = models.IntegerField(default=2000)
+    thin = models.IntegerField(default=1)
+    summary_burn = models.FloatField(default=0.5)
+    
+    # Store full results as JSON
+    results = models.JSONField()
+    
+    # Summary statistics
+    convergence_success = models.BooleanField(default=True)
+    effective_sample_size = models.FloatField(null=True, blank=True)
+    
+    # User/session tracking
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    session_key = models.CharField(max_length=40, null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-created_date']
+        indexes = [
+            models.Index(fields=['whale_name', 'analysis_type']),
+            models.Index(fields=['created_date']),
+        ]
+    
+    def __str__(self):
+        return f"{self.analysis_type} for {self.whale_id} ({self.created_date.date()})"
+
+class XcertaintyMeasurement(models.Model):
+    """Individual measurement uncertainty estimates from Xcertainty"""
+    
+    analysis = models.ForeignKey(XcertaintyAnalysis, on_delete=models.CASCADE, related_name='measurements')
+    original_measurement = models.ForeignKey(Measurement, on_delete=models.CASCADE, null=True, blank=True)
+    
+    # Measurement identification
+    subject = models.CharField(max_length=100)
+    measurement_type = models.CharField(max_length=50)
+    timepoint = models.IntegerField(default=1)
+    
+    # Uncertainty estimates
+    posterior_mean = models.FloatField()
+    posterior_std = models.FloatField()
+    hpd_low = models.FloatField()  # 95% credible interval lower bound
+    hpd_high = models.FloatField()  # 95% credible interval upper bound
+    
+    # Original measurement for comparison
+    original_value = models.FloatField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ['timepoint', 'measurement_type']
+    
+    def __str__(self):
+        return f"{self.subject} {self.measurement_type} (μ={self.posterior_mean:.2f})"

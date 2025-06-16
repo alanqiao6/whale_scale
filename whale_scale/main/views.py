@@ -1531,101 +1531,321 @@ class CollatriX(View):
 # Xcertainty Endpoints
 # -------------------------
 @method_decorator(csrf_exempt, name='dispatch')
-class Xcertainty(View):
-    """API endpoints for Bayesian photogrammetric analysis using Xcertainty."""
+class XcertaintyAnalysisView(View):
+    """API endpoints for Xcertainty Bayesian analysis"""
 
-    def post(self, request, function_name):
-        """Route requests to the appropriate function."""
-        if function_name == "parse_observations":
-            return self.parse_observations(request)
-        elif function_name == "combine_observations":
-            return self.combine_observations(request)
-        elif function_name == "run_sampler":
-            return self.run_sampler(request)
-        elif function_name == "extract_summaries":
-            return self.extract_summaries(request)
-        elif function_name == "calculate_body_condition":
-            return self.calculate_body_condition(request)
-        else:
-            return JsonResponse({"error": "Invalid function name"}, status=400)
-    
-    def parse_observations(self, request):
-        """Parse wide-format photogrammetric data into structured observations."""
-        data = json.loads(request.body)
-        df = pd.DataFrame(data.get("observations", []))
-        
+    def post(self, request, analysis_type):
+        """Run Xcertainty analysis on whale measurements"""
         try:
-            parsed_data = parse_observations(
-                df, subject_col=data["subject_col"], meas_col=data["meas_col"], 
-                tlen_col=data.get("tlen_col"), image_col=data["image_col"],
-                barometer_col=data.get("barometer_col"), laser_col=data.get("laser_col"),
-                flen_col=data["flen_col"], iwidth_col=data["iwidth_col"], 
-                swidth_col=data["swidth_col"], uas_col=data["uas_col"], 
-                timepoint_col=data.get("timepoint_col"), alt_conversion_col=data.get("alt_conversion_col")
-            )
-            return JsonResponse(parsed_data, safe=False)
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=400)
-    
-    def combine_observations(self, request):
-        """Combine multiple parsed observation datasets."""
-        data = json.loads(request.body)
-        try:
-            combined_data = combine_observations(*data["datasets"])
-            return JsonResponse(combined_data, safe=False)
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=400)
-    
-    def run_sampler(self, request, sampler_type):
-        """Run the specified MCMC sampler on parsed data."""
-        data = json.loads(request.body)
-        try:
-            parsed_data = data["parsed_data"]
-            priors = data["priors"]
-            sampler = None
+            data = json.loads(request.body)
+            whale_id = data.get('whale_id')
             
-            if sampler_type == "independent_length":
-                sampler = independent_length_sampler(parsed_data, priors)
-            elif sampler_type == "nondecreasing_length":
-                sampler = nondecreasing_length_sampler(parsed_data, priors)
-            elif sampler_type == "growth_curve":
-                sampler = growth_curve_sampler(parsed_data, priors, data["subject_info"])
-            elif sampler_type == "calibration":
-                sampler = calibration_sampler(parsed_data, priors)
+            if not whale_id:
+                return JsonResponse({"error": "whale_id is required"}, status=400)
+            
+            # Get measurements for this whale
+            measurements = self.get_whale_measurements(request, whale_id)
+            if not measurements:
+                return JsonResponse({"error": "No measurements found for this whale"}, status=400)
+            
+            # Convert to Xcertainty format
+            xcertainty_data = self.convert_to_xcertainty_format(measurements)
+            
+            # Set up priors (you can make these configurable)
+            priors = self.get_default_priors(data.get('priors', {}))
+            
+            # Run analysis
+            if analysis_type == "independent_length":
+                result = self.run_independent_length_analysis(xcertainty_data, priors, data)
+            elif analysis_type == "nondecreasing_length":
+                result = self.run_nondecreasing_analysis(xcertainty_data, priors, data)
+            elif analysis_type == "growth_curve":
+                subject_info = data.get('subject_info', {})
+                result = self.run_growth_curve_analysis(xcertainty_data, priors, subject_info, data)
+            elif analysis_type == "calibration":
+                result = self.run_calibration_analysis(xcertainty_data, priors, data)
             else:
-                return JsonResponse({"error": "Invalid sampler type"}, status=400)
+                return JsonResponse({"error": "Invalid analysis type"}, status=400)
             
-            result = sampler(niter=data["niter"], thin=data.get("thin", 1), summary_burn=data.get("summary_burn", 0.5))
-            return JsonResponse(result, safe=False)
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=400)
-    
-    def extract_summaries(self, request):
-        """Extract summaries from Xcertainty MCMC results."""
-        data = json.loads(request.body)
-        try:
-            summaries = extract_summaries(data["model_output"])
-            return JsonResponse(summaries.to_dict(orient="records"), safe=False)
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=400)
-    
-    def calculate_body_condition(self, request):
-        """Calculate body condition metrics using photogrammetric data."""
-        data = json.loads(request.body)
-        try:
-            measurements = pd.DataFrame(data.get("measurements", []))
-            length_name = data["length_name"]
-            width_names = data["width_names"]
-            width_increments = data["width_increments"]
+            # Save results to database
+            analysis_record = self.save_analysis_results(request, whale_id, analysis_type, result, data)
             
-            result = body_condition(
-                data=measurements,
-                output=data["output"],
-                length_name=length_name,
-                width_names=width_names,
-                width_increments=width_increments,
-                summary_burn=data.get("summary_burn", 0.5)
-            )
-            return JsonResponse(result, safe=False)
+            return JsonResponse({
+                "success": True,
+                "analysis_id": analysis_record.id,
+                "whale_id": whale_id,
+                "analysis_type": analysis_type,
+                "summary": self.extract_summary_stats(result),
+                "full_results": result
+            })
+            
         except Exception as e:
-            return JsonResponse({"error": str(e)}, status=400)
+            logger.error(f"Xcertainty analysis error: {str(e)}")
+            return JsonResponse({"error": f"Analysis failed: {str(e)}"}, status=500)
+
+    def get_whale_measurements(self, request, whale_id):
+        """Get all measurements for a whale"""
+        # Get user/session context
+        if request.user.is_authenticated:
+            images = UploadedImage.objects.filter(user=request.user, whale_id=whale_id)
+        else:
+            session_key = request.session.session_key
+            if not session_key:
+                return []
+            images = UploadedImage.objects.filter(session_key=session_key, whale_id=whale_id)
+        
+        measurements = []
+        for image in images:
+            for measurement in image.measurements.all():
+                measurements.append({
+                    'image': image,
+                    'measurement': measurement,
+                    'whale_id': whale_id,
+                    'whale_name': image.whale_name
+                })
+        
+        return measurements
+
+    def convert_to_xcertainty_format(self, measurements):
+        """Convert WhaleScale measurements to Xcertainty format"""
+        pixel_counts = []
+        training_objects = []
+        image_info = []
+        
+        for item in measurements:
+            measurement = item['measurement']
+            image = item['image']
+            
+            # Create pixel count entry
+            pixel_counts.append({
+                'Subject': item['whale_id'],
+                'Measurement': measurement.measurement_type,
+                'Timepoint': 1,  # Default for now
+                'Image': image.filename,
+                'PixelCount': measurement.pixel_value or 0
+            })
+            
+            # If we have real-world measurements, add to training
+            if measurement.scaled_dimension:
+                training_objects.append({
+                    'Subject': item['whale_id'],
+                    'Measurement': measurement.measurement_type,
+                    'Timepoint': 1,
+                    'Length': measurement.scaled_dimension
+                })
+            
+            # Add image info
+            image_info.append({
+                'Image': image.filename,
+                'Barometer': image.gps_altitude_m or 0,
+                'Laser': image.gps_altitude_m or 0,  # Use same altitude for both
+                'FocalLength': image.focal_length_mm or 50,
+                'ImageWidth': image.image_width or 4000,
+                'SensorWidth': image.sensor_width or 13.2,
+                'UAS': image.camera_make or 'Unknown'
+            })
+        
+        return {
+            'pixel_counts': pd.DataFrame(pixel_counts),
+            'training_objects': pd.DataFrame(training_objects) if training_objects else None,
+            'prediction_objects': pd.DataFrame(pixel_counts),  # Same as pixel_counts for prediction
+            'image_info': pd.DataFrame(image_info).drop_duplicates()
+        }
+
+    def get_default_priors(self, custom_priors):
+        """Set up default priors for analysis"""
+        defaults = {
+            'altimeter_bias': {'mean': 0.0, 'std': 1.0},
+            'altimeter_scaling': {'mean': 1.0, 'std': 0.1},
+            'altimeter_variance': {'alpha': 2.0, 'beta': 1.0},
+            'pixel_variance': {'alpha': 2.0, 'beta': 1.0},
+            'object_lengths': [[0.1, 50.0]],  # Min/max length bounds in meters
+        }
+        
+        # Update with any custom priors
+        defaults.update(custom_priors)
+        return defaults
+
+    def run_independent_length_analysis(self, data, priors, params):
+        """Run independent length sampler"""
+        from MMI_CODEX.xcertainty.samplers.independent_length_sampler import independent_length_sampler
+        
+        sampler = independent_length_sampler(data, priors)
+        
+        niter = params.get('niter', 2000)
+        thin = params.get('thin', 1)
+        summary_burn = params.get('summary_burn', 0.5)
+        
+        return sampler(niter=niter, thin=thin, summary_burn=summary_burn)
+
+    def run_nondecreasing_analysis(self, data, priors, params):
+        """Run non-decreasing length sampler"""
+        from MMI_CODEX.xcertainty.samplers.nondecreasing_length_sampler import nondecreasing_length_sampler
+        
+        sampler = nondecreasing_length_sampler(data, priors)
+        
+        niter = params.get('niter', 2000)
+        thin = params.get('thin', 1)
+        summary_burn = params.get('summary_burn', 0.5)
+        
+        return sampler(niter=niter, thin=thin, summary_burn=summary_burn)
+
+    def run_growth_curve_analysis(self, data, priors, subject_info, params):
+        """Run growth curve sampler"""
+        from MMI_CODEX.xcertainty.samplers.growth_curve_sampler import growth_curve_sampler
+        
+        # Convert subject_info to DataFrame if needed
+        if isinstance(subject_info, dict):
+            subject_info = pd.DataFrame([subject_info])
+        
+        sampler = growth_curve_sampler(data, priors, subject_info)
+        
+        niter = params.get('niter', 2000)
+        thin = params.get('thin', 1)
+        summary_burn = params.get('summary_burn', 0.5)
+        
+        return sampler(niter=niter, thin=thin, summary_burn=summary_burn)
+
+    def run_calibration_analysis(self, data, priors, params):
+        """Run calibration sampler"""
+        from MMI_CODEX.xcertainty.samplers.calibration_sampler import calibration_sampler
+        
+        sampler = calibration_sampler(data, priors)
+        
+        niter = params.get('niter', 2000)
+        thin = params.get('thin', 1)
+        summary_burn = params.get('summary_burn', 0.5)
+        
+        return sampler(niter=niter, thin=thin, summary_burn=summary_burn)
+
+    def save_analysis_results(self, request, whale_id, analysis_type, results, params):
+        """Save analysis results to database"""
+        # Get whale info
+        if request.user.is_authenticated:
+            whale_image = UploadedImage.objects.filter(user=request.user, whale_id=whale_id).first()
+        else:
+            session_key = request.session.session_key
+            whale_image = UploadedImage.objects.filter(session_key=session_key, whale_id=whale_id).first()
+        
+        whale_name = whale_image.whale_name if whale_image else whale_id
+        
+        # Create analysis record
+        analysis = XcertaintyAnalysis.objects.create(
+            whale_name=whale_name,
+            whale_id=whale_id,
+            analysis_type=analysis_type,
+            niter=params.get('niter', 2000),
+            thin=params.get('thin', 1),
+            summary_burn=params.get('summary_burn', 0.5),
+            results=results,
+            user=request.user if request.user.is_authenticated else None,
+            session_key=request.session.session_key if not request.user.is_authenticated else None
+        )
+        
+        # Save individual measurement uncertainties
+        if 'objects' in results:
+            for obj_key, obj_data in results['objects'].items():
+                if 'summary' in obj_data:
+                    summary = obj_data['summary']
+                    XcertaintyMeasurement.objects.create(
+                        analysis=analysis,
+                        subject=summary.get('Subject', whale_id),
+                        measurement_type=summary.get('Measurement', 'unknown'),
+                        timepoint=summary.get('Timepoint', 1),
+                        posterior_mean=summary.get('mean', 0),
+                        posterior_std=summary.get('sd', 0),
+                        hpd_low=summary.get('HPD_low', 0),
+                        hpd_high=summary.get('HPD_high', 0)
+                    )
+        
+        return analysis
+
+    def extract_summary_stats(self, results):
+        """Extract key summary statistics"""
+        summary = {}
+        
+        if 'summaries' in results:
+            summary['convergence'] = "Successfully converged"
+            summary['n_measurements'] = len(results.get('objects', {}))
+        
+        if 'objects' in results:
+            means = [obj['summary'].get('mean', 0) for obj in results['objects'].values() if 'summary' in obj]
+            if means:
+                summary['mean_length'] = np.mean(means)
+                summary['uncertainty_range'] = np.std(means)
+        
+        return summary
+
+    def get(self, request, analysis_type=None):
+        """Get existing analyses"""
+        if analysis_type == "list":
+            return self.list_analyses(request)
+        elif analysis_type:
+            return self.get_analysis_details(request, analysis_type)
+        else:
+            return JsonResponse({"error": "Invalid request"}, status=400)
+
+    def list_analyses(self, request):
+        """List all analyses for user/session"""
+        if request.user.is_authenticated:
+            analyses = XcertaintyAnalysis.objects.filter(user=request.user)
+        else:
+            session_key = request.session.session_key
+            if not session_key:
+                return JsonResponse({"analyses": []})
+            analyses = XcertaintyAnalysis.objects.filter(session_key=session_key)
+        
+        analysis_list = []
+        for analysis in analyses:
+            analysis_list.append({
+                'id': analysis.id,
+                'whale_id': analysis.whale_id,
+                'whale_name': analysis.whale_name,
+                'analysis_type': analysis.analysis_type,
+                'created_date': analysis.created_date.isoformat(),
+                'n_measurements': analysis.measurements.count(),
+                'convergence_success': analysis.convergence_success
+            })
+        
+        return JsonResponse({"analyses": analysis_list})
+
+    def get_analysis_details(self, request, analysis_id):
+        """Get detailed results for a specific analysis"""
+        try:
+            if request.user.is_authenticated:
+                analysis = XcertaintyAnalysis.objects.get(id=analysis_id, user=request.user)
+            else:
+                session_key = request.session.session_key
+                analysis = XcertaintyAnalysis.objects.get(id=analysis_id, session_key=session_key)
+            
+            measurements = []
+            for measurement in analysis.measurements.all():
+                measurements.append({
+                    'subject': measurement.subject,
+                    'measurement_type': measurement.measurement_type,
+                    'timepoint': measurement.timepoint,
+                    'posterior_mean': measurement.posterior_mean,
+                    'posterior_std': measurement.posterior_std,
+                    'credible_interval': [measurement.hpd_low, measurement.hpd_high],
+                    'original_value': measurement.original_value
+                })
+            
+            return JsonResponse({
+                'analysis': {
+                    'id': analysis.id,
+                    'whale_id': analysis.whale_id,
+                    'whale_name': analysis.whale_name,
+                    'analysis_type': analysis.analysis_type,
+                    'created_date': analysis.created_date.isoformat(),
+                    'parameters': {
+                        'niter': analysis.niter,
+                        'thin': analysis.thin,
+                        'summary_burn': analysis.summary_burn
+                    }
+                },
+                'measurements': measurements,
+                'full_results': analysis.results
+            })
+            
+        except XcertaintyAnalysis.DoesNotExist:
+            return JsonResponse({"error": "Analysis not found"}, status=404)

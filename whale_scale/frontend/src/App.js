@@ -12,6 +12,7 @@ import Data from "./components/Data"
 import About from "./components/About"
 import SavedData from "./components/SavedData"
 import "./App.css"
+import XcertaintyTab from "./components/XcertaintyTab"  // NEW: Add Xcertainty component
 import * as exifr from "exifr"
 
 // Utility function to get cookie value
@@ -1009,7 +1010,7 @@ const handleVolumeCalculation = async () => {
         onInputChange={handleInputChange}
         isExtractingMetadata={isExtractingMetadata}
         onShowSavedData={() => setSavedDataVisible(true)}
-        currentWhaleId={currentWhaleId}  // Pass current whale ID to sidebar
+        currentWhaleId={currentWhaleId}
       />
       <div className="main-content">
         <TopBar
@@ -1020,8 +1021,7 @@ const handleVolumeCalculation = async () => {
           sidebarSubmitted={sidebarSubmitted}
         />
         
-        {/* ADD SAVED DATA MODAL HERE */}
-
+        {/* Saved Data Modal */}
         {savedDataVisible && (
           <div className="saved-data-overlay">
             <div className="saved-data-modal">
@@ -1055,7 +1055,8 @@ const handleVolumeCalculation = async () => {
           </div>
         )}
         
-        {activeTab !== "about" ? (
+        {/* UPDATED: Add Xcertainty to the tab switching logic */}
+        {activeTab === "measure" && (
           <>
             <ImageViewer
               image={image}
@@ -1105,12 +1106,28 @@ const handleVolumeCalculation = async () => {
               angleData={angleData}
               bodyConditionData={bodyConditionData}
               pixelDimension={pixelDimension}
-              currentWhaleId={currentWhaleId}  // Pass whale ID to Data component
+              currentWhaleId={currentWhaleId}
             />
           </>
-        ) : (
-          <About />
         )}
+        
+        {/* NEW: Add Xcertainty tab */}
+        {activeTab === "xcertainty" && (
+          <XcertaintyTab 
+            currentWhaleId={currentWhaleId}
+            formData={formData}
+            measurements={{
+              rulerData,
+              manualCurveData,
+              areaData,
+              angleData,
+              bodyConditionData
+            }}
+            pixelDimension={pixelDimension}
+          />
+        )}
+        
+        {activeTab === "about" && <About />}
       </div>
     </div>
   )
