@@ -1,11 +1,12 @@
 // File: SavedData.js
 // Purpose: Component to display and manage saved measurements and images
 // ADDED: Delete functionality for images and measurements
+// FIXED: Enhanced current session detection using currentImageId
 
 import React, { useState, useEffect } from "react";
 import "./SavedData.css";
 
-export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhaleId, formData }) {
+export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhaleId, formData, currentImageId}) {
   const [savedImages, setSavedImages] = useState([]);
   const [selectedImageId, setSelectedImageId] = useState(null);
   const [imageMeasurements, setImageMeasurements] = useState([]);
@@ -22,9 +23,10 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
   // Group images by whale name when data changes
   useEffect(() => {
     if (savedImages.length > 0) {
+      console.log('Grouping images with currentImageId:', currentImageId, 'currentWhaleId:', currentWhaleId);
       groupImagesByWhale();
     }
-  }, [savedImages, currentWhaleId, formData]);
+  }, [savedImages, currentWhaleId, formData, currentImageId]);
 
   const fetchSavedImages = async () => {
     setLoading(true);
@@ -190,18 +192,17 @@ export default function SavedData({ onLoadMeasurement, onLoadImage, currentWhale
     }
   };
 
-  // FIXED: Enhanced whale info extraction with proper current session detection
+  // FIXED: Enhanced whale info extraction with proper current session detection using currentImageId
   const extractWhaleInfo = (image) => {
     // PRIORITY 1: Check if this is THE current session image
-    // Need to check multiple conditions to properly identify current session
-    const isCurrentSessionImage = currentWhaleId && formData?.whaleName && (
+    // Enhanced current session detection using image ID for most reliable matching
+    const isCurrentSessionImage = currentImageId && currentWhaleId && formData?.whaleName && (
+      // Exact image ID match (most reliable)
+      (image.id === currentImageId) ||
       // Exact whale ID match
       (image.whale_id === currentWhaleId) ||
       // Recent upload (within 2 minutes) AND whale name matches
       (formData.whaleName === image.whale_name && 
-       new Date() - new Date(image.upload_date) < 2 * 60 * 1000) ||
-      // Recent upload AND no whale_name set yet in image but we have one in form
-      (!image.whale_name && 
        new Date() - new Date(image.upload_date) < 2 * 60 * 1000) ||
       // Whale metadata matches current session
       (image.whaleMetadata?.whale_name === formData.whaleName &&

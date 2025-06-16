@@ -816,6 +816,7 @@ const handleVolumeCalculation = async () => {
         />
         
         {/* ADD SAVED DATA MODAL HERE */}
+
         {savedDataVisible && (
           <div className="saved-data-overlay">
             <div className="saved-data-modal">
@@ -840,8 +841,10 @@ const handleVolumeCalculation = async () => {
               </button>
               <SavedData 
                 onLoadMeasurement={handleLoadSavedMeasurement}
-                currentWhaleId={currentWhaleId}  // ADD THIS LINE
-                formData={formData}              // ADD THIS LINE
+                currentWhaleId={currentWhaleId}
+                formData={formData}
+                currentImageId={imageId} 
+                key={`${currentWhaleId}-${formData.whaleName}`}
               />
             </div>
           </div>
