@@ -302,7 +302,7 @@ export default function App() {
     }
   }
 
-  // NEW: Effect to handle whale name persistence and auto-saving
+  // FIXED: Effect to handle whale name persistence and auto-saving with proper loop prevention
   useEffect(() => {
     const saveWhaleNameWithDelay = async () => {
       // Only proceed if we have an image loaded
@@ -312,16 +312,25 @@ export default function App() {
 
       // If there's a whale name, save it to database immediately
       if (formData.whaleName && formData.whaleName.trim() !== "") {
-        // Generate whale ID for this specific image
-        const whaleId = await generateWhaleId(formData.whaleName, imageFile?.name);
-        setCurrentWhaleId(whaleId);
-        
-        // IMMEDIATELY save to database
-        const saved = await saveWhaleNameToDatabase(formData.whaleName, whaleId, imageId);
-        if (saved) {
-          console.log(`✅ Whale "${formData.whaleName}" (${whaleId}) permanently saved to database for image ${imageId}`);
-        } else {
-          console.error(`❌ Failed to save whale "${formData.whaleName}" to database`);
+        // Only generate new whale ID if we don't have one or if the whale name has changed
+        if (!currentWhaleId || !currentWhaleId.startsWith(formData.whaleName)) {
+          console.log(`Generating whale ID for new/changed name: "${formData.whaleName}"`);
+          
+          // Generate whale ID for this specific image
+          const whaleId = await generateWhaleId(formData.whaleName, imageFile?.name);
+          
+          // Only update if it's actually different to prevent loops
+          if (whaleId !== currentWhaleId) {
+            setCurrentWhaleId(whaleId);
+            
+            // IMMEDIATELY save to database
+            const saved = await saveWhaleNameToDatabase(formData.whaleName, whaleId, imageId);
+            if (saved) {
+              console.log(`✅ Whale "${formData.whaleName}" (${whaleId}) permanently saved to database for image ${imageId}`);
+            } else {
+              console.error(`❌ Failed to save whale "${formData.whaleName}" to database`);
+            }
+          }
         }
       }
       // If whale name is empty, still generate ID for the new image but don't save name
@@ -336,7 +345,7 @@ export default function App() {
     const timeoutId = setTimeout(saveWhaleNameWithDelay, 1000);
     
     return () => clearTimeout(timeoutId);
-  }, [formData.whaleName, imageId, imageFile?.name, currentWhaleId]);
+  }, [formData.whaleName, imageId, imageFile?.name]); // Remove currentWhaleId from dependencies to prevent loop
 
   const [measurementData, setMeasurementData] = useState(null)
 
