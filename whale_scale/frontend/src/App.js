@@ -297,7 +297,7 @@ export default function App() {
     }
   }
 
-  // FINAL WHALE ID FIX: Proper fallback detection + debouncing + ultimate protection
+  // NUCLEAR WHALE FIX: Prevent all double processing with immediate state updates
   useEffect(() => {
     const handleWhaleNameSaving = async () => {
       // CRITICAL: Don't process if we're in skip mode
@@ -324,95 +324,99 @@ export default function App() {
 
       const currentWhaleName = formData.whaleName?.trim() || "";
       
-      // IMPROVED FALLBACK DETECTION: Only filename-based IDs are true fallbacks
-      const isTrueFallbackId = currentWhaleId && (
-        currentWhaleId.startsWith('example_whale') || 
-        currentWhaleId.includes('_whale') ||
-        (imageFile?.name && currentWhaleId.includes(imageFile.name.replace(/\.[^/.]+$/, '')))
-      );
-      
-      // ULTIMATE PROTECTION: If we have a proper whale ID that matches the whale name, never reprocess
-      const hasProperWhaleId = currentWhaleId && 
-                              currentWhaleName && 
-                              currentWhaleId.toLowerCase().startsWith(currentWhaleName.toLowerCase()) &&
-                              !isTrueFallbackId;
-      
-      if (hasProperWhaleId && 
-          currentWhaleName === lastSavedWhaleNameRef.current &&
-          imageId === lastSavedImageIdRef.current &&
-          currentWhaleId === lastGeneratedWhaleIdRef.current) {
-        console.log(`ULTIMATE PROTECTION: Image ${imageId} already has proper whale ID ${currentWhaleId} for "${currentWhaleName}", preventing any reprocessing`);
-        return;
-      }
-
-      // BULLETPROOF PROTECTION: If we have a whale ID that starts with the whale name, don't regenerate
+      // NUCLEAR PROTECTION #1: If we have ANY whale ID that contains the whale name, NEVER regenerate
       if (currentWhaleId && 
           currentWhaleName && 
-          currentWhaleId.toLowerCase().startsWith(currentWhaleName.toLowerCase()) &&
-          !isTrueFallbackId &&
-          imageId === lastSavedImageIdRef.current) {
-        console.log(`BULLETPROOF: Image ${imageId} already has matching whale ID ${currentWhaleId} for "${currentWhaleName}", preventing overwrite`);
+          currentWhaleId.toLowerCase().includes(currentWhaleName.toLowerCase()) &&
+          !currentWhaleId.startsWith('example_whale')) {
+        console.log(`NUCLEAR PROTECTION: Image ${imageId} already has whale ID ${currentWhaleId} containing "${currentWhaleName}", NEVER regenerating`);
         
-        // Update tracking refs to prevent future processing
+        // IMMEDIATELY update tracking refs to prevent ANY future processing
         lastSavedWhaleNameRef.current = currentWhaleName;
         lastSavedImageIdRef.current = imageId;
         lastGeneratedWhaleIdRef.current = currentWhaleId;
         return;
       }
 
-      // DETERMINE WHAT TYPE OF PROCESSING IS NEEDED
+      // NUCLEAR PROTECTION #2: If the current whale ID is exactly what we expect, don't touch it
+      const expectedWhaleId = currentWhaleName ? `${currentWhaleName}1` : null;
+      if (currentWhaleId && 
+          expectedWhaleId && 
+          (currentWhaleId === expectedWhaleId || currentWhaleId.startsWith(currentWhaleName)) &&
+          imageId === lastSavedImageIdRef.current) {
+        console.log(`NUCLEAR PROTECTION #2: Image ${imageId} already has expected whale ID ${currentWhaleId}, preventing any changes`);
+        
+        // IMMEDIATELY update tracking refs
+        lastSavedWhaleNameRef.current = currentWhaleName;
+        lastSavedImageIdRef.current = imageId;
+        lastGeneratedWhaleIdRef.current = currentWhaleId;
+        return;
+      }
+
+      // TRUE FALLBACK DETECTION: Only these are real fallbacks
+      const isTrueFallbackId = currentWhaleId && (
+        currentWhaleId.startsWith('example_whale') || 
+        currentWhaleId.includes('_whale')
+      );
+      
+      // DETERMINE PROCESSING NEEDS
       const whaleNameChanged = currentWhaleName !== lastSavedWhaleNameRef.current;
       const imageChanged = imageId !== lastSavedImageIdRef.current;
       const needsWhaleId = !currentWhaleId;
       const needsConversionFromFallback = isTrueFallbackId && currentWhaleName;
       
-      // NO PROCESSING NEEDED: If we have a proper whale ID and nothing changed
+      // NO PROCESSING: If we have a whale ID and nothing needs changing
       if (currentWhaleId && 
-          !whaleNameChanged && 
+          !needsConversionFromFallback && 
+          !needsWhaleId && 
           !imageChanged && 
-          !needsConversionFromFallback &&
-          !needsWhaleId &&
-          hasProperWhaleId) {
-        console.log(`STABILITY: No changes detected for image ${imageId} with proper whale ID ${currentWhaleId}, keeping stable`);
+          (!whaleNameChanged || currentWhaleId.toLowerCase().includes(currentWhaleName.toLowerCase()))) {
+        console.log(`NO PROCESSING NEEDED: Image ${imageId} with whale ID ${currentWhaleId} is stable`);
         return;
       }
 
-      // DEBOUNCED PROCESSING: Add timeout for user typing
+      // IMMEDIATE STATE LOCK: Set saving flag and update refs BEFORE processing
+      isSavingRef.current = true;
+      console.log(`PROCESSING STARTED: Setting save lock for image ${imageId}`);
+
+      // Add debouncing only for typing (not for image changes or fallback conversions)
+      const shouldDebounce = whaleNameChanged && !imageChanged && !needsConversionFromFallback;
+      const delay = shouldDebounce ? 1000 : 0;
+
       saveTimeoutRef.current = setTimeout(async () => {
-        // Set saving flag to prevent race conditions
-        isSavingRef.current = true;
-
         try {
-          // CASE 1: New image with existing whale name (generate next sequential ID)
-          if (imageChanged && !whaleNameChanged && currentWhaleName !== "" && !needsWhaleId && !needsConversionFromFallback) {
-            console.log(`NEW IMAGE: Image changed from ${lastSavedImageIdRef.current} to ${imageId}, generating new sequential ID`);
-            
-            const whaleId = await generateWhaleId(currentWhaleName, imageFile?.name, true);
-            setCurrentWhaleId(whaleId);
-            
-            // Update tracking refs IMMEDIATELY
-            lastSavedWhaleNameRef.current = currentWhaleName;
-            lastSavedImageIdRef.current = imageId;
-            lastGeneratedWhaleIdRef.current = whaleId;
-            
-            // Save to database
-            const saved = await saveWhaleNameToDatabase(currentWhaleName, whaleId, imageId);
-            if (saved) {
-              console.log(`✅ New image ${imageId}: Whale "${currentWhaleName}" assigned as ${whaleId}`);
-              setBackendMessage(`🐋 Assigned as ${whaleId}`);
-              setTimeout(() => setBackendMessage(""), 3000);
-            }
-            return;
-          }
-
-          // CASE 2: Convert fallback ID to proper whale name
+          // CASE 1: Convert fallback to proper whale name (HIGHEST PRIORITY)
           if (needsConversionFromFallback) {
             console.log(`CONVERTING FALLBACK: Converting ${currentWhaleId} to proper whale name "${currentWhaleName}" for image ${imageId}`);
             
             const whaleId = await generateWhaleId(currentWhaleName, imageFile?.name, true);
-            setCurrentWhaleId(whaleId);
             
-            // Update tracking refs IMMEDIATELY
+            // IMMEDIATELY update ALL state to prevent double processing
+            setCurrentWhaleId(whaleId);
+            lastSavedWhaleNameRef.current = currentWhaleName;
+            lastSavedImageIdRef.current = imageId;
+            lastGeneratedWhaleIdRef.current = whaleId;
+            
+            console.log(`IMMEDIATE STATE UPDATE: Set tracking refs to prevent double processing`);
+            
+            // Save to database
+            const saved = await saveWhaleNameToDatabase(currentWhaleName, whaleId, imageId);
+            if (saved) {
+              console.log(`✅ FALLBACK CONVERTED: "${currentWhaleName}" (${whaleId}) for image ${imageId}`);
+              setBackendMessage(`🐋 Assigned as ${whaleId}`);
+              setTimeout(() => setBackendMessage(""), 3000);
+            }
+            return;
+          }
+
+          // CASE 2: New image with existing whale name
+          if (imageChanged && currentWhaleName && !needsWhaleId && !whaleNameChanged) {
+            console.log(`NEW IMAGE: Generating next sequential ID for "${currentWhaleName}" on image ${imageId}`);
+            
+            const whaleId = await generateWhaleId(currentWhaleName, imageFile?.name, true);
+            
+            // IMMEDIATELY update ALL state
+            setCurrentWhaleId(whaleId);
             lastSavedWhaleNameRef.current = currentWhaleName;
             lastSavedImageIdRef.current = imageId;
             lastGeneratedWhaleIdRef.current = whaleId;
@@ -420,50 +424,46 @@ export default function App() {
             // Save to database
             const saved = await saveWhaleNameToDatabase(currentWhaleName, whaleId, imageId);
             if (saved) {
-              console.log(`✅ Converted fallback to proper whale ID: "${currentWhaleName}" (${whaleId}) for image ${imageId}`);
+              console.log(`✅ NEW IMAGE: "${currentWhaleName}" (${whaleId}) for image ${imageId}`);
               setBackendMessage(`🐋 Assigned as ${whaleId}`);
               setTimeout(() => setBackendMessage(""), 3000);
             }
             return;
           }
 
-          // CASE 3: First time whale name assignment or whale name change
-          if (currentWhaleName !== "" && (whaleNameChanged || needsWhaleId)) {
-            console.log(`WHALE NAME ASSIGNMENT: Processing "${currentWhaleName}" for image ${imageId} (changed: ${whaleNameChanged}, needs ID: ${needsWhaleId})`);
+          // CASE 3: First time whale name assignment (only if no whale ID exists)
+          if (currentWhaleName && needsWhaleId) {
+            console.log(`FIRST TIME ASSIGNMENT: Generating whale ID for "${currentWhaleName}" on image ${imageId}`);
             
-            const whaleId = await generateWhaleId(currentWhaleName, imageFile?.name, whaleNameChanged);
+            const whaleId = await generateWhaleId(currentWhaleName, imageFile?.name, true);
             
-            // Only update if whale ID is actually different
-            if (whaleId !== currentWhaleId) {
-              setCurrentWhaleId(whaleId);
-              
-              // Update tracking refs IMMEDIATELY
-              lastSavedWhaleNameRef.current = currentWhaleName;
-              lastSavedImageIdRef.current = imageId;
-              lastGeneratedWhaleIdRef.current = whaleId;
-              
-              // Save to database
-              const saved = await saveWhaleNameToDatabase(currentWhaleName, whaleId, imageId);
-              if (saved) {
-                console.log(`✅ Whale name "${currentWhaleName}" assigned as ${whaleId} for image ${imageId}`);
-                setBackendMessage(`🐋 Assigned as ${whaleId}`);
-                setTimeout(() => setBackendMessage(""), 3000);
-              }
+            // IMMEDIATELY update ALL state
+            setCurrentWhaleId(whaleId);
+            lastSavedWhaleNameRef.current = currentWhaleName;
+            lastSavedImageIdRef.current = imageId;
+            lastGeneratedWhaleIdRef.current = whaleId;
+            
+            // Save to database
+            const saved = await saveWhaleNameToDatabase(currentWhaleName, whaleId, imageId);
+            if (saved) {
+              console.log(`✅ FIRST TIME: "${currentWhaleName}" (${whaleId}) for image ${imageId}`);
+              setBackendMessage(`🐋 Assigned as ${whaleId}`);
+              setTimeout(() => setBackendMessage(""), 3000);
             }
             return;
           }
 
-          // CASE 4: Generate fallback ID for empty whale name
-          if (!currentWhaleId && currentWhaleName === "") {
+          // CASE 4: Generate fallback for empty whale name
+          if (!currentWhaleId && !currentWhaleName) {
             const whaleId = await generateWhaleId("", imageFile?.name);
-            setCurrentWhaleId(whaleId);
             
-            // Update tracking refs IMMEDIATELY
+            // IMMEDIATELY update ALL state
+            setCurrentWhaleId(whaleId);
             lastSavedWhaleNameRef.current = "";
             lastSavedImageIdRef.current = imageId;
             lastGeneratedWhaleIdRef.current = whaleId;
             
-            console.log(`Generated fallback whale ID: ${whaleId} for image ${imageId}`);
+            console.log(`FALLBACK GENERATED: ${whaleId} for image ${imageId}`);
             setBackendMessage(`📷 Image loaded as ${whaleId}. Enter whale name to assign proper ID.`);
             setTimeout(() => setBackendMessage(""), 4000);
           }
@@ -475,8 +475,9 @@ export default function App() {
         } finally {
           // Always reset the saving flag
           isSavingRef.current = false;
+          console.log(`PROCESSING COMPLETE: Released save lock for image ${imageId}`);
         }
-      }, 1000); // 1 second debounce for user typing
+      }, delay);
     };
 
     handleWhaleNameSaving();
@@ -487,7 +488,7 @@ export default function App() {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [formData.whaleName, imageId, imageFile?.name]); // Keep dependencies minimal
+  }, [formData.whaleName, imageId, imageFile?.name]);
 
   const [measurementData, setMeasurementData] = useState(null)
 
