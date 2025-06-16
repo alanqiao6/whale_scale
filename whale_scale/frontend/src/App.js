@@ -301,6 +301,12 @@ export default function App() {
   // FIXED: Improved useEffect with proper prevention of overwriting previous images
   useEffect(() => {
     const handleWhaleNameSaving = async () => {
+      // CRITICAL: Don't process if we're in skip mode
+      if (skipWhaleProcessing) {
+        console.log("Skipping whale processing due to flag");
+        return;
+      }
+
       // Only proceed if we have an image loaded
       if (!imageId) {
         return;
