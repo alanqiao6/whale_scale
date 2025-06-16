@@ -89,7 +89,6 @@ export default function App() {
     console.log("Cleared all measurement data and active tools for new image");
   };
 
-  // FIXED: Function to generate whale identifier with proper incremental numbering
   const generateWhaleId = async (whaleName, imageFilename) => {
     try {
       // If no whale name provided, use filename without extension
@@ -137,7 +136,12 @@ export default function App() {
                   }
                   
                   if (metadata.whale_name) {
-                    return { ...image, whale_name: metadata.whale_name };
+                    console.log(`Found whale: ${metadata.whale_name} with ID: ${metadata.whale_id}`);
+                    return { 
+                      ...image, 
+                      whale_name: metadata.whale_name,
+                      whale_id: metadata.whale_id 
+                    };
                   }
                 }
               }
@@ -145,26 +149,30 @@ export default function App() {
               console.error(`Error fetching measurements for image ${image.id}:`, error);
             }
             
-            // Also check database fields
-            return {
-              ...image,
-              whale_name: image.whale_name || (image.whale_id ? image.whale_id.replace(/\d+$/, '') : null)
-            };
+            return image;
           })
         );
         
-        // Count existing images with this exact whale name (case-insensitive)
+        // Filter and extract numbers for the specific whale name
         const existingWhaleNumbers = imagesWithWhaleNames
-          .filter(img => img.whale_name && img.whale_name.toLowerCase() === cleanName.toLowerCase())
+          .filter(img => {
+            const hasWhaleName = img.whale_name && img.whale_name.toLowerCase() === cleanName.toLowerCase();
+            console.log(`Image ${img.id}: whale_name="${img.whale_name}", matches="${hasWhaleName}"`);
+            return hasWhaleName;
+          })
           .map(img => {
-            // Extract number from whale_id or default to 1
+            // Extract number from whale_id
             if (img.whale_id) {
               const match = img.whale_id.match(/(\d+)$/);
-              return match ? parseInt(match[1]) : 1;
+              const number = match ? parseInt(match[1]) : 1;
+              console.log(`Extracted number ${number} from whale_id: ${img.whale_id}`);
+              return number;
             }
             return 1;
           })
-          .sort((a, b) => a - b); // Sort numbers ascending
+          .sort((a, b) => a - b);
+        
+        console.log(`Existing whale numbers for "${cleanName}":`, existingWhaleNumbers);
         
         // Find the next available number
         let nextNumber = 1;
@@ -177,7 +185,7 @@ export default function App() {
         }
         
         const whaleId = `${cleanName}${nextNumber}`;
-        console.log(`Generated whale ID: ${whaleId} (existing numbers: [${existingWhaleNumbers.join(', ')}])`);
+        console.log(`Generated whale ID: ${whaleId}`);
         return whaleId;
       }
     } catch (error) {
