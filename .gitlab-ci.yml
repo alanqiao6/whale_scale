@@ -38,8 +38,9 @@ deploy-prod:
       export PROD_DEBUG='$PROD_DEBUG' &&
       docker-compose -f docker-compose.prod.yml down -v && 
       docker-compose -f docker-compose.prod.yml up -d --build &&
-      docker-compose -f docker-compose.prod.yml exec -T web python manage.py makemigrations &&
-      docker-compose -f docker-compose.prod.yml exec -T web python manage.py migrate
+      sleep 15 &&
+      docker-compose -f docker-compose.prod.yml exec -T backend python manage.py makemigrations &&
+      docker-compose -f docker-compose.prod.yml exec -T backend python manage.py migrate
       "
 
 deploy-dev:
