@@ -37,7 +37,7 @@ deploy-prod:
       export PROD_ALLOWED_HOSTS='$PROD_ALLOWED_HOSTS' &&
       export PROD_DEBUG='$PROD_DEBUG' &&
       docker-compose -f docker-compose.prod.yml down -v && 
-      docker-compose -f docker-compose.prod.yml up -d --build
+      docker-compose -f docker-compose.prod.yml up -d --build &&
       docker-compose -f docker-compose.prod.yml exec -T web python manage.py makemigrations &&
       docker-compose -f docker-compose.prod.yml exec -T web python manage.py migrate
       "
