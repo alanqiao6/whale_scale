@@ -1531,7 +1531,7 @@ class CollatriX(View):
 # Xcertainty Endpoints
 # -------------------------
 @method_decorator(csrf_exempt, name='dispatch')
-class XcertaintyAnalysisView(View):
+class Xcertainty(View):
     """API endpoints for Xcertainty Bayesian analysis"""
 
     def post(self, request, analysis_type):
