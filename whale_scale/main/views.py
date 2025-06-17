@@ -1,7 +1,7 @@
 '''
 File defining endpoint content.
 
-Author: Jason Fitzpatrick
+Author: Jason Fitzpatrick 
 '''
 
 
