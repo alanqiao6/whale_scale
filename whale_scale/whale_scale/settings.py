@@ -93,7 +93,7 @@ TEMPLATES = [
 WSGI_APPLICATION = "whale_scale.wsgi.application"
 
 
-# Database
+# Database 
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 import sys
 
