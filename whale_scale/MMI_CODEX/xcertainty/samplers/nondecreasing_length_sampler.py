@@ -21,7 +21,7 @@ def nondecreasing_length_sampler(data, priors, package_only=False):
         data (dict): Photogrammetric data formatted for models.
         priors (dict): Dictionary defining the model's prior distribution.
         package_only (bool): If True, return formatted data used to build the sampler.
-    
+     
     Returns:
         function: Sampler function with arguments (niter, thin, summary_burn, verbose).
     """
