@@ -1,4 +1,4 @@
-/* XcertaintyTab.css */
+/* XcertaintyTab.css - Merged existing styles with enhanced measurement selection features */
 
 .xcertainty-tab {
   padding: 20px;
@@ -13,6 +13,7 @@
   margin-top: 20px;
 }
 
+/* Existing whale info section */
 .whale-info {
   background: #f8f9fa;
   padding: 15px;
@@ -25,6 +26,305 @@
   margin-bottom: 10px;
 }
 
+/* NEW: Measurement Selection Section */
+.measurement-selection-section {
+  grid-column: 1 / -1;
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  border: 2px solid #e9ecef;
+  margin-bottom: 20px;
+}
+
+.measurement-selection-section h3 {
+  color: #2c3e50;
+  margin-bottom: 15px;
+}
+
+.current-selection {
+  margin-bottom: 20px;
+}
+
+.current-selection p {
+  margin: 5px 0;
+  color: #333;
+}
+
+.select-measurements-btn {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  margin-top: 10px;
+  transition: background-color 0.2s;
+}
+
+.select-measurements-btn:hover {
+  background: #0056b3;
+}
+
+.selected-measurements-preview {
+  margin-top: 15px;
+  padding: 15px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #dee2e6;
+}
+
+.selected-measurements-preview h4 {
+  color: #2c3e50;
+  margin-bottom: 10px;
+}
+
+.measurements-preview-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.measurement-tag {
+  background: #e3f2fd;
+  color: #1565c0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  border: 1px solid #bbdefb;
+}
+
+.more-measurements {
+  background: #f5f5f5;
+  color: #666;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* NEW: Measurement Selector Modal */
+.measurement-selector-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.measurement-selector-content {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 800px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.measurement-selector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #dee2e6;
+  background: #f8f9fa;
+  border-radius: 12px 12px 0 0;
+}
+
+.measurement-selector-header h3 {
+  color: #2c3e50;
+  margin: 0;
+}
+
+.close-selector {
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+/* NEW: Whale Selection */
+.whale-selection {
+  padding: 20px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.whale-selection h4 {
+  color: #2c3e50;
+  margin-bottom: 10px;
+}
+
+.whale-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.whale-option {
+  background: #f8f9fa;
+  border: 2px solid #dee2e6;
+  padding: 10px 15px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.whale-option:hover {
+  background: #e9ecef;
+}
+
+.whale-option.selected {
+  background: #007bff;
+  color: white;
+  border-color: #0056b3;
+}
+
+/* NEW: Measurement Selection */
+.measurement-selection {
+  padding: 20px;
+}
+
+.measurement-selection h4 {
+  color: #2c3e50;
+  margin-bottom: 15px;
+}
+
+.measurement-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.select-all-btn, .deselect-all-btn {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.deselect-all-btn {
+  background: #6c757d;
+}
+
+.select-all-btn:hover {
+  background: #218838;
+}
+
+.deselect-all-btn:hover {
+  background: #5a6268;
+}
+
+.selection-count {
+  font-weight: bold;
+  color: #495057;
+}
+
+.measurements-list {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+}
+
+.measurement-item {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border-bottom: 1px solid #f1f3f4;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.measurement-item:hover {
+  background: #f8f9fa;
+}
+
+.measurement-item.selected {
+  background: #e3f2fd;
+  border-left: 4px solid #2196f3;
+}
+
+.measurement-item:last-child {
+  border-bottom: none;
+}
+
+.measurement-item input[type="checkbox"] {
+  margin-right: 12px;
+}
+
+.measurement-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.measurement-type {
+  font-weight: bold;
+  color: #333;
+}
+
+.measurement-value {
+  color: #007bff;
+  font-family: monospace;
+}
+
+.measurement-image {
+  color: #666;
+  font-size: 12px;
+}
+
+.measurement-date {
+  color: #999;
+  font-size: 11px;
+}
+
+.selector-actions {
+  padding: 20px;
+  border-top: 1px solid #dee2e6;
+  background: #f8f9fa;
+  border-radius: 0 0 12px 12px;
+}
+
+.confirm-selection-btn {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  width: 100%;
+  font-weight: bold;
+}
+
+.confirm-selection-btn:hover:not(:disabled) {
+  background: #218838;
+}
+
+.confirm-selection-btn:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+}
+
+/* Existing analysis config section */
 .analysis-config {
   background: #ffffff;
   padding: 20px;
@@ -127,6 +427,7 @@
   border: 1px solid #f5c6cb;
 }
 
+/* Existing analyses section */
 .existing-analyses {
   grid-column: 1 / -1;
   background: #f8f9fa;
@@ -178,6 +479,7 @@
   background: #0056b3;
 }
 
+/* Results section */
 .xcertainty-results {
   grid-column: 1 / -1;
   background: #fff;
@@ -245,6 +547,10 @@
   background: #f8f9fa;
 }
 
+.uncertainty-table td {
+  font-family: monospace;
+}
+
 .download-results {
   text-align: center;
 }
@@ -266,12 +572,26 @@
 
 /* Responsive design */
 @media (max-width: 768px) {
+  .xcertainty-tab {
+    padding: 10px;
+  }
+  
   .xcertainty-content {
     grid-template-columns: 1fr;
+    grid-gap: 15px;
+  }
+  
+  .measurement-selector-content {
+    width: 95%;
+    height: 95vh;
   }
   
   .parameter-grid {
     grid-template-columns: 1fr;
+  }
+  
+  .whale-options {
+    flex-direction: column;
   }
   
   .analyses-list {
@@ -282,5 +602,14 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
+  }
+  
+  .measurement-controls {
+    flex-wrap: wrap;
+  }
+  
+  .measurements-preview-list {
+    flex-direction: column;
+    gap: 5px;
   }
 }

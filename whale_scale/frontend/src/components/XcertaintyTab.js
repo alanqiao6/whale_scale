@@ -1,4 +1,4 @@
-// XcertaintyTab.js - Add this as a new component
+// XcertaintyTab.js - Enhanced with measurement selection from saved data
 
 import React, { useState, useEffect } from 'react';
 import './XcertaintyTab.css';
@@ -14,10 +14,118 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [existingAnalyses, setExistingAnalyses] = useState([]);
+  
+  // NEW: State for measurement selection
+  const [savedImages, setSavedImages] = useState([]);
+  const [whaleGroups, setWhaleGroups] = useState({});
+  const [selectedWhaleId, setSelectedWhaleId] = useState(null);
+  const [selectedMeasurements, setSelectedMeasurements] = useState([]);
+  const [availableMeasurements, setAvailableMeasurements] = useState([]);
+  const [showMeasurementSelector, setShowMeasurementSelector] = useState(false);
+  const [loadingMeasurements, setLoadingMeasurements] = useState(false);
 
   useEffect(() => {
     fetchExistingAnalyses();
+    fetchSavedImages();
+  }, []);
+
+  // Set current whale as default selection
+  useEffect(() => {
+    if (currentWhaleId && !selectedWhaleId) {
+      setSelectedWhaleId(currentWhaleId);
+      loadMeasurementsForWhale(currentWhaleId);
+    }
   }, [currentWhaleId]);
+
+  const fetchSavedImages = async () => {
+    try {
+      const response = await fetch("/api/collatrix/get_user_images/", {
+        method: "GET",
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSavedImages(data.images);
+        groupImagesByWhale(data.images);
+      }
+    } catch (err) {
+      console.error('Error fetching saved images:', err);
+    }
+  };
+
+  const groupImagesByWhale = (images) => {
+    const groups = {};
+    
+    images.forEach(image => {
+      const whaleId = image.whale_id || image.whale_name || 'Unknown';
+      if (!groups[whaleId]) {
+        groups[whaleId] = {
+          whale_name: image.whale_name || whaleId,
+          whale_id: whaleId,
+          images: [],
+          total_measurements: 0
+        };
+      }
+      groups[whaleId].images.push(image);
+      groups[whaleId].total_measurements += image.measurement_count || 0;
+    });
+    
+    setWhaleGroups(groups);
+  };
+
+  const loadMeasurementsForWhale = async (whaleId) => {
+    setLoadingMeasurements(true);
+    setAvailableMeasurements([]);
+    
+    try {
+      // Get all images for this whale
+      const whaleImages = savedImages.filter(img => 
+        img.whale_id === whaleId || img.whale_name === whaleId
+      );
+      
+      // Fetch measurements for each image
+      const allMeasurements = [];
+      for (const image of whaleImages) {
+        try {
+          const response = await fetch(`/api/collatrix/get_image_measurements/?image_id=${image.id}`, {
+            method: "GET",
+            credentials: 'include',
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            const measurements = data.measurements || [];
+            
+            // Filter out individual width segments and add image info
+            const filteredMeasurements = measurements
+              .filter(m => m.measurement_type !== 'width_segment' && !m.measurement_type.startsWith('TL_w'))
+              .map(m => ({
+                ...m,
+                image_filename: image.filename,
+                image_id: image.id,
+                image_upload_date: image.upload_date
+              }));
+            
+            allMeasurements.push(...filteredMeasurements);
+          }
+        } catch (err) {
+          console.error(`Error fetching measurements for image ${image.id}:`, err);
+        }
+      }
+      
+      setAvailableMeasurements(allMeasurements);
+      
+      // Auto-select all measurements by default
+      setSelectedMeasurements(allMeasurements.map(m => m.id));
+      
+    } catch (err) {
+      console.error('Error loading measurements for whale:', err);
+      setError('Failed to load measurements for selected whale');
+    } finally {
+      setLoadingMeasurements(false);
+    }
+  };
 
   const fetchExistingAnalyses = async () => {
     try {
@@ -35,8 +143,13 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
   };
 
   const runAnalysis = async () => {
-    if (!currentWhaleId) {
+    if (!selectedWhaleId) {
       setError('Please select a whale first');
+      return;
+    }
+
+    if (selectedMeasurements.length === 0) {
+      setError('Please select at least one measurement');
       return;
     }
 
@@ -45,14 +158,15 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
 
     try {
       const payload = {
-        whale_id: currentWhaleId,
+        whale_id: selectedWhaleId,
+        selected_measurements: selectedMeasurements,
         ...parameters
       };
 
       // Add subject info for growth curve analysis
       if (analysisType === 'growth_curve') {
         payload.subject_info = {
-          Subject: currentWhaleId,
+          Subject: selectedWhaleId,
           Year: new Date().getFullYear(),
           Group: 'default',
           ObservedAge: 1,
@@ -88,7 +202,7 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
 
   const loadExistingAnalysis = async (analysisId) => {
     try {
-      const response = await fetch(`/api/xcertainty/details/${analysisId}/`, {
+      const response = await fetch(`/api/xcertainty/details/?id=${analysisId}`, {
         credentials: 'include'
       });
       
@@ -99,6 +213,153 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
     } catch (err) {
       console.error('Error loading analysis:', err);
     }
+  };
+
+  const getMeasurementTypeDisplay = (measurement) => {
+    switch (measurement.measurement_type) {
+      case 'ruler_complete':
+        const metadata = typeof measurement.metadata === 'string' 
+          ? JSON.parse(measurement.metadata) 
+          : measurement.metadata || {};
+        const segmentCount = metadata.segment_count || 0;
+        return {
+          icon: '📏',
+          label: `Ruler (${segmentCount} segments)`,
+          unit: 'meters'
+        };
+      case 'ruler':
+        return { icon: '📏', label: 'Total Length', unit: 'meters' };
+      case 'curve_length':
+        return { icon: '✏️', label: 'Manual Curve', unit: 'meters' };
+      case 'area':
+        return { icon: '🔲', label: 'Area', unit: 'm²' };
+      case 'angle':
+        return { icon: '📐', label: 'Angle', unit: 'degrees' };
+      default:
+        return { icon: '📏', label: measurement.measurement_type, unit: 'meters' };
+    }
+  };
+
+  const renderMeasurementSelector = () => {
+    if (!showMeasurementSelector) return null;
+
+    return (
+      <div className="measurement-selector-modal">
+        <div className="measurement-selector-content">
+          <div className="measurement-selector-header">
+            <h3>Select Measurements for Analysis</h3>
+            <button 
+              className="close-selector"
+              onClick={() => setShowMeasurementSelector(false)}
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="whale-selection">
+            <h4>Select Whale:</h4>
+            <div className="whale-options">
+              {Object.keys(whaleGroups).map(whaleId => {
+                const whale = whaleGroups[whaleId];
+                return (
+                  <button
+                    key={whaleId}
+                    className={`whale-option ${selectedWhaleId === whaleId ? 'selected' : ''}`}
+                    onClick={() => {
+                      setSelectedWhaleId(whaleId);
+                      loadMeasurementsForWhale(whaleId);
+                    }}
+                  >
+                    🐋 {whale.whale_name} ({whale.total_measurements} measurements)
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {selectedWhaleId && (
+            <div className="measurement-selection">
+              <h4>Select Measurements for {whaleGroups[selectedWhaleId]?.whale_name}:</h4>
+              
+              {loadingMeasurements ? (
+                <p>Loading measurements...</p>
+              ) : (
+                <>
+                  <div className="measurement-controls">
+                    <button
+                      onClick={() => setSelectedMeasurements(availableMeasurements.map(m => m.id))}
+                      className="select-all-btn"
+                    >
+                      Select All
+                    </button>
+                    <button
+                      onClick={() => setSelectedMeasurements([])}
+                      className="deselect-all-btn"
+                    >
+                      Deselect All
+                    </button>
+                    <span className="selection-count">
+                      {selectedMeasurements.length} of {availableMeasurements.length} selected
+                    </span>
+                  </div>
+
+                  <div className="measurements-list">
+                    {availableMeasurements.map(measurement => {
+                      const typeDisplay = getMeasurementTypeDisplay(measurement);
+                      const isSelected = selectedMeasurements.includes(measurement.id);
+                      
+                      return (
+                        <div
+                          key={measurement.id}
+                          className={`measurement-item ${isSelected ? 'selected' : ''}`}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedMeasurements(prev => prev.filter(id => id !== measurement.id));
+                            } else {
+                              setSelectedMeasurements(prev => [...prev, measurement.id]);
+                            }
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {}} // Handled by onClick above
+                          />
+                          <div className="measurement-info">
+                            <span className="measurement-type">
+                              {typeDisplay.icon} {typeDisplay.label}
+                            </span>
+                            <span className="measurement-value">
+                              {measurement.scaled_dimension?.toFixed(3)} {typeDisplay.unit}
+                            </span>
+                            <span className="measurement-image">
+                              📷 {measurement.image_filename}
+                            </span>
+                            <span className="measurement-date">
+                              {new Date(measurement.created_date).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="selector-actions">
+                    <button
+                      onClick={() => setShowMeasurementSelector(false)}
+                      className="confirm-selection-btn"
+                      disabled={selectedMeasurements.length === 0}
+                    >
+                      Use Selected Measurements ({selectedMeasurements.length})
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
   };
 
   const renderResults = () => {
@@ -192,16 +453,44 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
       <h2>🔬 Xcertainty - Bayesian Uncertainty Analysis</h2>
       
       <div className="xcertainty-content">
-        {/* Current Whale Info */}
-        <div className="whale-info">
-          <h3>Current Whale</h3>
-          {currentWhaleId ? (
-            <div>
-              <p><strong>ID:</strong> {currentWhaleId}</p>
-              {formData?.whaleName && <p><strong>Name:</strong> {formData.whaleName}</p>}
+        {/* Measurement Selection Section */}
+        <div className="measurement-selection-section">
+          <h3>Data Selection</h3>
+          
+          <div className="current-selection">
+            <p><strong>Selected Whale:</strong> {selectedWhaleId || 'None'}</p>
+            <p><strong>Selected Measurements:</strong> {selectedMeasurements.length}</p>
+            
+            <button
+              onClick={() => setShowMeasurementSelector(true)}
+              className="select-measurements-btn"
+            >
+              📊 Select Measurements to Analyze
+            </button>
+          </div>
+
+          {selectedWhaleId && selectedMeasurements.length > 0 && (
+            <div className="selected-measurements-preview">
+              <h4>Selected Measurements Preview:</h4>
+              <div className="measurements-preview-list">
+                {availableMeasurements
+                  .filter(m => selectedMeasurements.includes(m.id))
+                  .slice(0, 3)
+                  .map(measurement => {
+                    const typeDisplay = getMeasurementTypeDisplay(measurement);
+                    return (
+                      <span key={measurement.id} className="measurement-tag">
+                        {typeDisplay.icon} {typeDisplay.label}: {measurement.scaled_dimension?.toFixed(2)} {typeDisplay.unit}
+                      </span>
+                    );
+                  })}
+                {selectedMeasurements.length > 3 && (
+                  <span className="more-measurements">
+                    +{selectedMeasurements.length - 3} more...
+                  </span>
+                )}
+              </div>
             </div>
-          ) : (
-            <p>No whale selected. Please upload an image and set a whale name first.</p>
           )}
         </div>
 
@@ -283,7 +572,7 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
 
           <button 
             onClick={runAnalysis}
-            disabled={loading || !currentWhaleId}
+            disabled={loading || !selectedWhaleId || selectedMeasurements.length === 0}
             className="run-analysis-btn"
           >
             {loading ? '🔄 Running Analysis...' : '▶️ Run Analysis'}
@@ -327,6 +616,9 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
         {/* Results */}
         {renderResults()}
       </div>
+
+      {/* Measurement Selector Modal */}
+      {renderMeasurementSelector()}
     </div>
   );
 };
