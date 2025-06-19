@@ -58,11 +58,15 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
     const groups = {};
     
     images.forEach(image => {
-      const whaleId = image.whale_id || image.whale_name || 'Unknown';
+      // FIXED: Use full whale_id (like "Moby1", "Moby2") instead of just whale_name
+      const whaleId = image.whale_id || `${image.whale_name || 'Unknown'}1`;
+      const displayName = whaleId; // Use the full ID as display name
+      
       if (!groups[whaleId]) {
         groups[whaleId] = {
-          whale_name: image.whale_name || whaleId,
-          whale_id: whaleId,
+          whale_name: image.whale_name || whaleId.replace(/\d+$/, ''), // Base name without number
+          whale_id: whaleId, // Full ID like "Moby1", "Moby2"
+          display_name: displayName, // What to show in UI
           images: [],
           total_measurements: 0
         };
@@ -79,9 +83,11 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
     setAvailableMeasurements([]);
     
     try {
-      // Get all images for this whale
+      // Get all images for this whale by exact whale_id match
       const whaleImages = savedImages.filter(img => 
-        img.whale_id === whaleId || img.whale_name === whaleId
+        img.whale_id === whaleId || 
+        // Also check if whale_name matches and we're looking for the first instance
+        (img.whale_name === whaleId.replace(/\d+$/, '') && img.whale_id === whaleId)
       );
       
       // Fetch measurements for each image
@@ -270,7 +276,7 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
                       loadMeasurementsForWhale(whaleId);
                     }}
                   >
-                    🐋 {whale.whale_name} ({whale.total_measurements} measurements)
+                    🐋 {whale.display_name || whale.whale_id} ({whale.total_measurements} measurements)
                   </button>
                 );
               })}
@@ -279,7 +285,7 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
 
           {selectedWhaleId && (
             <div className="measurement-selection">
-              <h4>Select Measurements for {whaleGroups[selectedWhaleId]?.whale_name}:</h4>
+              <h4>Select Measurements for {whaleGroups[selectedWhaleId]?.display_name || whaleGroups[selectedWhaleId]?.whale_id}:</h4>
               
               {loadingMeasurements ? (
                 <p>Loading measurements...</p>
