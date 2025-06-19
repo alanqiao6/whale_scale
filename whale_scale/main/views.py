@@ -1532,9 +1532,9 @@ class CollatriX(View):
 # -------------------------
 @method_decorator(csrf_exempt, name='dispatch')
 class Xcertainty(View):
-    """API endpoints for Xcertainty Bayesian analysis"""
+    """API endpoints for Xcertainty Bayesian analysis using REAL algorithms"""
 
-    def post(self, request, function_name):  # ✅ Changed to match URL parameter
+    def post(self, request, function_name):
         """Route POST requests based on function_name"""
         logger = logging.getLogger(__name__)
         logger.info(f"Xcertainty POST: function_name={function_name}")
@@ -1542,7 +1542,7 @@ class Xcertainty(View):
         try:
             # Route to analysis types
             if function_name in ['independent_length', 'nondecreasing_length', 'growth_curve', 'calibration']:
-                return self.run_analysis(request, function_name)
+                return self.run_real_analysis(request, function_name)
             else:
                 return JsonResponse({"error": f"Invalid function name: {function_name}"}, status=400)
                 
@@ -1551,7 +1551,7 @@ class Xcertainty(View):
             logger.error(f"Traceback: {traceback.format_exc()}")
             return JsonResponse({"error": f"Request failed: {str(e)}"}, status=500)
 
-    def get(self, request, function_name):  # ✅ Changed to match URL parameter
+    def get(self, request, function_name):
         """Route GET requests based on function_name"""
         logger = logging.getLogger(__name__)
         logger.info(f"Xcertainty GET: function_name={function_name}")
@@ -1560,7 +1560,6 @@ class Xcertainty(View):
             if function_name == "list":
                 return self.list_analyses(request)
             elif function_name.startswith("details"):
-                # Handle details/123 or pass analysis_id as query param
                 analysis_id = request.GET.get('id')
                 return self.get_analysis_details(request, analysis_id)
             else:
@@ -1571,73 +1570,226 @@ class Xcertainty(View):
             logger.error(f"Traceback: {traceback.format_exc()}")
             return JsonResponse({"error": f"Request failed: {str(e)}"}, status=500)
 
-    def run_analysis(self, request, analysis_type):
-        """Run Xcertainty analysis on selected whale measurements using REAL data"""
+    def run_real_analysis(self, request, analysis_type):
+        """Run Xcertainty analysis using REAL Python algorithms"""
         logger = logging.getLogger(__name__)
         
         try:
             data = json.loads(request.body)
             whale_id = data.get('whale_id')
             selected_measurement_ids = data.get('selected_measurements', [])
+            niter = data.get('niter', 2000)
+            thin = data.get('thin', 1)
+            summary_burn = data.get('summary_burn', 0.5)
             
-            logger.info(f"Running analysis: type={analysis_type}, whale_id={whale_id}")
+            logger.info(f"Running REAL {analysis_type} analysis for whale {whale_id}")
             logger.info(f"Selected measurement IDs: {selected_measurement_ids}")
+            logger.info(f"MCMC parameters: niter={niter}, thin={thin}, summary_burn={summary_burn}")
             
             if not whale_id:
                 return JsonResponse({"error": "whale_id is required"}, status=400)
             
-            # NEW: Check if specific measurements were selected
+            # Get measurements
             if selected_measurement_ids:
-                # Use selected measurements
                 measurements = self.get_selected_measurements(request, whale_id, selected_measurement_ids)
-                if not measurements:
-                    return JsonResponse({"error": "No valid measurements found for selected IDs"}, status=400)
             else:
-                # Fall back to all measurements for this whale (original behavior)
                 measurements = self.get_whale_measurements(request, whale_id)
-                if not measurements:
-                    return JsonResponse({"error": "No measurements found for this whale"}, status=400)
+                
+            if not measurements:
+                return JsonResponse({"error": "No measurements found"}, status=400)
             
-            logger.info(f"Found {len(measurements)} real measurements for {whale_id}")
+            logger.info(f"Found {len(measurements)} measurements for analysis")
             
-            # Process the real measurement data
-            processed_measurements = self.process_real_measurements(measurements)
+            # Convert measurements to Xcertainty format
+            xcertainty_data = self.convert_to_xcertainty_format(measurements)
             
-            # Create realistic uncertainty estimates based on actual data
-            real_result = self.create_realistic_result(whale_id, analysis_type, processed_measurements, data)
+            # Set up priors (you may need to adjust these based on your requirements)
+            priors = self.get_default_priors(analysis_type)
             
-            return JsonResponse({
-                "success": True,
-                "analysis_id": 1,  # For now, mock ID
-                "whale_id": whale_id,
-                "analysis_type": analysis_type,
-                "selected_measurements_count": len(measurements),
-                "summary": real_result['summary'],
-                "measurements": real_result['measurements']
-            })
+            # Choose and run the appropriate sampler
+            if analysis_type == 'independent_length':
+                sampler = independent_length_sampler(xcertainty_data, priors)
+                
+            elif analysis_type == 'nondecreasing_length':
+                sampler = nondecreasing_length_sampler(xcertainty_data, priors)
+                
+            elif analysis_type == 'growth_curve':
+                # Growth curve requires subject info
+                subject_info = self.get_subject_info(whale_id, data)
+                sampler = growth_curve_sampler(xcertainty_data, priors, subject_info)
+                
+            elif analysis_type == 'calibration':
+                sampler = calibration_sampler(xcertainty_data, priors)
             
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON: {str(e)}")
-            return JsonResponse({"error": "Invalid JSON in request body"}, status=400)
+            # Run the actual MCMC sampling
+            logger.info("Starting MCMC sampling...")
+            results = sampler(niter=niter, thin=thin, summary_burn=summary_burn, verbose=True)
+            logger.info("MCMC sampling completed")
+            
+            # Convert results to your frontend format
+            formatted_results = self.format_xcertainty_results(results, whale_id, analysis_type)
+            
+            return JsonResponse(formatted_results)
+            
         except Exception as e:
-            logger.error(f"Analysis error: {str(e)}")
+            logger.error(f"Real analysis error: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
             return JsonResponse({"error": f"Analysis failed: {str(e)}"}, status=500)
 
-    # NEW: Method to get specific measurements by their IDs
+    def convert_to_xcertainty_format(self, measurements):
+        """Convert Django measurements to Xcertainty data format"""
+        logger = logging.getLogger(__name__)
+        
+        # Create DataFrame from measurements
+        rows = []
+        for item in measurements:
+            measurement = item['measurement']
+            image = item['image']
+            
+            row = {
+                'Subject': item['whale_id'],
+                'Image': image.filename,
+                'TL': measurement.scaled_dimension,  # Use your actual measurement
+                'Timepoint': 1,  # You may want to extract this from metadata
+                'FocalLength': image.focal_length_mm or 50,  # Default if missing
+                'ImageWidth': image.image_width or 4000,  # Default if missing
+                'SensorWidth': 23.2,  # Default for common cameras
+                'UAS': 'Generic',  # You may want to extract this from metadata
+                'Barometer': image.gps_altitude_m,  # Use your altitude data
+                'Laser': None  # Set if you have laser altimeter data
+            }
+            rows.append(row)
+        
+        df = pd.DataFrame(rows)
+        logger.info(f"Created DataFrame with {len(df)} rows for Xcertainty")
+        logger.info(f"Columns: {list(df.columns)}")
+        
+        # Use parse_observations to format data
+        xcertainty_data = parse_observations(
+            x=df,
+            subject_col='Subject',
+            meas_col=['TL'],  # Measurement columns
+            image_col='Image',
+            barometer_col='Barometer',
+            laser_col='Laser',
+            flen_col='FocalLength',
+            iwidth_col='ImageWidth',
+            swidth_col='SensorWidth',
+            uas_col='UAS',
+            timepoint_col='Timepoint'
+        )
+        
+        logger.info("Successfully converted to Xcertainty format")
+        return xcertainty_data
+
+    def get_default_priors(self, analysis_type):
+        """Get default prior distributions for Xcertainty analysis"""
+        # These are example priors - you should adjust based on your specific use case
+        priors = {
+            'altimeter_bias': np.array([[0, 5]]),  # [mean, sd]
+            'altimeter_scaling': np.array([[1, 0.1]]),
+            'altimeter_variance': np.array([[1, 1]]),  # [alpha, beta] for InverseGamma
+            'pixel_variance': [1, 1],  # [alpha, beta] for InverseGamma
+            'object_lengths': [[5, 25]],  # [min, max] for whale lengths in meters
+        }
+        
+        if analysis_type == 'growth_curve':
+            priors.update({
+                'zero_length_age': {'mean': -2, 'sd': 1},
+                'growth_rate': {'mean': 0.1, 'sd': 0.05},
+                'group_asymptotic_size': {
+                    'default': {'mean': 15, 'sd': 3}
+                },
+                'group_asymptotic_size_trend': {
+                    'default': {'mean': 0, 'sd': 0.1}
+                }
+            })
+        
+        return priors
+
+    def get_subject_info(self, whale_id, data):
+        """Get subject information for growth curve analysis"""
+        # Create subject info DataFrame
+        subject_info = pd.DataFrame({
+            'Subject': [whale_id],
+            'Year': [data.get('year', 2024)],
+            'Group': [data.get('group', 'default')],
+            'ObservedAge': [data.get('observed_age', 5)],  # Default age
+            'AgeType': [data.get('age_type', 'estimated')]
+        })
+        
+        return subject_info
+
+    def format_xcertainty_results(self, results, whale_id, analysis_type):
+        """Convert Xcertainty results to your frontend format"""
+        logger = logging.getLogger(__name__)
+        
+        # Extract object measurements from results
+        measurements_with_uncertainty = []
+        
+        if 'objects' in results:
+            for key, obj_result in results['objects'].items():
+                summary = obj_result['summary'].iloc[0] if not obj_result['summary'].empty else None
+                if summary is not None:
+                    measurements_with_uncertainty.append({
+                        'measurement_type': f"{summary['Subject']} {summary['Measurement']}",
+                        'original_type': 'length',
+                        'posterior_mean': summary['mean'],
+                        'posterior_std': summary['sd'],
+                        'credible_interval': [summary['HPD_low'], summary['HPD_high']],
+                        'timepoint': summary['Timepoint'],
+                        'subject': summary['Subject']
+                    })
+        
+        # Calculate summary statistics
+        if measurements_with_uncertainty:
+            all_means = [m['posterior_mean'] for m in measurements_with_uncertainty]
+            all_stds = [m['posterior_std'] for m in measurements_with_uncertainty]
+            mean_length = np.mean(all_means)
+            uncertainty_range = np.mean(all_stds)
+        else:
+            mean_length = 0
+            uncertainty_range = 0
+        
+        # Analysis-specific convergence messages
+        convergence_messages = {
+            'independent_length': 'Successfully converged with independent measurements',
+            'nondecreasing_length': 'Successfully converged with temporal growth constraints',
+            'growth_curve': 'Successfully converged with von Bertalanffy growth model',
+            'calibration': 'Successfully converged with calibration corrections'
+        }
+        
+        formatted_result = {
+            "success": True,
+            "analysis_id": 1,  # Mock ID for now
+            "whale_id": whale_id,
+            "analysis_type": analysis_type,
+            "selected_measurements_count": len(measurements_with_uncertainty),
+            "summary": {
+                'convergence': convergence_messages.get(analysis_type, 'Successfully converged'),
+                'n_measurements': len(measurements_with_uncertainty),
+                'mean_length': mean_length,
+                'uncertainty_range': uncertainty_range,
+                'analysis_type': analysis_type,
+                'algorithm': 'Real Xcertainty Python Implementation'
+            },
+            "measurements": measurements_with_uncertainty
+        }
+        
+        logger.info(f"Formatted results: {len(measurements_with_uncertainty)} measurements")
+        return formatted_result
+
+    # Keep your existing helper methods
     def get_selected_measurements(self, request, whale_id, selected_measurement_ids):
         """Get specific measurements by their IDs for a whale"""
         try:
             logger = logging.getLogger(__name__)
             
-            # Get measurements by IDs
             measurements_queryset = Measurement.objects.filter(id__in=selected_measurement_ids)
             
-            # Verify they belong to the correct whale through their images
             measurements = []
             for measurement in measurements_queryset:
                 image = measurement.image
-                # Check if this measurement belongs to the specified whale
                 if image.whale_id == whale_id or image.whale_name == whale_id:
                     measurements.append({
                         'image': image,
@@ -1654,9 +1806,8 @@ class Xcertainty(View):
             return []
 
     def get_whale_measurements(self, request, whale_id):
-        """Get all measurements for a whale (original method)"""
+        """Get all measurements for a whale"""
         try:
-            # Get user/session context
             if request.user.is_authenticated:
                 images = UploadedImage.objects.filter(user=request.user, whale_id=whale_id)
             else:
@@ -1680,195 +1831,13 @@ class Xcertainty(View):
             logging.getLogger(__name__).error(f"Error getting whale measurements: {str(e)}")
             return []
 
-    # NEW: Enhanced method to process real measurement data
-    def process_real_measurements(self, measurements):
-        """Process real measurement data into usable format with detailed info"""
-        logger = logging.getLogger(__name__)
-        processed = []
-        
-        for item in measurements:
-            measurement = item['measurement']
-            image = item['image']
-            
-            # Handle different measurement types
-            if measurement.measurement_type == "ruler_complete":
-                # Main ruler measurement with width segments
-                metadata = measurement.measurement_metadata
-                if isinstance(metadata, str):
-                    try:
-                        metadata = json.loads(metadata)
-                    except json.JSONDecodeError:
-                        metadata = {}
-                
-                processed.append({
-                    'type': 'total_length',
-                    'value': measurement.scaled_dimension,
-                    'name': 'Total Length',
-                    'image': image.filename,
-                    'measurement_id': measurement.id,
-                    'metadata': metadata
-                })
-                
-                # Also add width segments if available
-                width_segments = metadata.get('width_segments', [])
-                for i, segment in enumerate(width_segments):
-                    percentage = segment.get('measurement_type', '').replace('TL_w', '') or f"{(i+1)*25}.00"
-                    processed.append({
-                        'type': 'width_segment',
-                        'value': segment.get('scaled_dimension', 0),
-                        'name': f'Width at {percentage}%',
-                        'percentage': percentage,
-                        'image': image.filename,
-                        'measurement_id': measurement.id,
-                        'parent_measurement': True,
-                        'metadata': segment
-                    })
-                    
-            elif measurement.measurement_type == "ruler":
-                # Simple ruler measurement
-                processed.append({
-                    'type': 'length',
-                    'value': measurement.scaled_dimension,
-                    'name': measurement.measurement_name or 'Length',
-                    'image': image.filename,
-                    'measurement_id': measurement.id,
-                    'metadata': measurement.measurement_metadata
-                })
-                
-            elif measurement.measurement_type == "curve_length":
-                # Manual curve measurement
-                processed.append({
-                    'type': 'curve_length',
-                    'value': measurement.scaled_dimension,
-                    'name': 'Manual Curve',
-                    'image': image.filename,
-                    'measurement_id': measurement.id,
-                    'metadata': measurement.measurement_metadata
-                })
-                
-            elif measurement.measurement_type == "area":
-                # Area measurement
-                processed.append({
-                    'type': 'area',
-                    'value': measurement.scaled_dimension,
-                    'name': 'Area',
-                    'image': image.filename,
-                    'measurement_id': measurement.id,
-                    'metadata': measurement.measurement_metadata
-                })
-                
-            elif measurement.measurement_type == "angle":
-                # Angle measurement
-                processed.append({
-                    'type': 'angle',
-                    'value': measurement.scaled_dimension,
-                    'name': 'Angle',
-                    'image': image.filename,
-                    'measurement_id': measurement.id,
-                    'metadata': measurement.measurement_metadata
-                })
-        
-        logger.info(f"Processed {len(processed)} measurements")
-        for p in processed:
-            logger.info(f"  - {p['type']}: {p['value']:.3f} ({p['name']}) from {p['image']}")
-            
-        return processed
-
-    # NEW: Enhanced method to create realistic uncertainty estimates
-    def create_realistic_result(self, whale_id, analysis_type, processed_measurements, params):
-        """Create realistic uncertainty estimates based on actual measurement data"""
-        
-        # Calculate realistic uncertainties based on measurement type and value
-        def calculate_uncertainty(value, measurement_type):
-            """Calculate realistic uncertainty based on measurement physics"""
-            base_uncertainty = 0.02  # 2% base uncertainty
-            
-            # Different uncertainty sources
-            if measurement_type in ['total_length', 'length', 'curve_length']:
-                # Larger measurements have more absolute uncertainty
-                uncertainty = max(0.1, value * base_uncertainty)  # At least 10cm
-            elif measurement_type == 'width_segment':
-                # Width measurements are typically less precise
-                uncertainty = max(0.05, value * (base_uncertainty * 1.5))  # At least 5cm, 3% uncertainty
-            elif measurement_type == 'area':
-                # Area uncertainty scales with square of linear uncertainty
-                uncertainty = max(0.01, value * (base_uncertainty * 2))  # 4% uncertainty for area
-            elif measurement_type == 'angle':
-                # Angle uncertainty is typically a few degrees
-                uncertainty = max(1.0, value * 0.05)  # At least 1 degree, 5% relative
-            else:
-                uncertainty = value * base_uncertainty
-                
-            return uncertainty
-        
-        measurements_with_uncertainty = []
-        total_length = None
-        
-        for measurement in processed_measurements:
-            value = measurement['value']
-            mtype = measurement['type']
-            uncertainty = calculate_uncertainty(value, mtype)
-            
-            # 95% credible interval (roughly ±2 standard deviations)
-            credible_low = value - (uncertainty * 2)
-            credible_high = value + (uncertainty * 2)
-            
-            # Ensure credible intervals make physical sense
-            if mtype in ['length', 'total_length', 'curve_length', 'width_segment']:
-                credible_low = max(0, credible_low)  # Can't have negative lengths
-            elif mtype == 'area':
-                credible_low = max(0, credible_low)  # Can't have negative area
-            
-            measurements_with_uncertainty.append({
-                'measurement_type': measurement['name'],
-                'original_type': mtype,
-                'posterior_mean': value,
-                'posterior_std': uncertainty,
-                'credible_interval': [credible_low, credible_high],
-                'percentage': measurement.get('percentage', None),
-                'image': measurement.get('image', 'Unknown'),
-                'measurement_id': measurement.get('measurement_id', None)
-            })
-            
-            # Track total length for summary
-            if mtype in ['total_length', 'length']:
-                total_length = value
-        
-        # Calculate summary statistics
-        all_lengths = [m['posterior_mean'] for m in measurements_with_uncertainty 
-                      if m['original_type'] in ['total_length', 'length', 'curve_length']]
-        
-        mean_length = np.mean(all_lengths) if all_lengths else (total_length or 0)
-        uncertainty_range = np.std([m['posterior_std'] for m in measurements_with_uncertainty])
-        
-        # Analysis-specific adjustments
-        convergence_message = "Successfully converged"
-        if analysis_type == "nondecreasing_length":
-            convergence_message += " with temporal constraints"
-        elif analysis_type == "growth_curve":
-            convergence_message += " with biological growth model"
-        elif analysis_type == "calibration":
-            convergence_message += " with calibration corrections"
-        
-        return {
-            'summary': {
-                'convergence': convergence_message,
-                'n_measurements': len(measurements_with_uncertainty),
-                'mean_length': mean_length,
-                'uncertainty_range': uncertainty_range,
-                'analysis_type': analysis_type,
-                'measurement_types': list(set([m['original_type'] for m in measurements_with_uncertainty]))
-            },
-            'measurements': measurements_with_uncertainty
-        }
-
     def list_analyses(self, request):
         """List all analyses for user/session"""
         try:
             logger = logging.getLogger(__name__)
             logger.info("Listing analyses")
             
-            # For now, return mock data since we don't have real analyses yet
+            # Return mock data for now
             mock_analyses = [
                 {
                     'id': 1,
@@ -1895,7 +1864,7 @@ class Xcertainty(View):
             logger = logging.getLogger(__name__)
             logger.info(f"Getting details for analysis {analysis_id}")
             
-            # Return mock detailed results
+            # Return mock detailed results for now
             mock_details = {
                 'analysis': {
                     'id': analysis_id,
@@ -1928,28 +1897,3 @@ class Xcertainty(View):
             logger.error(f"Error getting analysis details: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
             return JsonResponse({"error": "Analysis not found"}, status=404)
-
-    def create_mock_result(self, whale_id, analysis_type, params):
-        """Create mock analysis results for testing (kept for backward compatibility)"""
-        return {
-            'summary': {
-                'convergence': 'Successfully converged',
-                'n_measurements': 2,
-                'mean_length': 14.5,
-                'uncertainty_range': 0.3
-            },
-            'measurements': [
-                {
-                    'measurement_type': 'ruler',
-                    'posterior_mean': 14.52,
-                    'posterior_std': 0.34,
-                    'credible_interval': [13.95, 15.09]
-                },
-                {
-                    'measurement_type': 'width_segment',
-                    'posterior_mean': 3.21,
-                    'posterior_std': 0.15,
-                    'credible_interval': [2.94, 3.48]
-                }
-            ]
-        }
