@@ -1007,7 +1007,7 @@ class CollatriX(View):
         altitude: 22.7,
         focal_length: 19.35, // in mm
         sensor_width: 13.2,  // in mm (e.g., for 1" sensor)
-        image_width: 8064
+        image_width: 8064 
         }).then(res => console.log(res.data));
 
         Output: {"pixel_dimension": <meters_per_pixel>}
