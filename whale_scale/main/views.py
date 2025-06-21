@@ -1532,7 +1532,7 @@ class CollatriX(View):
 # -------------------------
 @method_decorator(csrf_exempt, name='dispatch')
 class Xcertainty(View):
-    """Simple API wrapper for Xcertainty Bayesian analysis."""
+    """API endpoints for Bayesian photogrammetric analysis using Xcertainty."""
 
     def post(self, request, function_name):
         """Route requests to the appropriate function."""
@@ -1542,16 +1542,21 @@ class Xcertainty(View):
         try:
             if function_name == "parse_observations":
                 return self.parse_observations(request)
+            elif function_name == "combine_observations":
+                return self.combine_observations(request)
             elif function_name in ['independent_length', 'nondecreasing_length', 'growth_curve', 'calibration']:
-                return self.run_simplified_analysis(request, function_name)
+                return self.run_sampler(request, function_name)
+            elif function_name == "extract_summaries":
+                return self.extract_summaries(request)
+            elif function_name == "calculate_body_condition":
+                return self.calculate_body_condition(request)
             else:
-                return JsonResponse({"error": f"Invalid function name: {function_name}"}, status=400)
-                
+                return JsonResponse({"error": "Invalid function name"}, status=400)
         except Exception as e:
             logger.error(f"Xcertainty error: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
             return JsonResponse({"error": f"Request failed: {str(e)}"}, status=500)
-
+    
     def parse_observations(self, request):
         """Parse wide-format photogrammetric data into structured observations."""
         try:
@@ -1561,112 +1566,184 @@ class Xcertainty(View):
             if not observations:
                 return JsonResponse({"error": "No observations provided"}, status=400)
             
-            # Simple parsing - just return the data in expected format
-            parsed_data = {
-                "observations": observations,
-                "subjects": list(set(obs.get(data.get("subject_col", "Subject"), "Unknown") for obs in observations)),
-                "measurements": list(set().union(*(obs.keys() for obs in observations))),
-                "n_observations": len(observations),
-                "summary": {
-                    "subject_count": len(set(obs.get(data.get("subject_col", "Subject"), "Unknown") for obs in observations)),
-                    "measurement_types": [key for key in observations[0].keys() if key not in ['Subject', 'Image', 'Timepoint', 'FocalLength', 'ImageWidth', 'SensorWidth', 'UAS']],
-                }
-            }
+            df = pd.DataFrame(observations)
             
-            return JsonResponse(parsed_data, safe=False)
+            # FIXED: Import and use your real parse_observations function
+            from MMI_CODEX.xcertainty.parsers.parse_observations import parse_observations
             
-        except Exception as e:
-            logger = logging.getLogger(__name__)
-            logger.error(f"Parse observations error: {str(e)}")
-            return JsonResponse({"error": f"Parse error: {str(e)}"}, status=400)
-
-    def run_simplified_analysis(self, request, analysis_type):
-        """Run a simplified Bayesian analysis simulation."""
-        try:
-            data = json.loads(request.body)
-            logger = logging.getLogger(__name__)
-            logger.info(f"Running {analysis_type} analysis")
+            parsed_data = parse_observations(
+                x=df, 
+                subject_col=data.get("subject_col", "Subject"), 
+                meas_col=[data.get("meas_col", "TL")], 
+                tlen_col=data.get("tlen_col"), 
+                image_col=data.get("image_col", "Image"),
+                barometer_col=data.get("barometer_col", "Barometer"), 
+                laser_col=data.get("laser_col", "Laser"),
+                flen_col=data.get("flen_col", "FocalLength"), 
+                iwidth_col=data.get("iwidth_col", "ImageWidth"), 
+                swidth_col=data.get("swidth_col", "SensorWidth"), 
+                uas_col=data.get("uas_col", "UAS"), 
+                timepoint_col=data.get("timepoint_col", "Timepoint")
+            )
             
-            # Extract parsed data
-            parsed_data = data.get("parsed_data", {})
-            observations = parsed_data.get("observations", [])
-            
-            if not observations:
-                return JsonResponse({"error": "No observations in parsed data"}, status=400)
-            
-            # Extract measurement values
-            measurement_values = []
-            for obs in observations:
-                for key, value in obs.items():
-                    if key not in ['Subject', 'Image', 'Timepoint', 'FocalLength', 'ImageWidth', 'SensorWidth', 'UAS'] and isinstance(value, (int, float)) and value > 0:
-                        measurement_values.append(value)
-            
-            if not measurement_values:
-                return JsonResponse({"error": "No valid measurement values found"}, status=400)
-            
-            # Simple Bayesian analysis simulation
-            import numpy as np
-            
-            mean_length = np.mean(measurement_values)
-            std_length = np.std(measurement_values)
-            n_samples = data.get("niter", 1000)
-            
-            # Simulate posterior samples
-            posterior_samples = np.random.normal(mean_length, std_length / np.sqrt(len(measurement_values)), n_samples)
-            
-            # Calculate credible intervals
-            ci_lower = np.percentile(posterior_samples, 2.5)
-            ci_upper = np.percentile(posterior_samples, 97.5)
-            
-            # Create results
-            result = {
-                "analysis_type": analysis_type,
-                "whale_id": observations[0].get("Subject", "Unknown"),
-                "n_measurements": len(measurement_values),
-                "convergence": "Successful",
-                
-                "summary": {
-                    "mean_length": float(mean_length),
-                    "posterior_mean": float(np.mean(posterior_samples)),
-                    "posterior_std": float(np.std(posterior_samples)),
-                    "credible_interval_95": [float(ci_lower), float(ci_upper)],
-                    "uncertainty_range": float(ci_upper - ci_lower),
-                    "effective_sample_size": int(n_samples * 0.8),  # Simulated ESS
-                },
-                
-                "measurements": [
-                    {
-                        "measurement_id": i + 1,
-                        "original_value": float(val),
-                        "posterior_mean": float(val + np.random.normal(0, std_length * 0.05)),
-                        "posterior_std": float(std_length * 0.1),
-                        "credible_interval": [
-                            float(val - std_length * 0.2), 
-                            float(val + std_length * 0.2)
-                        ]
-                    }
-                    for i, val in enumerate(measurement_values)
-                ],
-                
-                "diagnostics": {
-                    "r_hat": 1.01,  # Good convergence
-                    "n_divergent": 0,
-                    "chains": 4,
-                    "iterations": n_samples
-                }
-            }
+            # Convert DataFrames to dicts for JSON serialization
+            result = {}
+            for key, value in parsed_data.items():
+                if value is not None and hasattr(value, 'to_dict'):
+                    result[key] = value.to_dict(orient='records')
+                else:
+                    result[key] = value
             
             return JsonResponse(result, safe=False)
             
         except Exception as e:
-            logger = logging.getLogger(__name__)
-            logger.error(f"Analysis error: {str(e)}")
-            return JsonResponse({"error": f"Analysis failed: {str(e)}"}, status=400)
+            return JsonResponse({"error": str(e)}, status=400)
     
+    def combine_observations(self, request):
+        """Combine multiple parsed observation datasets."""
+        try:
+            data = json.loads(request.body)
+            
+            # FIXED: Import and use your real combine_observations function
+            from MMI_CODEX.xcertainty.parsers.combine_observations import combine_observations
+            
+            combined_data = combine_observations(*data["datasets"])
+            return JsonResponse(combined_data, safe=False)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    
+    def run_sampler(self, request, sampler_type):
+        """Run the specified MCMC sampler on parsed data."""
+        try:
+            data = json.loads(request.body)
+            parsed_data = data.get("parsed_data", {})
+            priors = data.get("priors", {})
+            
+            # Convert dict data back to DataFrames
+            xcertainty_data = {}
+            for key, value in parsed_data.items():
+                if value is not None:
+                    xcertainty_data[key] = pd.DataFrame(value)
+                else:
+                    xcertainty_data[key] = None
+            
+            # Set default priors if not provided
+            if not priors:
+                priors = self.get_default_priors(xcertainty_data)
+            
+            # FIXED: Import and use your real sampler functions
+            sampler = None
+            if sampler_type == "independent_length":
+                from MMI_CODEX.xcertainty.samplers.independent_length_sampler import independent_length_sampler
+                sampler = independent_length_sampler(xcertainty_data, priors)
+            elif sampler_type == "nondecreasing_length":
+                from MMI_CODEX.xcertainty.samplers.nondecreasing_length_sampler import nondecreasing_length_sampler
+                sampler = nondecreasing_length_sampler(xcertainty_data, priors)
+            elif sampler_type == "growth_curve":
+                from MMI_CODEX.xcertainty.samplers.growth_curve_sampler import growth_curve_sampler
+                subject_info = pd.DataFrame(data.get("subject_info", [{
+                    'Subject': parsed_data.get('observations', [{}])[0].get('Subject', 'Unknown'),
+                    'Year': 2024,
+                    'Group': 'default',
+                    'ObservedAge': 1,
+                    'AgeType': 'estimated'
+                }]))
+                sampler = growth_curve_sampler(xcertainty_data, priors, subject_info)
+            elif sampler_type == "calibration":
+                from MMI_CODEX.xcertainty.samplers.calibration_sampler import calibration_sampler
+                sampler = calibration_sampler(xcertainty_data, priors)
+            else:
+                return JsonResponse({"error": "Invalid sampler type"}, status=400)
+            
+            # Run the sampler
+            result = sampler(
+                niter=data.get("niter", 1000), 
+                thin=data.get("thin", 1), 
+                summary_burn=data.get("summary_burn", 0.5),
+                verbose=data.get("verbose", True)
+            )
+            
+            # Convert results to JSON
+            json_result = self.convert_results_to_json(result)
+            return JsonResponse(json_result, safe=False)
+            
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    
+    def extract_summaries(self, request):
+        """Extract summaries from Xcertainty MCMC results."""
+        try:
+            data = json.loads(request.body)
+            
+            # FIXED: Import and use your real extract_summaries function
+            from MMI_CODEX.xcertainty.util.extract_summaries import extract_summaries
+            
+            summaries = extract_summaries(data["model_output"])
+            return JsonResponse(summaries.to_dict(orient="records"), safe=False)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    
+    def calculate_body_condition(self, request):
+        """Calculate body condition metrics using photogrammetric data."""
+        try:
+            data = json.loads(request.body)
+            
+            # FIXED: Import and use your real body_condition function
+            from MMI_CODEX.xcertainty.util.body_condition import body_condition
+            
+            measurements = pd.DataFrame(data.get("measurements", []))
+            length_name = data["length_name"]
+            width_names = data["width_names"]
+            width_increments = data["width_increments"]
+            
+            result = body_condition(
+                data=measurements,
+                output=data["output"],
+                length_name=length_name,
+                width_names=width_names,
+                width_increments=width_increments,
+                summary_burn=data.get("summary_burn", 0.5)
+            )
+            return JsonResponse(result, safe=False)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+    def get_default_priors(self, data):
+        """Generate reasonable default priors."""
+        return {
+            'altimeter_bias': {'mean': 0, 'sd': 1},
+            'altimeter_scaling': {'mean': 1, 'sd': 0.1},
+            'altimeter_variance': {'shape': 2, 'rate': 1},
+            'image_altitude': [10, 100],
+            'pixel_variance': [2, 1],
+            'object_lengths': [[5, 20]]  # Will be expanded based on actual data
+        }
+
+    def convert_results_to_json(self, result):
+        """Convert complex result structure to JSON-serializable format."""
+        json_result = {}
+        for key, value in result.items():
+            if hasattr(value, 'to_dict'):
+                json_result[key] = value.to_dict(orient='records')
+            elif isinstance(value, dict):
+                json_result[key] = {}
+                for subkey, subvalue in value.items():
+                    if hasattr(subvalue, 'to_dict'):
+                        json_result[key][subkey] = subvalue.to_dict(orient='records')
+                    elif isinstance(subvalue, np.ndarray):
+                        json_result[key][subkey] = subvalue.tolist()
+                    else:
+                        json_result[key][subkey] = subvalue
+            elif isinstance(value, np.ndarray):
+                json_result[key] = value.tolist()
+            else:
+                json_result[key] = value
+        return json_result
+
     def get(self, request, function_name):
         """Handle GET requests"""
         if function_name == 'list':
-            return JsonResponse({"analyses": []})  # No storage, return empty
+            return JsonResponse({"analyses": []})
         elif function_name == 'details':
             return JsonResponse({"error": "Analysis storage not implemented"}, status=404)
         else:
