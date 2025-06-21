@@ -1568,13 +1568,18 @@ class Xcertainty(View):
             
             df = pd.DataFrame(observations)
             
+            # CRITICAL FIX: Ensure meas_col is always a list
+            meas_col = data.get("meas_col", ["TL"])
+            if isinstance(meas_col, str):
+                meas_col = [meas_col]  # Convert string to list
+            
             # Import your real parse_observations function
             from MMI_CODEX.xcertainty.parsers.parse_observations import parse_observations
             
             parsed_data = parse_observations(
                 x=df, 
                 subject_col=data.get("subject_col", "Subject"), 
-                meas_col=data.get("meas_col", ["TL"]),  # FIX: Should be a list
+                meas_col=meas_col,  # ← Now uses the fixed variable
                 tlen_col=data.get("tlen_col"), 
                 image_col=data.get("image_col", "Image"),
                 barometer_col=data.get("barometer_col", "Barometer"), 
@@ -1599,6 +1604,7 @@ class Xcertainty(View):
         except Exception as e:
             logger = logging.getLogger(__name__)
             logger.error(f"Parse observations error: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return JsonResponse({"error": str(e)}, status=400)
     
     def combine_observations(self, request):
