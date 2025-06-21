@@ -1568,13 +1568,13 @@ class Xcertainty(View):
             
             df = pd.DataFrame(observations)
             
-            # FIXED: Import and use your real parse_observations function
+            # Import your real parse_observations function
             from MMI_CODEX.xcertainty.parsers.parse_observations import parse_observations
             
             parsed_data = parse_observations(
                 x=df, 
                 subject_col=data.get("subject_col", "Subject"), 
-                meas_col=[data.get("meas_col", "TL")], 
+                meas_col=data.get("meas_col", ["TL"]),  # FIX: Should be a list
                 tlen_col=data.get("tlen_col"), 
                 image_col=data.get("image_col", "Image"),
                 barometer_col=data.get("barometer_col", "Barometer"), 
@@ -1597,6 +1597,8 @@ class Xcertainty(View):
             return JsonResponse(result, safe=False)
             
         except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"Parse observations error: {str(e)}")
             return JsonResponse({"error": str(e)}, status=400)
     
     def combine_observations(self, request):
@@ -1604,12 +1606,33 @@ class Xcertainty(View):
         try:
             data = json.loads(request.body)
             
-            # FIXED: Import and use your real combine_observations function
             from MMI_CODEX.xcertainty.parsers.combine_observations import combine_observations
             
-            combined_data = combine_observations(*data["datasets"])
-            return JsonResponse(combined_data, safe=False)
+            # Convert datasets back to proper format
+            datasets = []
+            for dataset in data.get("datasets", []):
+                formatted_dataset = {}
+                for key, value in dataset.items():
+                    if value is not None and isinstance(value, list):
+                        formatted_dataset[key] = pd.DataFrame(value)
+                    else:
+                        formatted_dataset[key] = value
+                datasets.append(formatted_dataset)
+            
+            combined_data = combine_observations(*datasets)
+            
+            # Convert back to JSON format
+            result = {}
+            for key, value in combined_data.items():
+                if value is not None and hasattr(value, 'to_dict'):
+                    result[key] = value.to_dict(orient='records')
+                else:
+                    result[key] = value
+                    
+            return JsonResponse(result, safe=False)
         except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"Combine observations error: {str(e)}")
             return JsonResponse({"error": str(e)}, status=400)
     
     def run_sampler(self, request, sampler_type):
@@ -1622,16 +1645,16 @@ class Xcertainty(View):
             # Convert dict data back to DataFrames
             xcertainty_data = {}
             for key, value in parsed_data.items():
-                if value is not None:
+                if value is not None and isinstance(value, list):
                     xcertainty_data[key] = pd.DataFrame(value)
                 else:
-                    xcertainty_data[key] = None
+                    xcertainty_data[key] = value
             
             # Set default priors if not provided
             if not priors:
                 priors = self.get_default_priors(xcertainty_data)
             
-            # FIXED: Import and use your real sampler functions
+            # Import and use your real sampler functions
             sampler = None
             if sampler_type == "independent_length":
                 from MMI_CODEX.xcertainty.samplers.independent_length_sampler import independent_length_sampler
@@ -1642,7 +1665,7 @@ class Xcertainty(View):
             elif sampler_type == "growth_curve":
                 from MMI_CODEX.xcertainty.samplers.growth_curve_sampler import growth_curve_sampler
                 subject_info = pd.DataFrame(data.get("subject_info", [{
-                    'Subject': parsed_data.get('observations', [{}])[0].get('Subject', 'Unknown'),
+                    'Subject': xcertainty_data.get('prediction_objects', pd.DataFrame()).get('Subject', ['Unknown']).iloc[0] if len(xcertainty_data.get('prediction_objects', pd.DataFrame())) > 0 else 'Unknown',
                     'Year': 2024,
                     'Group': 'default',
                     'ObservedAge': 1,
@@ -1668,6 +1691,9 @@ class Xcertainty(View):
             return JsonResponse(json_result, safe=False)
             
         except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"Run sampler error: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return JsonResponse({"error": str(e)}, status=400)
     
     def extract_summaries(self, request):
@@ -1675,12 +1701,18 @@ class Xcertainty(View):
         try:
             data = json.loads(request.body)
             
-            # FIXED: Import and use your real extract_summaries function
             from MMI_CODEX.xcertainty.util.extract_summaries import extract_summaries
             
             summaries = extract_summaries(data["model_output"])
-            return JsonResponse(summaries.to_dict(orient="records"), safe=False)
+            
+            # Convert to JSON format
+            if hasattr(summaries, 'to_dict'):
+                return JsonResponse(summaries.to_dict(orient="records"), safe=False)
+            else:
+                return JsonResponse(summaries, safe=False)
         except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"Extract summaries error: {str(e)}")
             return JsonResponse({"error": str(e)}, status=400)
     
     def calculate_body_condition(self, request):
@@ -1688,10 +1720,15 @@ class Xcertainty(View):
         try:
             data = json.loads(request.body)
             
-            # FIXED: Import and use your real body_condition function
             from MMI_CODEX.xcertainty.util.body_condition import body_condition
             
-            measurements = pd.DataFrame(data.get("measurements", []))
+            # Convert measurements to DataFrame
+            measurements_data = data.get("measurements", [])
+            if isinstance(measurements_data, list):
+                measurements = pd.DataFrame(measurements_data)
+            else:
+                measurements = measurements_data
+                
             length_name = data["length_name"]
             width_names = data["width_names"]
             width_increments = data["width_increments"]
@@ -1704,47 +1741,79 @@ class Xcertainty(View):
                 width_increments=width_increments,
                 summary_burn=data.get("summary_burn", 0.5)
             )
-            return JsonResponse(result, safe=False)
+            
+            # Convert result to JSON format
+            json_result = self.convert_results_to_json(result)
+            return JsonResponse(json_result, safe=False)
         except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"Calculate body condition error: {str(e)}")
             return JsonResponse({"error": str(e)}, status=400)
 
     def get_default_priors(self, data):
-        """Generate reasonable default priors."""
+        """Generate reasonable default priors based on the data."""
         return {
-            'altimeter_bias': {'mean': 0, 'sd': 1},
-            'altimeter_scaling': {'mean': 1, 'sd': 0.1},
-            'altimeter_variance': {'shape': 2, 'rate': 1},
+            'altimeter_bias': pd.DataFrame({
+                'Barometer': {'mean': 0, 'sd': 1},
+                'Laser': {'mean': 0, 'sd': 1}
+            }).T,
+            'altimeter_scaling': pd.DataFrame({
+                'Barometer': {'mean': 1, 'sd': 0.1},
+                'Laser': {'mean': 1, 'sd': 0.1}
+            }).T,
+            'altimeter_variance': pd.DataFrame({
+                'Barometer': {'shape': 2, 'rate': 1},
+                'Laser': {'shape': 2, 'rate': 1}
+            }).T,
             'image_altitude': [10, 100],
             'pixel_variance': [2, 1],
-            'object_lengths': [[5, 20]]  # Will be expanded based on actual data
+            'object_lengths': [[5, 20]] * len(data.get('prediction_objects', pd.DataFrame()))
         }
 
     def convert_results_to_json(self, result):
         """Convert complex result structure to JSON-serializable format."""
+        if result is None:
+            return None
+            
         json_result = {}
-        for key, value in result.items():
-            if hasattr(value, 'to_dict'):
-                json_result[key] = value.to_dict(orient='records')
-            elif isinstance(value, dict):
-                json_result[key] = {}
-                for subkey, subvalue in value.items():
-                    if hasattr(subvalue, 'to_dict'):
-                        json_result[key][subkey] = subvalue.to_dict(orient='records')
-                    elif isinstance(subvalue, np.ndarray):
-                        json_result[key][subkey] = subvalue.tolist()
-                    else:
-                        json_result[key][subkey] = subvalue
-            elif isinstance(value, np.ndarray):
-                json_result[key] = value.tolist()
-            else:
-                json_result[key] = value
+        
+        if isinstance(result, dict):
+            for key, value in result.items():
+                json_result[key] = self.convert_results_to_json(value)
+        elif hasattr(result, 'to_dict'):
+            # Handle pandas DataFrames
+            json_result = result.to_dict(orient='records')
+        elif isinstance(result, np.ndarray):
+            # Handle numpy arrays
+            json_result = result.tolist()
+        elif isinstance(result, (list, tuple)):
+            # Handle lists and tuples
+            json_result = [self.convert_results_to_json(item) for item in result]
+        elif isinstance(result, (np.integer, np.floating)):
+            # Handle numpy scalars
+            json_result = result.item()
+        else:
+            # Handle other types (strings, numbers, etc.)
+            json_result = result
+            
         return json_result
 
     def get(self, request, function_name):
-        """Handle GET requests"""
+        """Handle GET requests for Xcertainty."""
         if function_name == 'list':
-            return JsonResponse({"analyses": []})
+            # Return list of available analyses
+            try:
+                # This would connect to your XcertaintyAnalysis model if you have one
+                # For now, return empty list
+                return JsonResponse({"analyses": []})
+            except Exception as e:
+                return JsonResponse({"error": str(e)}, status=500)
         elif function_name == 'details':
+            # Return details of a specific analysis
+            analysis_id = request.GET.get('id')
+            if not analysis_id:
+                return JsonResponse({"error": "Analysis ID required"}, status=400)
+            # This would fetch from your database
             return JsonResponse({"error": "Analysis storage not implemented"}, status=404)
         else:
             return JsonResponse({"error": f"Invalid GET function name: {function_name}"}, status=400)
