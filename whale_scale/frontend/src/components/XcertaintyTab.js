@@ -258,7 +258,7 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
       const parsePayload = {
         observations: observations,
         subject_col: 'Subject',
-        meas_col: 'TL', // Primary measurement column
+        meas_col: ['TL'],// Primary measurement column
         image_col: 'Image',
         barometer_col: 'Barometer',
         laser_col: 'Laser',
