@@ -3,6 +3,7 @@ The following is a Python file adapted from the following parse_observations.R f
 https://github.com/MMI-CODEX/Xcertainty/blob/main/R/parse_observations.R
 
 Author: Jason Fitzpatrick
+FIXED: Handle None timepoint_col properly
 '''
 
 import pandas as pd
@@ -38,12 +39,21 @@ def parse_observations(x, subject_col, meas_col, tlen_col=None, image_col=None,
     if not isinstance(x, pd.DataFrame):
         raise ValueError("x must be a pandas DataFrame.")
     
+    # CRITICAL FIX: Handle None timepoint_col properly
+    if timepoint_col is None or timepoint_col not in x.columns:
+        # Add a default Timepoint column if not provided
+        x = x.copy()  # Don't modify the original DataFrame
+        x['Timepoint'] = 1
+        timepoint_col = 'Timepoint'
+    
     # Ensure required columns exist
     required_columns = [subject_col, image_col, flen_col, iwidth_col, swidth_col, uas_col] + meas_col
+    # Don't check timepoint_col since we handle it above
     missing_cols = [col for col in required_columns if col not in x.columns]
     if missing_cols:
         raise ValueError(f"Missing columns in x: {', '.join(missing_cols)}")
     
+    # FIXED: Now timepoint_col is guaranteed to exist and not be None
     # Reshape to long format
     xlong = x.melt(id_vars=[subject_col, image_col, timepoint_col], 
                    value_vars=meas_col, var_name='Measurement', value_name='PixelCount')
@@ -53,16 +63,13 @@ def parse_observations(x, subject_col, meas_col, tlen_col=None, image_col=None,
     pixel_counts.rename(columns={subject_col: 'Subject', timepoint_col: 'Timepoint', image_col: 'Image'}, inplace=True)
     pixel_counts.drop_duplicates(inplace=True)
     
-    if 'Timepoint' not in pixel_counts.columns or pixel_counts['Timepoint'].isna().all():
-        pixel_counts['Timepoint'] = 1  # Default timepoint
+    # No need to check if Timepoint exists anymore since we ensure it above
     
     # Extract training objects if true length is provided
     training_objects = None
-    if tlen_col:
+    if tlen_col and tlen_col in x.columns:
         training_objects = xlong[[subject_col, 'Measurement', timepoint_col, tlen_col]].dropna().drop_duplicates()
         training_objects.rename(columns={subject_col: 'Subject', timepoint_col: 'Timepoint', tlen_col: 'Length'}, inplace=True)
-        if 'Timepoint' not in training_objects.columns or training_objects['Timepoint'].isna().all():
-            training_objects['Timepoint'] = 1  # Default timepoint
     
     # Define prediction objects
     prediction_objects = pixel_counts[['Subject', 'Measurement', 'Timepoint']].drop_duplicates()
@@ -73,16 +80,51 @@ def parse_observations(x, subject_col, meas_col, tlen_col=None, image_col=None,
     if prediction_objects.empty:
         prediction_objects = None
     
+    # FIXED: Handle None column names in image_info extraction
+    image_info_cols = [image_col]
+    
+    # Only add non-None columns
+    if barometer_col and barometer_col in x.columns:
+        image_info_cols.append(barometer_col)
+    if laser_col and laser_col in x.columns:
+        image_info_cols.append(laser_col)
+    if flen_col and flen_col in x.columns:
+        image_info_cols.append(flen_col)
+    if iwidth_col and iwidth_col in x.columns:
+        image_info_cols.append(iwidth_col)
+    if swidth_col and swidth_col in x.columns:
+        image_info_cols.append(swidth_col)
+    if uas_col and uas_col in x.columns:
+        image_info_cols.append(uas_col)
+    
     # Extract image info
-    image_info = x[[image_col, barometer_col, laser_col, flen_col, iwidth_col, swidth_col, uas_col]].drop_duplicates()
-    image_info.rename(columns={
-        image_col: 'Image', barometer_col: 'Barometer', laser_col: 'Laser', 
-        flen_col: 'FocalLength', iwidth_col: 'ImageWidth', 
-        swidth_col: 'SensorWidth', uas_col: 'UAS'
-    }, inplace=True)
+    image_info = x[image_info_cols].drop_duplicates()
+    
+    # Rename columns, handling None values
+    rename_dict = {image_col: 'Image'}
+    if barometer_col and barometer_col in x.columns:
+        rename_dict[barometer_col] = 'Barometer'
+    if laser_col and laser_col in x.columns:
+        rename_dict[laser_col] = 'Laser'
+    if flen_col and flen_col in x.columns:
+        rename_dict[flen_col] = 'FocalLength'
+    if iwidth_col and iwidth_col in x.columns:
+        rename_dict[iwidth_col] = 'ImageWidth'
+    if swidth_col and swidth_col in x.columns:
+        rename_dict[swidth_col] = 'SensorWidth'
+    if uas_col and uas_col in x.columns:
+        rename_dict[uas_col] = 'UAS'
+    
+    image_info.rename(columns=rename_dict, inplace=True)
+    
+    # Add missing columns with default values if they weren't provided
+    if 'Barometer' not in image_info.columns:
+        image_info['Barometer'] = None
+    if 'Laser' not in image_info.columns:
+        image_info['Laser'] = None
     
     # Convert measurements from lengths to pixels if needed
-    if alt_conversion_col:
+    if alt_conversion_col and alt_conversion_col in x.columns:
         pixel_counts = pixel_counts.merge(
             image_info.merge(x, left_on='Image', right_on=image_col), 
             on='Image'
