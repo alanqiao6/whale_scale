@@ -1780,45 +1780,38 @@ class Xcertainty(View):
             return None
 
     def convert_to_xcertainty_format_safe(self, validated_measurements):
-        """Convert validated measurements to Xcertainty format - FIXED VERSION"""
+        """Convert validated measurements to REAL Xcertainty format - matches library expectations"""
         logger = logging.getLogger(__name__)
         
         try:
+            # Create the EXACT format that parse_observations expects
             rows = []
             for item in validated_measurements:
-                # Calculate pixel dimension (meters per pixel)
-                pixel_dimension = item['real_dimension'] / item['pixel_distance'] if item['pixel_distance'] > 0 else 0.001
-                
-                # Determine measurement name for Xcertainty
                 measurement_type = item.get('measurement_type', 'TL')
-                if measurement_type.startswith('TL_w'):
-                    measurement_name = measurement_type  # Keep width segment names like "TL_w25.00"
-                else:
-                    measurement_name = 'TL'  # Default to total length
                 
+                # Create the row with EXACT column names Xcertainty expects
                 row = {
                     'Subject': str(item['whale_id']),
                     'Image': str(item['image_filename']),
-                    'Measurement': measurement_name,
+                    'Measurement': measurement_type,
                     'Timepoint': 1,
                     'PixelCount': float(item['pixel_distance']),
-                    'RealLength': float(item['real_dimension']),
+                    'Length': float(item['real_dimension']),  # FIXED: Xcertainty expects 'Length' not 'RealLength'
                     'FocalLength': float(item['focal_length']),
                     'ImageWidth': float(item['image_width']),
                     'SensorWidth': float(item['sensor_width']),
                     'UAS': 'Generic',
                     'Barometer': float(item['gps_altitude']),
-                    'Laser': None,
-                    'PixelDimension': float(pixel_dimension)
+                    'Laser': None
                 }
                 rows.append(row)
-                logger.info(f"Added row: {measurement_name} = {item['real_dimension']}m ({item['pixel_distance']} px)")
+                logger.info(f"Added row: {measurement_type} = {item['real_dimension']}m ({item['pixel_distance']} px)")
             
             df = pd.DataFrame(rows)
-            logger.info(f"Created DataFrame with {len(df)} rows")
+            logger.info(f"Created DataFrame with columns: {list(df.columns)}")
             
             # Validate numeric columns
-            numeric_cols = ['PixelCount', 'RealLength', 'FocalLength', 'ImageWidth', 'SensorWidth', 'Barometer', 'PixelDimension']
+            numeric_cols = ['PixelCount', 'Length', 'FocalLength', 'ImageWidth', 'SensorWidth', 'Barometer']
             for col in numeric_cols:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -1826,7 +1819,7 @@ class Xcertainty(View):
                         logger.warning(f"Found NaN values in {col}, filling with defaults")
                         if col == 'PixelCount':
                             df[col] = df[col].fillna(400.0)
-                        elif col == 'RealLength':
+                        elif col == 'Length':
                             df[col] = df[col].fillna(10.0)
                         elif col == 'FocalLength':
                             df[col] = df[col].fillna(50.0)
@@ -1836,21 +1829,28 @@ class Xcertainty(View):
                             df[col] = df[col].fillna(23.5)
                         elif col == 'Barometer':
                             df[col] = df[col].fillna(100.0)
-                        elif col == 'PixelDimension':
-                            df[col] = df[col].fillna(0.025)
             
-            # Create Xcertainty data structure
-            xcertainty_data = {
-                'pixel_counts': df[['Subject', 'Image', 'Measurement', 'Timepoint', 'PixelCount']].copy(),
-                'training_objects': df[['Subject', 'Image', 'Measurement', 'Timepoint', 'RealLength']].copy(),
-                'prediction_objects': df[['Subject', 'Image', 'Measurement', 'Timepoint']].copy(),
-                'image_info': df[['Image', 'FocalLength', 'ImageWidth', 'SensorWidth', 'UAS', 'Barometer', 'Laser']].drop_duplicates().copy()
-            }
+            # Use parse_observations to create proper Xcertainty format
+            logger.info("Converting to Xcertainty format using parse_observations...")
             
-            logger.info("Successfully converted to Xcertainty format")
-            for key, data in xcertainty_data.items():
-                if data is not None:
-                    logger.info(f"{key}: {len(data)} records")
+            # Create the exact arguments parse_observations expects
+            xcertainty_data = parse_observations(
+                x=df,
+                subject_col='Subject',
+                image_col='Image', 
+                meas_col=['Measurement'],  # This should be a list of measurement columns
+                tlen_col='Length',  # Training length column
+                barometer_col='Barometer',
+                laser_col='Laser',
+                flen_col='FocalLength',
+                iwidth_col='ImageWidth', 
+                swidth_col='SensorWidth',
+                uas_col='UAS',
+                timepoint_col='Timepoint'
+            )
+            
+            logger.info("Successfully converted using parse_observations")
+            logger.info(f"Xcertainty data keys: {list(xcertainty_data.keys())}")
             
             return xcertainty_data
             
