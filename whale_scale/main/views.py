@@ -1780,53 +1780,92 @@ class Xcertainty(View):
             return None
 
     def convert_to_xcertainty_format_safe(self, validated_measurements):
-        """Convert validated measurements to REAL Xcertainty format - properly structured for parse_observations"""
+        """Convert validated measurements to REAL Xcertainty format - fix for parse_observations"""
         logger = logging.getLogger(__name__)
         
         try:
-            # Group measurements by image and create wide format that parse_observations expects
-            # parse_observations expects measurements as COLUMNS, not rows
+            # parse_observations expects a wide-format DataFrame where measurements are COLUMNS
+            # Let's create this properly by grouping by image
             
-            # First, let's create a properly structured DataFrame for Xcertainty
-            image_data = {}
-            measurement_columns = set()
-            
+            # Group measurements by image
+            image_groups = {}
             for item in validated_measurements:
                 image_name = item['image_filename']
-                measurement_type = item.get('measurement_type', 'TL')
-                
-                if image_name not in image_data:
-                    image_data[image_name] = {
-                        'Subject': str(item['whale_id']),
-                        'Image': str(item['image_filename']),
-                        'FocalLength': float(item['focal_length']),
-                        'ImageWidth': float(item['image_width']),
-                        'SensorWidth': float(item['sensor_width']),
-                        'UAS': 'Generic',
-                        'Barometer': float(item['gps_altitude']),
-                        'Laser': None,
-                        'Timepoint': 1
+                if image_name not in image_groups:
+                    image_groups[image_name] = {
+                        'subject': item['whale_id'],
+                        'image': item['image_filename'],
+                        'focal_length': item['focal_length'],
+                        'image_width': item['image_width'],
+                        'sensor_width': item['sensor_width'],
+                        'gps_altitude': item['gps_altitude'],
+                        'measurements': {}
                     }
                 
-                # Add measurement as a column (this is what parse_observations expects)
-                image_data[image_name][measurement_type] = float(item['pixel_distance'])
-                image_data[image_name][f"{measurement_type}_Length"] = float(item['real_dimension'])
-                measurement_columns.add(measurement_type)
+                measurement_type = item.get('measurement_type', 'TL')
+                image_groups[image_name]['measurements'][measurement_type] = {
+                    'pixel_count': item['pixel_distance'],
+                    'true_length': item['real_dimension']
+                }
             
-            # Convert to DataFrame
-            df = pd.DataFrame.from_dict(image_data, orient='index').reset_index(drop=True)
-            logger.info(f"Created wide-format DataFrame with columns: {list(df.columns)}")
-            logger.info(f"Measurement columns found: {list(measurement_columns)}")
+            # Create wide-format DataFrame
+            rows = []
+            all_measurement_types = set()
             
-            # Now use parse_observations correctly
-            logger.info("Converting to Xcertainty format using parse_observations...")
+            # First pass: collect all measurement types
+            for image_name, group in image_groups.items():
+                all_measurement_types.update(group['measurements'].keys())
+            
+            logger.info(f"Found measurement types: {list(all_measurement_types)}")
+            
+            # Second pass: create rows with all measurement columns
+            for image_name, group in image_groups.items():
+                row = {
+                    'Subject': str(group['subject']),
+                    'Image': str(group['image']),
+                    'FocalLength': float(group['focal_length']),
+                    'ImageWidth': float(group['image_width']),
+                    'SensorWidth': float(group['sensor_width']),
+                    'UAS': 'Generic',
+                    'Barometer': float(group['gps_altitude']),
+                    'Laser': None,
+                    'Timepoint': 1
+                }
+                
+                # Add measurement columns (pixel counts)
+                for mtype in all_measurement_types:
+                    if mtype in group['measurements']:
+                        row[mtype] = float(group['measurements'][mtype]['pixel_count'])
+                    else:
+                        row[mtype] = None
+                
+                # Add true length columns  
+                for mtype in all_measurement_types:
+                    if mtype in group['measurements']:
+                        row[f"{mtype}_TrueLength"] = float(group['measurements'][mtype]['true_length'])
+                    else:
+                        row[f"{mtype}_TrueLength"] = None
+                
+                rows.append(row)
+            
+            df = pd.DataFrame(rows)
+            logger.info(f"Created wide DataFrame with shape: {df.shape}")
+            logger.info(f"Columns: {list(df.columns)}")
+            
+            # Now call parse_observations with the correct parameters
+            measurement_cols = list(all_measurement_types)
+            true_length_col = f"{measurement_cols[0]}_TrueLength" if measurement_cols else None
+            
+            logger.info(f"Calling parse_observations with:")
+            logger.info(f"  meas_col: {measurement_cols}")
+            logger.info(f"  tlen_col: {true_length_col}")
             
             xcertainty_data = parse_observations(
                 x=df,
                 subject_col='Subject',
                 image_col='Image',
-                meas_col=list(measurement_columns),  # These are the actual measurement columns
-                tlen_col=f"{list(measurement_columns)[0]}_Length" if measurement_columns else None,  # Use the first measurement's length
+                meas_col=measurement_cols,  # List of measurement column names
+                tlen_col=true_length_col,   # True length column
                 barometer_col='Barometer',
                 laser_col='Laser',
                 flen_col='FocalLength',
@@ -1839,15 +1878,19 @@ class Xcertainty(View):
             logger.info("Successfully converted using parse_observations")
             logger.info(f"Xcertainty data keys: {list(xcertainty_data.keys())}")
             
+            # Log the structure
+            for key, data in xcertainty_data.items():
+                if data is not None and hasattr(data, 'shape'):
+                    logger.info(f"{key} shape: {data.shape}")
+                    if hasattr(data, 'columns'):
+                        logger.info(f"{key} columns: {list(data.columns)}")
+            
             return xcertainty_data
             
         except Exception as e:
-            logger.error(f"Error in parse_observations conversion: {str(e)}")
+            logger.error(f"Error in parse_observations: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
-            
-            # Fallback: create the data structure manually if parse_observations fails
-            logger.info("Falling back to manual data structure creation...")
-            return self.create_manual_xcertainty_format(validated_measurements)
+            raise
 
     def create_manual_xcertainty_format(self, validated_measurements):
         """Manual fallback to create Xcertainty data structure"""
@@ -1912,60 +1955,16 @@ class Xcertainty(View):
         
         return xcertainty_data
 
-    def create_mock_xcertainty_results(self, validated_measurements, analysis_type):
-        """Create mock results that match real Xcertainty output structure"""
-        logger = logging.getLogger(__name__)
-        
-        # Create mock results based on validated measurements
-        objects = {}
-        for i, measurement in enumerate(validated_measurements):
-            measurement_type = measurement.get('measurement_type', 'TL')
-            key = f"{measurement['whale_id']} {measurement_type} 1"
-            
-            # Add some realistic uncertainty based on analysis type
-            base_value = measurement['real_dimension']
-            if analysis_type == 'independent_length':
-                uncertainty = base_value * 0.05  # 5% uncertainty
-            elif analysis_type == 'nondecreasing_length':
-                uncertainty = base_value * 0.03  # 3% uncertainty (constraints reduce uncertainty)
-            elif analysis_type == 'growth_curve':
-                uncertainty = base_value * 0.02  # 2% uncertainty (growth model reduces uncertainty)
-            elif analysis_type == 'calibration':
-                uncertainty = base_value * 0.04  # 4% uncertainty
-            else:
-                uncertainty = base_value * 0.05
-            
-            objects[key] = {
-                'summary': pd.DataFrame({
-                    'Subject': [measurement['whale_id']],
-                    'Measurement': [measurement_type],
-                    'Timepoint': [1],
-                    'mean': [base_value],
-                    'sd': [uncertainty],
-                    'HPD_low': [base_value - 1.96 * uncertainty],
-                    'HPD_high': [base_value + 1.96 * uncertainty]
-                })
-            }
-        
-        results = {
-            'objects': objects,
-            'summaries': {
-                'convergence': f'Mock {analysis_type} analysis completed successfully',
-                'n_measurements': len(validated_measurements)
-            }
-        }
-        
-        logger.info(f"Created mock results for {len(objects)} objects")
-        return results
-
+    #coul switch these priors to accurate-bayesian stats need them
     def get_default_priors(self, analysis_type):
-        """Get default prior distributions"""
+        """Get default prior distributions - COMPLETE VERSION"""
         priors = {
             'altimeter_bias': np.array([[0, 5]]),
             'altimeter_scaling': np.array([[1, 0.1]]),
             'altimeter_variance': np.array([[1, 1]]),
             'pixel_variance': [1, 1],
             'object_lengths': [[5, 25]],
+            'image_altitude': [20, 200],  # FIXED: This was missing! [min_altitude, max_altitude]
         }
         
         if analysis_type == 'growth_curve':
@@ -1973,7 +1972,8 @@ class Xcertainty(View):
                 'zero_length_age': {'mean': -2, 'sd': 1},
                 'growth_rate': {'mean': 0.1, 'sd': 0.05},
                 'group_asymptotic_size': {'default': {'mean': 15, 'sd': 3}},
-                'group_asymptotic_size_trend': {'default': {'mean': 0, 'sd': 0.1}}
+                'group_asymptotic_size_trend': {'default': {'mean': 0, 'sd': 0.1}},
+                'subject_group_distribution': {'default': 1.0}  # Also need this for growth curve
             })
         
         return priors
@@ -2186,21 +2186,12 @@ class Xcertainty(View):
             logger = logging.getLogger(__name__)
             logger.info("Listing analyses")
             
-            # Return mock data for now
-            mock_analyses = [
-                {
-                    'id': 1,
-                    'whale_id': 'TestWhale1',
-                    'whale_name': 'Test Whale',
-                    'analysis_type': 'independent_length',
-                    'created_date': '2025-01-20T10:00:00Z',
-                    'n_measurements': 3,
-                    'convergence_success': True
-                }
-            ]
+            # TODO: Implement real analysis storage/retrieval
+            # For now, return empty list since we're not storing analyses yet
+            analyses = []
             
-            logger.info(f"Returning {len(mock_analyses)} analyses")
-            return JsonResponse({"analyses": mock_analyses})
+            logger.info(f"Returning {len(analyses)} analyses")
+            return JsonResponse({"analyses": analyses})
             
         except Exception as e:
             logger.error(f"Error listing analyses: {str(e)}")
@@ -2213,34 +2204,8 @@ class Xcertainty(View):
             logger = logging.getLogger(__name__)
             logger.info(f"Getting details for analysis {analysis_id}")
             
-            # Return mock detailed results for now
-            mock_details = {
-                'analysis': {
-                    'id': analysis_id,
-                    'whale_id': 'TestWhale1',
-                    'whale_name': 'Test Whale',
-                    'analysis_type': 'independent_length',
-                    'created_date': '2025-01-20T10:00:00Z',
-                    'parameters': {
-                        'niter': 2000,
-                        'thin': 1,
-                        'summary_burn': 0.5
-                    }
-                },
-                'measurements': [
-                    {
-                        'subject': 'TestWhale1',
-                        'measurement_type': 'ruler',
-                        'timepoint': 1,
-                        'posterior_mean': 14.52,
-                        'posterior_std': 0.34,
-                        'credible_interval': [13.95, 15.09],
-                        'original_value': 14.5
-                    }
-                ]
-            }
-            
-            return JsonResponse(mock_details)
+            # TODO: Implement real analysis storage/retrieval
+            return JsonResponse({"error": "Analysis storage not implemented yet"}, status=404)
             
         except Exception as e:
             logger.error(f"Error getting analysis details: {str(e)}")
