@@ -1532,695 +1532,145 @@ class CollatriX(View):
 # -------------------------
 @method_decorator(csrf_exempt, name='dispatch')
 class Xcertainty(View):
-    """API endpoints for Xcertainty Bayesian analysis with robust data validation"""
+    """Simple API wrapper for Xcertainty Bayesian analysis."""
 
     def post(self, request, function_name):
-        """Route POST requests based on function_name"""
+        """Route requests to the appropriate function."""
         logger = logging.getLogger(__name__)
         logger.info(f"Xcertainty POST: function_name={function_name}")
         
         try:
-            # Route to analysis types
-            if function_name in ['independent_length', 'nondecreasing_length', 'growth_curve', 'calibration']:
-                return self.run_real_analysis(request, function_name)
+            if function_name == "parse_observations":
+                return self.parse_observations(request)
+            elif function_name == "run_sampler":
+                return self.run_sampler(request)
+            elif function_name in ['independent_length', 'nondecreasing_length', 'growth_curve', 'calibration']:
+                return self.run_sampler_by_type(request, function_name)
             else:
                 return JsonResponse({"error": f"Invalid function name: {function_name}"}, status=400)
                 
         except Exception as e:
-            logger.error(f"Xcertainty POST error: {str(e)}")
+            logger.error(f"Xcertainty error: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
             return JsonResponse({"error": f"Request failed: {str(e)}"}, status=500)
 
-    def run_real_analysis(self, request, analysis_type):
-        """Run Xcertainty analysis with robust data validation"""
-        logger = logging.getLogger(__name__)
-        
+    def parse_observations(self, request):
+        """Parse wide-format photogrammetric data into structured observations."""
         try:
             data = json.loads(request.body)
-            whale_id = data.get('whale_id')
-            selected_measurement_ids = data.get('selected_measurements', [])
-            niter = data.get('niter', 1000)  # Reduced for faster testing
-            thin = data.get('thin', 1)
-            summary_burn = data.get('summary_burn', 0.5)
+            df = pd.DataFrame(data.get("observations", []))
             
-            logger.info(f"Running {analysis_type} analysis for whale {whale_id}")
-            logger.info(f"Selected measurement IDs: {selected_measurement_ids}")
-            logger.info(f"MCMC parameters: niter={niter}, thin={thin}, summary_burn={summary_burn}")
-            
-            if not whale_id:
-                return JsonResponse({"error": "whale_id is required"}, status=400)
-            
-            # Get measurements with detailed logging
-            if selected_measurement_ids:
-                measurements = self.get_selected_measurements(request, whale_id, selected_measurement_ids)
-            else:
-                measurements = self.get_whale_measurements(request, whale_id)
-                
-            if not measurements:
-                return JsonResponse({"error": "No measurements found"}, status=400)
-            
-            logger.info(f"Found {len(measurements)} measurements for analysis")
-            
-            # Validate and convert measurements
-            validated_data = self.validate_and_convert_measurements(measurements)
-            if not validated_data:
-                return JsonResponse({"error": "No valid measurements found for analysis"}, status=400)
-            
-            logger.info(f"Validated {len(validated_data)} measurements")
-            
-            # Convert to Xcertainty format with validation
-            xcertainty_data = self.convert_to_xcertainty_format_safe(validated_data)
-            
-            # Set up priors
-            priors = self.get_default_priors(analysis_type)
-            
-            # REAL XCERTAINTY ANALYSIS - NO MORE FAKE DATA!
-            logger.info(f"Starting REAL {analysis_type} analysis...")
-            
-            if analysis_type == 'independent_length':
-                sampler = independent_length_sampler(xcertainty_data, priors)
-            elif analysis_type == 'nondecreasing_length':
-                sampler = nondecreasing_length_sampler(xcertainty_data, priors)
-            elif analysis_type == 'growth_curve':
-                subject_info = self.get_subject_info(whale_id, data)
-                sampler = growth_curve_sampler(xcertainty_data, priors, subject_info)
-            elif analysis_type == 'calibration':
-                sampler = calibration_sampler(xcertainty_data, priors)
-            else:
-                return JsonResponse({"error": f"Unknown analysis type: {analysis_type}"}, status=400)
-            
-            logger.info("Starting MCMC sampling...")
-            real_results = sampler(niter=niter, thin=thin, summary_burn=summary_burn, verbose=True)
-            logger.info("MCMC sampling completed successfully!")
-            
-            # Format results
-            formatted_results = self.format_xcertainty_results(real_results, whale_id, analysis_type)
-            
-            return JsonResponse(formatted_results)
-            
-        except Exception as e:
-            logger.error(f"Real analysis error: {str(e)}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            return JsonResponse({"error": f"Analysis failed: {str(e)}"}, status=500)
-
-    def validate_and_convert_measurements(self, measurements):
-        """Validate and clean measurement data for analysis - FIXED VERSION"""
-        logger = logging.getLogger(__name__)
-        validated_measurements = []
-        
-        for item in measurements:
-            try:
-                measurement = item['measurement']
-                image = item['image']
-                
-                # Skip invalid measurements
-                if not measurement.scaled_dimension or measurement.scaled_dimension <= 0:
-                    logger.warning(f"Skipping measurement with invalid scaled_dimension: {measurement.scaled_dimension}")
-                    continue
-                
-                # Calculate pixel distance from coordinate data
-                pixel_distance = self.calculate_pixel_distance_from_measurement(measurement)
-                if not pixel_distance or pixel_distance <= 0:
-                    logger.warning(f"Could not calculate pixel distance for measurement {measurement.id}")
-                    # Use a reasonable fallback based on typical whale measurements
-                    pixel_distance = 500.0  # Reasonable pixel distance for whale measurements
-                
-                # Extract sensor width - this is often missing, so provide good defaults
-                sensor_width = 23.5  # Default for 1" sensor (common in drones)
-                if hasattr(image, 'camera_model') and image.camera_model:
-                    # You could add specific sensor sizes for known camera models here
-                    if 'mavic' in image.camera_model.lower():
-                        sensor_width = 13.2  # Mavic series
-                    elif 'phantom' in image.camera_model.lower():
-                        sensor_width = 13.2  # Phantom series
-                
-                validated_item = {
-                    'measurement_id': measurement.id,
-                    'whale_id': item['whale_id'],
-                    'whale_name': item.get('whale_name', 'Unknown'),
-                    'image_filename': getattr(image, 'filename', f'image_{image.id}'),
-                    'measurement_type': item.get('measurement_type', 'TL'),
-                    'real_dimension': float(measurement.scaled_dimension),  # FIXED: This field was missing
-                    'pixel_distance': float(pixel_distance),  # FIXED: Now properly calculated
-                    'focal_length': float(getattr(image, 'focal_length_mm', 50.0) or 50.0),
-                    'image_width': float(getattr(image, 'image_width', 4000.0) or 4000.0),
-                    'sensor_width': float(sensor_width),  # FIXED: Added proper sensor width
-                    'gps_altitude': float(getattr(image, 'gps_altitude_m', 100.0) or 100.0),
-                    'timepoint': 1
-                }
-                
-                validated_measurements.append(validated_item)
-                logger.info(f"Validated measurement: {validated_item['measurement_type']} = {validated_item['real_dimension']}m ({validated_item['pixel_distance']} px)")
-                
-            except Exception as e:
-                logger.error(f"Error validating measurement {measurement.id}: {str(e)}")
-                continue
-        
-        logger.info(f"Successfully validated {len(validated_measurements)} measurements")
-        return validated_measurements
-
-    def calculate_pixel_distance_from_measurement(self, measurement):
-        """Calculate pixel distance from measurement data - IMPROVED VERSION"""
-        logger = logging.getLogger(__name__)
-        
-        try:
-            # Method 1: Check if measurement has coordinate_data directly
-            if hasattr(measurement, 'coordinate_data') and measurement.coordinate_data:
-                coords = measurement.coordinate_data
-                if isinstance(coords, list) and len(coords) >= 2:
-                    distance = self.calculate_distance_from_coords(coords)
-                    if distance and distance > 0:
-                        logger.info(f"Calculated pixel distance from coordinate_data: {distance}")
-                        return distance
-            
-            # Method 2: Check metadata for coordinate data (for ruler segments)
-            if hasattr(measurement, 'measurement_metadata'):
-                metadata = measurement.measurement_metadata
-                if isinstance(metadata, str):
-                    try:
-                        metadata = json.loads(metadata)
-                    except json.JSONDecodeError:
-                        metadata = {}
-                
-                if isinstance(metadata, dict):
-                    # Check for coordinate_data in metadata
-                    if 'coordinate_data' in metadata:
-                        coords = metadata['coordinate_data']
-                        if isinstance(coords, list) and len(coords) >= 2:
-                            distance = self.calculate_distance_from_coords(coords)
-                            if distance and distance > 0:
-                                logger.info(f"Calculated pixel distance from metadata: {distance}")
-                                return distance
-                    
-                    # Check for width_segments (for ruler_complete measurements)
-                    if 'width_segments' in metadata:
-                        segments = metadata['width_segments']
-                        if segments and len(segments) > 0:
-                            # Use the first segment's coordinate data
-                            first_segment = segments[0]
-                            if 'coordinate_data' in first_segment:
-                                coords = first_segment['coordinate_data']
-                                if isinstance(coords, list) and len(coords) >= 2:
-                                    distance = self.calculate_distance_from_coords(coords)
-                                    if distance and distance > 0:
-                                        logger.info(f"Calculated pixel distance from width segment: {distance}")
-                                        return distance
-            
-            # Method 3: For virtual measurements (width segments), check object attributes
-            if hasattr(measurement, 'pixel_distance_computed'):
-                distance = measurement.pixel_distance_computed
-                if distance and distance > 0:
-                    logger.info(f"Used pre-computed pixel distance: {distance}")
-                    return float(distance)
-            
-            # Method 4: Estimate from scaled dimension (fallback)
-            if hasattr(measurement, 'scaled_dimension') and measurement.scaled_dimension:
-                # Estimate pixel distance based on typical GSD (Ground Sampling Distance)
-                # Typical whale measurements: 10-20m length might be 300-800 pixels
-                estimated_gsd = 0.02  # 2cm per pixel (reasonable for drone at 50-100m altitude)
-                estimated_pixels = float(measurement.scaled_dimension) / estimated_gsd
-                logger.warning(f"Estimated pixel distance from scaled dimension: {estimated_pixels}")
-                return estimated_pixels
-            
-            # Fallback: Return a reasonable default
-            logger.warning("Could not calculate pixel distance, using fallback value")
-            return 400.0  # Reasonable fallback for whale measurements
-            
-        except Exception as e:
-            logger.error(f"Error calculating pixel distance: {str(e)}")
-            return 400.0  # Safe fallback
-
-    def calculate_distance_from_coords(self, coordinate_data):
-        """Calculate Euclidean distance from coordinate array"""
-        try:
-            if not coordinate_data or len(coordinate_data) < 2:
-                return None
-            
-            # Get first and last points
-            start = coordinate_data[0]
-            end = coordinate_data[-1]
-            
-            # Handle different coordinate formats
-            if isinstance(start, dict):
-                x1 = float(start.get('x', 0))
-                y1 = float(start.get('y', 0))
-                x2 = float(end.get('x', 0))
-                y2 = float(end.get('y', 0))
-            elif isinstance(start, (list, tuple)) and len(start) >= 2:
-                x1, y1 = float(start[0]), float(start[1])
-                x2, y2 = float(end[0]), float(end[1])
-            else:
-                return None
-            
-            distance = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
-            return distance if distance > 0 else None
-            
-        except (KeyError, TypeError, IndexError, ValueError) as e:
-            logging.getLogger(__name__).error(f"Error calculating distance from coords: {e}")
-            return None
-
-    def convert_to_xcertainty_format_safe(self, validated_measurements):
-        """Convert validated measurements to REAL Xcertainty format - fix for parse_observations"""
-        logger = logging.getLogger(__name__)
-        
-        try:
-            # parse_observations expects a wide-format DataFrame where measurements are COLUMNS
-            # Let's create this properly by grouping by image
-            
-            # Group measurements by image
-            image_groups = {}
-            for item in validated_measurements:
-                image_name = item['image_filename']
-                if image_name not in image_groups:
-                    image_groups[image_name] = {
-                        'subject': item['whale_id'],
-                        'image': item['image_filename'],
-                        'focal_length': item['focal_length'],
-                        'image_width': item['image_width'],
-                        'sensor_width': item['sensor_width'],
-                        'gps_altitude': item['gps_altitude'],
-                        'measurements': {}
-                    }
-                
-                measurement_type = item.get('measurement_type', 'TL')
-                image_groups[image_name]['measurements'][measurement_type] = {
-                    'pixel_count': item['pixel_distance'],
-                    'true_length': item['real_dimension']
-                }
-            
-            # Create wide-format DataFrame
-            rows = []
-            all_measurement_types = set()
-            
-            # First pass: collect all measurement types
-            for image_name, group in image_groups.items():
-                all_measurement_types.update(group['measurements'].keys())
-            
-            logger.info(f"Found measurement types: {list(all_measurement_types)}")
-            
-            # Second pass: create rows with all measurement columns
-            for image_name, group in image_groups.items():
-                row = {
-                    'Subject': str(group['subject']),
-                    'Image': str(group['image']),
-                    'FocalLength': float(group['focal_length']),
-                    'ImageWidth': float(group['image_width']),
-                    'SensorWidth': float(group['sensor_width']),
-                    'UAS': 'Generic',
-                    'Barometer': float(group['gps_altitude']),
-                    'Laser': None,
-                    'Timepoint': 1
-                }
-                
-                # Add measurement columns (pixel counts)
-                for mtype in all_measurement_types:
-                    if mtype in group['measurements']:
-                        row[mtype] = float(group['measurements'][mtype]['pixel_count'])
-                    else:
-                        row[mtype] = None
-                
-                # Add true length columns  
-                for mtype in all_measurement_types:
-                    if mtype in group['measurements']:
-                        row[f"{mtype}_TrueLength"] = float(group['measurements'][mtype]['true_length'])
-                    else:
-                        row[f"{mtype}_TrueLength"] = None
-                
-                rows.append(row)
-            
-            df = pd.DataFrame(rows)
-            logger.info(f"Created wide DataFrame with shape: {df.shape}")
-            logger.info(f"Columns: {list(df.columns)}")
-            
-            # Now call parse_observations with the correct parameters
-            measurement_cols = list(all_measurement_types)
-            true_length_col = f"{measurement_cols[0]}_TrueLength" if measurement_cols else None
-            
-            logger.info(f"Calling parse_observations with:")
-            logger.info(f"  meas_col: {measurement_cols}")
-            logger.info(f"  tlen_col: {true_length_col}")
-            
-            xcertainty_data = parse_observations(
-                x=df,
-                subject_col='Subject',
-                image_col='Image',
-                meas_col=measurement_cols,  # List of measurement column names
-                tlen_col=true_length_col,   # True length column
-                barometer_col='Barometer',
-                laser_col='Laser',
-                flen_col='FocalLength',
-                iwidth_col='ImageWidth',
-                swidth_col='SensorWidth',
-                uas_col='UAS',
-                timepoint_col='Timepoint'
+            parsed_data = parse_observations(
+                x=df, 
+                subject_col=data["subject_col"], 
+                meas_col=data["meas_col"], 
+                tlen_col=data.get("tlen_col"), 
+                image_col=data["image_col"],
+                barometer_col=data.get("barometer_col"), 
+                laser_col=data.get("laser_col"),
+                flen_col=data["flen_col"], 
+                iwidth_col=data["iwidth_col"], 
+                swidth_col=data["swidth_col"], 
+                uas_col=data["uas_col"], 
+                timepoint_col=data.get("timepoint_col"), 
+                alt_conversion_col=data.get("alt_conversion_col")
             )
             
-            logger.info("Successfully converted using parse_observations")
-            logger.info(f"Xcertainty data keys: {list(xcertainty_data.keys())}")
+            # Convert DataFrames to dicts for JSON serialization
+            result = {}
+            for key, value in parsed_data.items():
+                if value is not None and hasattr(value, 'to_dict'):
+                    result[key] = value.to_dict(orient='records')
+                else:
+                    result[key] = value
             
-            # Log the structure
-            for key, data in xcertainty_data.items():
-                if data is not None and hasattr(data, 'shape'):
-                    logger.info(f"{key} shape: {data.shape}")
-                    if hasattr(data, 'columns'):
-                        logger.info(f"{key} columns: {list(data.columns)}")
-            
-            return xcertainty_data
+            return JsonResponse(result, safe=False)
             
         except Exception as e:
-            logger.error(f"Error in parse_observations: {str(e)}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            raise
+            return JsonResponse({"error": str(e)}, status=400)
 
-    def create_manual_xcertainty_format(self, validated_measurements):
-        """Manual fallback to create Xcertainty data structure"""
-        logger = logging.getLogger(__name__)
-        
-        # Create the data structure that the samplers expect
-        pixel_counts = []
-        training_objects = []
-        prediction_objects = []
-        image_info_dict = {}
-        
-        for item in validated_measurements:
-            measurement_type = item.get('measurement_type', 'TL')
-            
-            # pixel_counts
-            pixel_counts.append({
-                'Subject': str(item['whale_id']),
-                'Measurement': measurement_type,
-                'Timepoint': 1,
-                'Image': str(item['image_filename']),
-                'PixelCount': float(item['pixel_distance'])
-            })
-            
-            # training_objects (measurements with known lengths)
-            training_objects.append({
-                'Subject': str(item['whale_id']),
-                'Measurement': measurement_type,
-                'Timepoint': 1,
-                'Length': float(item['real_dimension'])
-            })
-            
-            # prediction_objects (measurements we want to predict - same as training in this case)
-            prediction_objects.append({
-                'Subject': str(item['whale_id']),
-                'Measurement': measurement_type,
-                'Timepoint': 1
-            })
-            
-            # image_info (unique per image)
-            image_name = str(item['image_filename'])
-            if image_name not in image_info_dict:
-                image_info_dict[image_name] = {
-                    'Image': image_name,
-                    'FocalLength': float(item['focal_length']),
-                    'ImageWidth': float(item['image_width']),
-                    'SensorWidth': float(item['sensor_width']),
-                    'UAS': 'Generic',
-                    'Barometer': float(item['gps_altitude']),
-                    'Laser': None
-                }
-        
-        xcertainty_data = {
-            'pixel_counts': pd.DataFrame(pixel_counts),
-            'training_objects': pd.DataFrame(training_objects),
-            'prediction_objects': pd.DataFrame(prediction_objects),
-            'image_info': pd.DataFrame(list(image_info_dict.values()))
-        }
-        
-        logger.info("Created manual Xcertainty data structure")
-        for key, data in xcertainty_data.items():
-            logger.info(f"{key}: {len(data)} records")
-        
-        return xcertainty_data
-
-    def get_default_priors(self, analysis_type):
-        """Get default prior distributions - COMPLETE VERSION"""
-        priors = {
-            'altimeter_bias': np.array([[0, 5]]),
-            'altimeter_scaling': np.array([[1, 0.1]]),
-            'altimeter_variance': np.array([[1, 1]]),
-            'pixel_variance': [1, 1],
-            'object_lengths': [[5, 25]],
-            'image_altitude': [50, 200],  # FIXED: This was missing! [min_altitude, max_altitude]
-        }
-        
-        if analysis_type == 'growth_curve':
-            priors.update({
-                'zero_length_age': {'mean': -2, 'sd': 1},
-                'growth_rate': {'mean': 0.1, 'sd': 0.05},
-                'group_asymptotic_size': {'default': {'mean': 15, 'sd': 3}},
-                'group_asymptotic_size_trend': {'default': {'mean': 0, 'sd': 0.1}},
-                'subject_group_distribution': {'default': 1.0}  # Also need this for growth curve
-            })
-        
-        return priors
-
-    def format_xcertainty_results(self, results, whale_id, analysis_type):
-        """Convert results to frontend format with proper width segment display"""
-        logger = logging.getLogger(__name__)
-        
-        measurements_with_uncertainty = []
-        
-        if 'objects' in results:
-            for key, obj_result in results['objects'].items():
-                summary = obj_result['summary'].iloc[0] if not obj_result['summary'].empty else None
-                if summary is not None:
-                    measurement_type = summary['Measurement']
-                    
-                    # Create user-friendly display names for different measurement types
-                    if measurement_type == 'TL':
-                        display_name = 'Total Length'
-                        original_type = 'total_length'
-                    elif measurement_type.startswith('TL_w'):
-                        # Extract percentage from width measurement (e.g., TL_w25.00 -> 25%)
-                        percentage = measurement_type.replace('TL_w', '').replace('.00', '')
-                        display_name = f'Width at {percentage}% of body length'
-                        original_type = 'width_measurement'
-                    else:
-                        display_name = measurement_type
-                        original_type = 'other'
-                    
-                    measurements_with_uncertainty.append({
-                        'measurement_type': display_name,
-                        'original_type': original_type,
-                        'measurement_code': measurement_type,  # Keep original code for reference
-                        'posterior_mean': float(summary['mean']),
-                        'posterior_std': float(summary['sd']),
-                        'credible_interval': [float(summary['HPD_low']), float(summary['HPD_high'])],
-                        'timepoint': int(summary['Timepoint']),
-                        'subject': str(summary['Subject'])
-                    })
-        
-        # Group measurements by type for summary statistics
-        total_length_measurements = [m for m in measurements_with_uncertainty if m['original_type'] == 'total_length']
-        width_measurements = [m for m in measurements_with_uncertainty if m['original_type'] == 'width_measurement']
-        
-        # Calculate summary statistics
-        if total_length_measurements:
-            mean_total_length = np.mean([m['posterior_mean'] for m in total_length_measurements])
-            total_length_uncertainty = np.mean([m['posterior_std'] for m in total_length_measurements])
-        else:
-            mean_total_length = 0
-            total_length_uncertainty = 0
-        
-        if width_measurements:
-            mean_width = np.mean([m['posterior_mean'] for m in width_measurements])
-            width_uncertainty = np.mean([m['posterior_std'] for m in width_measurements])
-            width_count = len(width_measurements)
-        else:
-            mean_width = 0
-            width_uncertainty = 0
-            width_count = 0
-        
-        formatted_result = {
-            "success": True,
-            "analysis_id": 1,
-            "whale_id": whale_id,
-            "analysis_type": analysis_type,
-            "selected_measurements_count": len(measurements_with_uncertainty),
-            "summary": {
-                'convergence': f'{analysis_type} analysis completed with width segment analysis',
-                'n_measurements': len(measurements_with_uncertainty),
-                'n_total_length': len(total_length_measurements),
-                'n_width_measurements': len(width_measurements),
-                'mean_total_length': float(mean_total_length),
-                'total_length_uncertainty': float(total_length_uncertainty),
-                'mean_width': float(mean_width),
-                'width_uncertainty': float(width_uncertainty),
-                'analysis_type': analysis_type,
-                'algorithm': f'Bayesian {analysis_type} with individual width segment analysis'
-            },
-            "measurements": measurements_with_uncertainty,
-            # Group measurements for easier display
-            "measurement_groups": {
-                "total_length": total_length_measurements,
-                "width_measurements": width_measurements
-            }
-        }
-        
-        logger.info(f"Formatted results: {len(total_length_measurements)} total length + {len(width_measurements)} width measurements")
-        return formatted_result
-
-    def get_selected_measurements(self, request, whale_id, selected_measurement_ids):
-        """Get specific measurements by their IDs for a whale, including width segments"""
+    def run_sampler_by_type(self, request, sampler_type):
+        """Run the specified MCMC sampler on parsed data."""
         try:
-            from .models import Measurement
-            logger = logging.getLogger(__name__)
+            data = json.loads(request.body)
             
-            measurements_queryset = Measurement.objects.filter(id__in=selected_measurement_ids)
+            # Extract data - frontend provides everything pre-formatted
+            parsed_data = data["parsed_data"]
+            priors = data["priors"]
             
-            measurements = []
-            for measurement in measurements_queryset:
-                image = measurement.image
-                if str(image.whale_id) == str(whale_id) or str(image.whale_name) == str(whale_id):
-                    
-                    # Handle ruler_complete measurements - extract width segments
-                    if measurement.measurement_type == "ruler_complete":
-                        # Add the total length measurement
-                        measurements.append({
-                            'image': image,
-                            'measurement': measurement,
-                            'whale_id': whale_id,
-                            'whale_name': getattr(image, 'whale_name', 'Unknown'),
-                            'measurement_name': 'Total Length',
-                            'measurement_type': 'TL'
-                        })
-                        
-                        # Extract and add each width segment as separate measurement
-                        metadata = measurement.measurement_metadata
-                        if isinstance(metadata, str):
-                            try:
-                                metadata = json.loads(metadata)
-                            except json.JSONDecodeError:
-                                metadata = {}
-                        
-                        width_segments = metadata.get('width_segments', [])
-                        for i, segment in enumerate(width_segments):
-                            # Create a virtual measurement object for each width segment
-                            virtual_measurement = type('VirtualMeasurement', (), {
-                                'id': f"{measurement.id}_segment_{i}",
-                                'measurement_type': segment.get('measurement_type', f'TL_w{(i+1)*25}.00'),
-                                'scaled_dimension': segment.get('scaled_dimension', 0),
-                                'coordinate_data': segment.get('coordinate_data', []),
-                                'pixel_distance_computed': self.calculate_distance_from_coords(
-                                    segment.get('coordinate_data', [])
-                                ),
-                                'ruler_length_computed': segment.get('scaled_dimension', 0)
-                            })()
-                            
-                            measurements.append({
-                                'image': image,
-                                'measurement': virtual_measurement,
-                                'whale_id': whale_id,
-                                'whale_name': getattr(image, 'whale_name', 'Unknown'),
-                                'measurement_name': f'Width at {segment.get("measurement_type", "").replace("TL_w", "")}%',
-                                'measurement_type': segment.get('measurement_type', f'TL_w{(i+1)*25}.00')
-                            })
-                    
-                    else:
-                        # Handle other measurement types normally
-                        measurements.append({
-                            'image': image,
-                            'measurement': measurement,
-                            'whale_id': whale_id,
-                            'whale_name': getattr(image, 'whale_name', 'Unknown'),
-                            'measurement_name': measurement.measurement_name or measurement.measurement_type,
-                            'measurement_type': measurement.measurement_type
-                        })
+            # Convert dict data back to DataFrames
+            xcertainty_data = {}
+            for key, value in parsed_data.items():
+                if value is not None:
+                    xcertainty_data[key] = pd.DataFrame(value)
+                else:
+                    xcertainty_data[key] = None
             
-            logger.info(f"Retrieved {len(measurements)} measurements (including width segments) for whale {whale_id}")
-            return measurements
+            # Convert priors to proper format
+            formatted_priors = {}
+            for key, value in priors.items():
+                if isinstance(value, list) and len(value) > 0 and isinstance(value[0], dict):
+                    # This is a DataFrame-like structure
+                    formatted_priors[key] = pd.DataFrame(value)
+                else:
+                    formatted_priors[key] = value
             
-        except Exception as e:
-            logger.error(f"Error getting selected measurements: {str(e)}")
-            return []
-
-    def get_subject_info(self, whale_id, data):
-        """Get subject information for growth curve analysis"""
-        # Extract subject info from request data or provide defaults
-        subject_info_data = data.get('subject_info', {})
-        
-        import pandas as pd
-        subject_info = pd.DataFrame({
-            'Subject': [whale_id],
-            'Year': [subject_info_data.get('Year', 2025)],
-            'Group': [subject_info_data.get('Group', 'default')],
-            'ObservedAge': [subject_info_data.get('ObservedAge', 1)],
-            'AgeType': [subject_info_data.get('AgeType', 'estimated')]
-        })
-        
-        return subject_info
-        """Get all measurements for a whale"""
-        try:
-            from .models import UploadedImage  # Import your model
-            
-            if request.user.is_authenticated:
-                images = UploadedImage.objects.filter(user=request.user, whale_id=whale_id)
+            # Create sampler
+            sampler = None
+            if sampler_type == "independent_length":
+                sampler = independent_length_sampler(xcertainty_data, formatted_priors)
+            elif sampler_type == "nondecreasing_length":
+                sampler = nondecreasing_length_sampler(xcertainty_data, formatted_priors)
+            elif sampler_type == "growth_curve":
+                subject_info = pd.DataFrame(data["subject_info"])
+                sampler = growth_curve_sampler(xcertainty_data, formatted_priors, subject_info)
+            elif sampler_type == "calibration":
+                sampler = calibration_sampler(xcertainty_data, formatted_priors)
             else:
-                session_key = request.session.session_key
-                if not session_key:
-                    return []
-                images = UploadedImage.objects.filter(session_key=session_key, whale_id=whale_id)
+                return JsonResponse({"error": "Invalid sampler type"}, status=400)
             
-            measurements = []
-            for image in images:
-                for measurement in image.measurements.all():
-                    measurements.append({
-                        'image': image,
-                        'measurement': measurement,
-                        'whale_id': whale_id,
-                        'whale_name': getattr(image, 'whale_name', 'Unknown')
-                    })
+            # Run sampler
+            result = sampler(
+                niter=data.get("niter", 1000), 
+                thin=data.get("thin", 1), 
+                summary_burn=data.get("summary_burn", 0.5),
+                verbose=data.get("verbose", True)
+            )
             
-            return measurements
+            # Convert result DataFrames to dicts for JSON serialization
+            json_result = {}
+            for key, value in result.items():
+                if hasattr(value, 'to_dict'):
+                    json_result[key] = value.to_dict(orient='records')
+                elif isinstance(value, dict):
+                    json_result[key] = {}
+                    for subkey, subvalue in value.items():
+                        if hasattr(subvalue, 'to_dict'):
+                            json_result[key][subkey] = subvalue.to_dict(orient='records')
+                        else:
+                            json_result[key][subkey] = subvalue
+                else:
+                    json_result[key] = value
+            
+            return JsonResponse(json_result, safe=False)
+            
         except Exception as e:
-            logging.getLogger(__name__).error(f"Error getting whale measurements: {str(e)}")
-            return []
+            return JsonResponse({"error": str(e)}, status=400)
 
-    def list_analyses(self, request):
-        """List all analyses for user/session"""
+    def run_sampler(self, request):
+        """Generic sampler runner - deprecated, use run_sampler_by_type"""
         try:
-            logger = logging.getLogger(__name__)
-            logger.info("Listing analyses")
-            
-            # TODO: Implement real analysis storage/retrieval
-            # For now, return empty list since we're not storing analyses yet
-            analyses = []
-            
-            logger.info(f"Returning {len(analyses)} analyses")
-            return JsonResponse({"analyses": analyses})
-            
+            data = json.loads(request.body)
+            sampler_type = data.get("sampler_type", "independent_length")
+            return self.run_sampler_by_type(request, sampler_type)
         except Exception as e:
-            logger.error(f"Error listing analyses: {str(e)}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            return JsonResponse({"analyses": []})
-
-    def get_analysis_details(self, request, analysis_id):
-        """Get detailed results for a specific analysis"""
-        try:
-            logger = logging.getLogger(__name__)
-            logger.info(f"Getting details for analysis {analysis_id}")
-            
-            # TODO: Implement real analysis storage/retrieval
-            return JsonResponse({"error": "Analysis storage not implemented yet"}, status=404)
-            
-        except Exception as e:
-            logger.error(f"Error getting analysis details: {str(e)}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            return JsonResponse({"error": "Analysis not found"}, status=404)
+            return JsonResponse({"error": str(e)}, status=400)
     
     def get(self, request, function_name):
-        """Handle GET requests for Xcertainty"""
-        logger = logging.getLogger(__name__)
-        
+        """Handle GET requests"""
         if function_name == 'list':
-            return self.list_analyses(request)
+            return JsonResponse({"analyses": []})  # No storage, return empty
         elif function_name == 'details':
-            analysis_id = request.GET.get('id')
-            if not analysis_id:
-                return JsonResponse({"error": "analysis_id parameter required"}, status=400)
-            return self.get_analysis_details(request, analysis_id)
+            return JsonResponse({"error": "Analysis storage not implemented"}, status=404)
         else:
             return JsonResponse({"error": f"Invalid GET function name: {function_name}"}, status=400)
