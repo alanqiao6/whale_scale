@@ -169,6 +169,9 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
   };
 
   // FIXED: Prepare data for Xcertainty analysis with proper structure
+  // Add this debug code right before your parse request in XcertaintyTab.js
+  // Replace the prepareObservationData function with this version:
+
   const prepareObservationData = () => {
     if (!selectedWhaleId || selectedMeasurements.length === 0) {
       throw new Error('No whale or measurements selected');
@@ -197,6 +200,14 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
         return; // Skip invalid measurements
       }
 
+      // DEBUG: Log the raw measurement data
+      console.log('Raw measurement data:', {
+        id: measurement.id,
+        scaled_dimension: measurement.scaled_dimension,
+        type: typeof measurement.scaled_dimension,
+        measurement_type: measurement.measurement_type
+      });
+
       // Handle different measurement types
       let measurementType = 'TL'; // Default to Total Length
       if (measurement.measurement_type === 'ruler_complete' || 
@@ -207,20 +218,35 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
         measurementType = 'CurveLength';
       }
       
-      // Create observation record with required fields
+      // CRITICAL FIX: Ensure all numeric values are proper numbers
       const observation = {
-        Subject: selectedWhaleId,
-        Timepoint: timepoint,
-        Image: measurement.image_filename,
-        [measurementType]: measurementValue,
-        // Required fields with default values
-        FocalLength: 50.0,  // mm - use actual from metadata if available
-        ImageWidth: 4000,   // pixels
-        SensorWidth: 23.5,  // mm
-        UAS: 'DJI',
-        Barometer: 25.0,    // Add default altitude
-        Laser: null
+        Subject: String(selectedWhaleId), // Ensure string
+        Timepoint: Number(timepoint),     // Ensure number
+        Image: String(measurement.image_filename), // Ensure string
+        [measurementType]: Number(measurementValue), // Ensure number
+        // Required fields with default values - ALL AS NUMBERS
+        FocalLength: Number(50.0),  // mm
+        ImageWidth: Number(4000),   // pixels  
+        SensorWidth: Number(23.5),  // mm
+        UAS: String('DJI'),         // string
+        Barometer: Number(25.0),    // Add default altitude as number
+        Laser: null                 // null is ok
       };
+      
+      // DEBUG: Log the final observation
+      console.log('Final observation:', observation);
+      console.log('Observation data types:', {
+        Subject: typeof observation.Subject,
+        Timepoint: typeof observation.Timepoint,
+        Image: typeof observation.Image,
+        [measurementType]: typeof observation[measurementType],
+        FocalLength: typeof observation.FocalLength,
+        ImageWidth: typeof observation.ImageWidth,
+        SensorWidth: typeof observation.SensorWidth,
+        UAS: typeof observation.UAS,
+        Barometer: typeof observation.Barometer,
+        Laser: typeof observation.Laser
+      });
       
       observations.push(observation);
     });
@@ -229,7 +255,19 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
       throw new Error('No valid observations could be created from selected measurements');
     }
 
-    console.log('Prepared observations:', observations);
+    console.log('ALL prepared observations with types:', observations);
+    
+    // Additional validation - check that all numeric columns are actually numbers
+    observations.forEach((obs, i) => {
+      Object.keys(obs).forEach(key => {
+        if (['FocalLength', 'ImageWidth', 'SensorWidth', 'Barometer', 'Timepoint', 'TL', 'CurveLength'].includes(key)) {
+          if (obs[key] !== null && (typeof obs[key] !== 'number' || isNaN(obs[key]))) {
+            console.error(`Invalid numeric value in observation ${i}, key ${key}:`, obs[key], typeof obs[key]);
+          }
+        }
+      });
+    });
+    
     return observations;
   };
 
