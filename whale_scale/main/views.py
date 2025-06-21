@@ -1955,7 +1955,6 @@ class Xcertainty(View):
         
         return xcertainty_data
 
-    #coul switch these priors to accurate-bayesian stats need them
     def get_default_priors(self, analysis_type):
         """Get default prior distributions - COMPLETE VERSION"""
         priors = {
@@ -1964,7 +1963,7 @@ class Xcertainty(View):
             'altimeter_variance': np.array([[1, 1]]),
             'pixel_variance': [1, 1],
             'object_lengths': [[5, 25]],
-            'image_altitude': [20, 200],  # FIXED: This was missing! [min_altitude, max_altitude]
+            'image_altitude': [50, 200],  # FIXED: This was missing! [min_altitude, max_altitude]
         }
         
         if analysis_type == 'growth_curve':
