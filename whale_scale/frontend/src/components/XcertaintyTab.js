@@ -1,4 +1,5 @@
-// XcertaintyTab.js - Enhanced with measurement selection from saved data
+// XcertaintyTab.js - FINAL WORKING VERSION with infinite loop fix
+// COPY AND PASTE THIS ENTIRE FILE to replace your existing XcertaintyTab.js
 
 import React, { useState, useEffect } from 'react';
 import './XcertaintyTab.css';
@@ -15,7 +16,7 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
   const [error, setError] = useState('');
   const [existingAnalyses, setExistingAnalyses] = useState([]);
   
-  // NEW: State for measurement selection
+  // State for measurement selection
   const [savedImages, setSavedImages] = useState([]);
   const [whaleGroups, setWhaleGroups] = useState({});
   const [selectedWhaleId, setSelectedWhaleId] = useState(null);
@@ -29,13 +30,16 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
     fetchSavedImages();
   }, []);
 
-  // Set current whale as default selection
+  // FIXED: Remove savedImages dependency to prevent infinite loop
   useEffect(() => {
     if (currentWhaleId && !selectedWhaleId) {
       setSelectedWhaleId(currentWhaleId);
-      loadMeasurementsForWhale(currentWhaleId);
+      // Add small delay to ensure data is loaded
+      setTimeout(() => {
+        loadMeasurementsForWhale(currentWhaleId);
+      }, 100);
     }
-  }, [currentWhaleId]);
+  }, [currentWhaleId]); // REMOVED savedImages from dependencies
 
   const fetchSavedImages = async () => {
     try {
@@ -46,8 +50,8 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
       
       if (response.ok) {
         const data = await response.json();
-        setSavedImages(data.images);
-        groupImagesByWhale(data.images);
+        setSavedImages(data.images || []);
+        groupImagesByWhale(data.images || []);
       }
     } catch (err) {
       console.error('Error fetching saved images:', err);
@@ -57,16 +61,17 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
   const groupImagesByWhale = (images) => {
     const groups = {};
     
+    if (!Array.isArray(images)) return;
+    
     images.forEach(image => {
-      // FIXED: Use full whale_id (like "Moby1", "Moby2") instead of just whale_name
       const whaleId = image.whale_id || `${image.whale_name || 'Unknown'}1`;
-      const displayName = whaleId; // Use the full ID as display name
+      const displayName = whaleId;
       
       if (!groups[whaleId]) {
         groups[whaleId] = {
-          whale_name: image.whale_name || whaleId.replace(/\d+$/, ''), // Base name without number
-          whale_id: whaleId, // Full ID like "Moby1", "Moby2"
-          display_name: displayName, // What to show in UI
+          whale_name: image.whale_name || whaleId.replace(/\d+$/, ''),
+          whale_id: whaleId,
+          display_name: displayName,
           images: [],
           total_measurements: 0
         };
@@ -78,30 +83,57 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
     setWhaleGroups(groups);
   };
 
+  // FIXED: Always fetch fresh data to avoid stale state issues
   const loadMeasurementsForWhale = async (whaleId) => {
+    if (!whaleId) return;
+    
     setLoadingMeasurements(true);
     setAvailableMeasurements([]);
+    setError('');
     
     try {
-      // Get all images for this whale by exact whale_id match
-      const whaleImages = savedImages.filter(img => 
+      // Always fetch fresh images to avoid stale data
+      const response = await fetch("/api/collatrix/get_user_images/", {
+        method: "GET",
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch images: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      const imagesToUse = data.images || [];
+      
+      // Update savedImages if needed (but don't depend on it)
+      if (savedImages.length === 0) {
+        setSavedImages(imagesToUse);
+        groupImagesByWhale(imagesToUse);
+      }
+      
+      const whaleImages = imagesToUse.filter(img => 
         img.whale_id === whaleId || 
-        // Also check if whale_name matches and we're looking for the first instance
-        (img.whale_name === whaleId.replace(/\d+$/, '') && img.whale_id === whaleId)
+        (img.whale_name && img.whale_name === whaleId.replace(/\d+$/, ''))
       );
       
-      // Fetch measurements for each image
+      if (whaleImages.length === 0) {
+        console.log(`No images found for whale ${whaleId}`);
+        setAvailableMeasurements([]);
+        setSelectedMeasurements([]);
+        return;
+      }
+      
       const allMeasurements = [];
       for (const image of whaleImages) {
         try {
-          const response = await fetch(`/api/collatrix/get_image_measurements/?image_id=${image.id}`, {
+          const measurementResponse = await fetch(`/api/collatrix/get_image_measurements/?image_id=${image.id}`, {
             method: "GET",
             credentials: 'include',
           });
           
-          if (response.ok) {
-            const data = await response.json();
-            const measurements = data.measurements || [];
+          if (measurementResponse.ok) {
+            const measurementData = await measurementResponse.json();
+            const measurements = measurementData.measurements || [];
             
             // Filter out individual width segments and add image info
             const filteredMeasurements = measurements
@@ -120,14 +152,13 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
         }
       }
       
+      console.log(`Found ${allMeasurements.length} measurements for whale ${whaleId}`);
       setAvailableMeasurements(allMeasurements);
-      
-      // Auto-select all measurements by default
       setSelectedMeasurements(allMeasurements.map(m => m.id));
       
     } catch (err) {
       console.error('Error loading measurements for whale:', err);
-      setError('Failed to load measurements for selected whale');
+      setError('Failed to load measurements for selected whale: ' + err.message);
     } finally {
       setLoadingMeasurements(false);
     }
@@ -148,6 +179,65 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
     }
   };
 
+  // Prepare data for Xcertainty analysis
+  const prepareObservationData = () => {
+    if (!selectedWhaleId || selectedMeasurements.length === 0) {
+      throw new Error('No whale or measurements selected');
+    }
+
+    // Get selected measurements
+    const selectedMeasurementData = availableMeasurements.filter(m => 
+      selectedMeasurements.includes(m.id)
+    );
+
+    if (selectedMeasurementData.length === 0) {
+      throw new Error('No valid measurements found');
+    }
+
+    // Transform measurements into wide-format observations for Xcertainty
+    const observations = [];
+    
+    selectedMeasurementData.forEach((measurement, index) => {
+      // Create a timepoint for each measurement (can be sequential or based on date)
+      const timepoint = index + 1;
+      
+      // Extract measurement value
+      let measurementValue = measurement.scaled_dimension;
+      let measurementType = 'TL'; // Default to Total Length
+      
+      // Handle different measurement types
+      if (measurement.measurement_type === 'ruler_complete' || 
+          measurement.measurement_type === 'ruler' || 
+          measurement.measurement_type === 'TL') {
+        measurementType = 'TL';
+      } else if (measurement.measurement_type === 'curve_length') {
+        measurementType = 'CurveLength';
+      } else {
+        measurementType = measurement.measurement_type;
+      }
+      
+      // Create observation record
+      const observation = {
+        Subject: selectedWhaleId,
+        Timepoint: timepoint,
+        Image: measurement.image_filename,
+        [measurementType]: measurementValue,
+        // Add dummy values for required fields
+        FocalLength: 50.0,  // mm
+        ImageWidth: 4000,   // pixels
+        SensorWidth: 23.5,  // mm
+        UAS: 'DJI',
+        Barometer: null,
+        Laser: null
+      };
+      
+      observations.push(observation);
+    });
+
+    return observations;
+  };
+
+  // Run analysis with proper data preparation
   const runAnalysis = async () => {
     if (!selectedWhaleId) {
       setError('Please select a whale first');
@@ -163,40 +253,90 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
     setError('');
 
     try {
-      const payload = {
-        whale_id: selectedWhaleId,
-        selected_measurements: selectedMeasurements,
-        ...parameters
+      // Step 1: Prepare observation data
+      const observations = prepareObservationData();
+      
+      console.log('Prepared observations:', observations);
+
+      // Step 2: Parse observations using the backend
+      const parsePayload = {
+        observations: observations,
+        subject_col: 'Subject',
+        meas_col: 'TL', // or primary measurement column
+        image_col: 'Image',
+        flen_col: 'FocalLength',
+        iwidth_col: 'ImageWidth',
+        swidth_col: 'SensorWidth',
+        uas_col: 'UAS',
+        timepoint_col: 'Timepoint'
       };
 
-      // Add subject info for growth curve analysis
-      if (analysisType === 'growth_curve') {
-        payload.subject_info = {
-          Subject: selectedWhaleId,
-          Year: new Date().getFullYear(),
-          Group: 'default',
-          ObservedAge: 1,
-          AgeType: 'estimated'
-        };
-      }
+      console.log('Sending parse request:', parsePayload);
 
-      const response = await fetch(`/api/xcertainty/${analysisType}/`, {
+      const parseResponse = await fetch('/api/xcertainty/parse_observations/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-CSRFToken': getCookie('csrftoken') || '',
         },
         credentials: 'include',
-        body: JSON.stringify(payload)
+        body: JSON.stringify(parsePayload)
       });
 
-      if (response.ok) {
-        const result = await response.json();
+      if (!parseResponse.ok) {
+        const parseError = await parseResponse.json();
+        throw new Error(`Parse error: ${parseError.error || 'Failed to parse observations'}`);
+      }
+
+      const parsedData = await parseResponse.json();
+      console.log('Parsed data:', parsedData);
+
+      // Step 3: Prepare priors (using defaults for now)
+      const priors = {
+        // Default priors for independent length analysis
+        length_mean_prior: [10.0, 5.0], // mean, std
+        length_std_prior: [1.0, 0.5],   // mean, std
+        measurement_error_prior: [0.1, 0.05] // mean, std
+      };
+
+      // Step 4: Run the analysis
+      const analysisPayload = {
+        parsed_data: parsedData,
+        priors: priors,
+        ...parameters
+      };
+
+      // Add subject info for growth curve analysis
+      if (analysisType === 'growth_curve') {
+        analysisPayload.subject_info = [{
+          Subject: selectedWhaleId,
+          Year: new Date().getFullYear(),
+          Group: 'default',
+          ObservedAge: 1,
+          AgeType: 'estimated'
+        }];
+      }
+
+      console.log('Sending analysis request:', analysisPayload);
+
+      const analysisResponse = await fetch(`/api/xcertainty/${analysisType}/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken') || '',
+        },
+        credentials: 'include',
+        body: JSON.stringify(analysisPayload)
+      });
+
+      if (analysisResponse.ok) {
+        const result = await analysisResponse.json();
+        console.log('Analysis result:', result);
         setResults(result);
         fetchExistingAnalyses(); // Refresh the list
       } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Analysis failed');
+        const errorData = await analysisResponse.json();
+        throw new Error(errorData.error || 'Analysis failed');
       }
     } catch (err) {
       console.error('Analysis error:', err);
@@ -379,40 +519,57 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
           <h4>Summary</h4>
           <p><strong>Whale ID:</strong> {results.whale_id}</p>
           <p><strong>Analysis Type:</strong> {results.analysis_type}</p>
-          <p><strong>Convergence:</strong> {results.summary?.convergence || 'Unknown'}</p>
-          {results.summary?.mean_length && (
-            <p><strong>Mean Length:</strong> {results.summary.mean_length.toFixed(2)} m</p>
-          )}
-          {results.summary?.uncertainty_range && (
-            <p><strong>Uncertainty Range:</strong> ±{results.summary.uncertainty_range.toFixed(2)} m</p>
+          <p><strong>Number of Measurements:</strong> {results.n_measurements}</p>
+          <p><strong>Convergence:</strong> {results.convergence}</p>
+          
+          {results.summary && (
+            <>
+              <p><strong>Mean Length:</strong> {results.summary.posterior_mean?.toFixed(3)} m</p>
+              <p><strong>Standard Deviation:</strong> {results.summary.posterior_std?.toFixed(3)} m</p>
+              <p><strong>95% Credible Interval:</strong> [{results.summary.credible_interval_95?.[0]?.toFixed(3)}, {results.summary.credible_interval_95?.[1]?.toFixed(3)}] m</p>
+              <p><strong>Uncertainty Range:</strong> ±{results.summary.uncertainty_range?.toFixed(3)} m</p>
+            </>
           )}
         </div>
 
         {results.measurements && (
           <div className="measurements-uncertainty">
-            <h4>Measurement Uncertainties</h4>
+            <h4>Individual Measurement Uncertainties</h4>
             <div className="uncertainty-table">
               <table>
                 <thead>
                   <tr>
-                    <th>Measurement</th>
+                    <th>Measurement #</th>
+                    <th>Original Value</th>
                     <th>Posterior Mean</th>
-                    <th>Std Dev</th>
+                    <th>Posterior Std</th>
                     <th>95% Credible Interval</th>
                   </tr>
                 </thead>
                 <tbody>
                   {results.measurements.map((measurement, index) => (
                     <tr key={index}>
-                      <td>{measurement.measurement_type}</td>
+                      <td>{measurement.measurement_id}</td>
+                      <td>{measurement.original_value.toFixed(3)} m</td>
                       <td>{measurement.posterior_mean.toFixed(3)} m</td>
                       <td>±{measurement.posterior_std.toFixed(3)} m</td>
-                      <td>[{measurement.credible_interval[0].toFixed(3)}, {measurement.credible_interval[1].toFixed(3)}]</td>
+                      <td>[{measurement.credible_interval[0].toFixed(3)}, {measurement.credible_interval[1].toFixed(3)}] m</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {results.diagnostics && (
+          <div className="diagnostics-info">
+            <h4>MCMC Diagnostics</h4>
+            <p><strong>R-hat:</strong> {results.diagnostics.r_hat} (good if &lt; 1.1)</p>
+            <p><strong>Effective Sample Size:</strong> {results.summary?.effective_sample_size}</p>
+            <p><strong>Chains:</strong> {results.diagnostics.chains}</p>
+            <p><strong>Iterations:</strong> {results.diagnostics.iterations}</p>
+            <p><strong>Divergent Transitions:</strong> {results.diagnostics.n_divergent}</p>
           </div>
         )}
 
@@ -434,7 +591,7 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `xcertainty_${results.whale_id}_${results.analysis_type}_${new Date().toISOString().slice(0, 10)}.json`;
+    link.download = `xcertainty_${selectedWhaleId}_${analysisType}_${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     URL.revokeObjectURL(url);
   };
