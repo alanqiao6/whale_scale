@@ -1780,70 +1780,57 @@ class Xcertainty(View):
             return None
 
     def convert_to_xcertainty_format_safe(self, validated_measurements):
-        """Convert validated measurements to REAL Xcertainty format - matches library expectations"""
+        """Convert validated measurements to REAL Xcertainty format - properly structured for parse_observations"""
         logger = logging.getLogger(__name__)
         
         try:
-            # Create the EXACT format that parse_observations expects
-            rows = []
+            # Group measurements by image and create wide format that parse_observations expects
+            # parse_observations expects measurements as COLUMNS, not rows
+            
+            # First, let's create a properly structured DataFrame for Xcertainty
+            image_data = {}
+            measurement_columns = set()
+            
             for item in validated_measurements:
+                image_name = item['image_filename']
                 measurement_type = item.get('measurement_type', 'TL')
                 
-                # Create the row with EXACT column names Xcertainty expects
-                row = {
-                    'Subject': str(item['whale_id']),
-                    'Image': str(item['image_filename']),
-                    'Measurement': measurement_type,
-                    'Timepoint': 1,
-                    'PixelCount': float(item['pixel_distance']),
-                    'Length': float(item['real_dimension']),  # FIXED: Xcertainty expects 'Length' not 'RealLength'
-                    'FocalLength': float(item['focal_length']),
-                    'ImageWidth': float(item['image_width']),
-                    'SensorWidth': float(item['sensor_width']),
-                    'UAS': 'Generic',
-                    'Barometer': float(item['gps_altitude']),
-                    'Laser': None
-                }
-                rows.append(row)
-                logger.info(f"Added row: {measurement_type} = {item['real_dimension']}m ({item['pixel_distance']} px)")
+                if image_name not in image_data:
+                    image_data[image_name] = {
+                        'Subject': str(item['whale_id']),
+                        'Image': str(item['image_filename']),
+                        'FocalLength': float(item['focal_length']),
+                        'ImageWidth': float(item['image_width']),
+                        'SensorWidth': float(item['sensor_width']),
+                        'UAS': 'Generic',
+                        'Barometer': float(item['gps_altitude']),
+                        'Laser': None,
+                        'Timepoint': 1
+                    }
+                
+                # Add measurement as a column (this is what parse_observations expects)
+                image_data[image_name][measurement_type] = float(item['pixel_distance'])
+                image_data[image_name][f"{measurement_type}_Length"] = float(item['real_dimension'])
+                measurement_columns.add(measurement_type)
             
-            df = pd.DataFrame(rows)
-            logger.info(f"Created DataFrame with columns: {list(df.columns)}")
+            # Convert to DataFrame
+            df = pd.DataFrame.from_dict(image_data, orient='index').reset_index(drop=True)
+            logger.info(f"Created wide-format DataFrame with columns: {list(df.columns)}")
+            logger.info(f"Measurement columns found: {list(measurement_columns)}")
             
-            # Validate numeric columns
-            numeric_cols = ['PixelCount', 'Length', 'FocalLength', 'ImageWidth', 'SensorWidth', 'Barometer']
-            for col in numeric_cols:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce')
-                    if df[col].isna().any():
-                        logger.warning(f"Found NaN values in {col}, filling with defaults")
-                        if col == 'PixelCount':
-                            df[col] = df[col].fillna(400.0)
-                        elif col == 'Length':
-                            df[col] = df[col].fillna(10.0)
-                        elif col == 'FocalLength':
-                            df[col] = df[col].fillna(50.0)
-                        elif col == 'ImageWidth':
-                            df[col] = df[col].fillna(4000.0)
-                        elif col == 'SensorWidth':
-                            df[col] = df[col].fillna(23.5)
-                        elif col == 'Barometer':
-                            df[col] = df[col].fillna(100.0)
-            
-            # Use parse_observations to create proper Xcertainty format
+            # Now use parse_observations correctly
             logger.info("Converting to Xcertainty format using parse_observations...")
             
-            # Create the exact arguments parse_observations expects
             xcertainty_data = parse_observations(
                 x=df,
                 subject_col='Subject',
-                image_col='Image', 
-                meas_col=['Measurement'],  # This should be a list of measurement columns
-                tlen_col='Length',  # Training length column
+                image_col='Image',
+                meas_col=list(measurement_columns),  # These are the actual measurement columns
+                tlen_col=f"{list(measurement_columns)[0]}_Length" if measurement_columns else None,  # Use the first measurement's length
                 barometer_col='Barometer',
                 laser_col='Laser',
                 flen_col='FocalLength',
-                iwidth_col='ImageWidth', 
+                iwidth_col='ImageWidth',
                 swidth_col='SensorWidth',
                 uas_col='UAS',
                 timepoint_col='Timepoint'
@@ -1855,9 +1842,75 @@ class Xcertainty(View):
             return xcertainty_data
             
         except Exception as e:
-            logger.error(f"Error converting to Xcertainty format: {str(e)}")
+            logger.error(f"Error in parse_observations conversion: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
-            raise
+            
+            # Fallback: create the data structure manually if parse_observations fails
+            logger.info("Falling back to manual data structure creation...")
+            return self.create_manual_xcertainty_format(validated_measurements)
+
+    def create_manual_xcertainty_format(self, validated_measurements):
+        """Manual fallback to create Xcertainty data structure"""
+        logger = logging.getLogger(__name__)
+        
+        # Create the data structure that the samplers expect
+        pixel_counts = []
+        training_objects = []
+        prediction_objects = []
+        image_info_dict = {}
+        
+        for item in validated_measurements:
+            measurement_type = item.get('measurement_type', 'TL')
+            
+            # pixel_counts
+            pixel_counts.append({
+                'Subject': str(item['whale_id']),
+                'Measurement': measurement_type,
+                'Timepoint': 1,
+                'Image': str(item['image_filename']),
+                'PixelCount': float(item['pixel_distance'])
+            })
+            
+            # training_objects (measurements with known lengths)
+            training_objects.append({
+                'Subject': str(item['whale_id']),
+                'Measurement': measurement_type,
+                'Timepoint': 1,
+                'Length': float(item['real_dimension'])
+            })
+            
+            # prediction_objects (measurements we want to predict - same as training in this case)
+            prediction_objects.append({
+                'Subject': str(item['whale_id']),
+                'Measurement': measurement_type,
+                'Timepoint': 1
+            })
+            
+            # image_info (unique per image)
+            image_name = str(item['image_filename'])
+            if image_name not in image_info_dict:
+                image_info_dict[image_name] = {
+                    'Image': image_name,
+                    'FocalLength': float(item['focal_length']),
+                    'ImageWidth': float(item['image_width']),
+                    'SensorWidth': float(item['sensor_width']),
+                    'UAS': 'Generic',
+                    'Barometer': float(item['gps_altitude']),
+                    'Laser': None
+                }
+        
+        xcertainty_data = {
+            'pixel_counts': pd.DataFrame(pixel_counts),
+            'training_objects': pd.DataFrame(training_objects),
+            'prediction_objects': pd.DataFrame(prediction_objects),
+            'image_info': pd.DataFrame(list(image_info_dict.values()))
+        }
+        
+        logger.info("Created manual Xcertainty data structure")
+        for key, data in xcertainty_data.items():
+            logger.info(f"{key}: {len(data)} records")
+        
+        return xcertainty_data
 
     def create_mock_xcertainty_results(self, validated_measurements, analysis_type):
         """Create mock results that match real Xcertainty output structure"""
