@@ -1683,57 +1683,73 @@ class Xcertainty(View):
             return default
 
     def convert_to_xcertainty_format_safe(self, validated_measurements):
-        """Convert validated measurements to Xcertainty format safely"""
+        """Convert validated measurements to Xcertainty format with proper width segment handling"""
         logger = logging.getLogger(__name__)
         
         try:
-            # Create DataFrame with validated data
+            # Create DataFrame with the exact structure Xcertainty expects
             rows = []
             for item in validated_measurements:
+                # Calculate pixel dimension from measurement data
+                pixel_dimension = item['real_dimension'] / item['pixel_distance'] if item['pixel_distance'] > 0 else 0.001
+                
+                # Determine measurement type - map width segments to proper names
+                measurement_type = item.get('measurement_type', 'TL')
+                if measurement_type.startswith('TL_w'):
+                    # This is a width measurement - keep the specific percentage
+                    measurement_name = measurement_type  # e.g., "TL_w25.00"
+                elif measurement_type == 'TL' or measurement_type == 'ruler_complete':
+                    measurement_name = 'TL'  # Total length
+                else:
+                    measurement_name = 'TL'  # Default to total length
+                
                 row = {
                     'Subject': str(item['whale_id']),
                     'Image': str(item['image_filename']),
-                    'TL': float(item['final_dimension']),
-                    'Timepoint': 1,  # Default timepoint
+                    'Measurement': measurement_name,  # Use specific measurement name
+                    'Timepoint': 1,
+                    'PixelCount': float(item['pixel_distance']),
+                    'RealLength': float(item['real_dimension']),
                     'FocalLength': float(item['focal_length']),
                     'ImageWidth': float(item['image_width']),
-                    'SensorWidth': 23.2,  # Standard camera sensor width
+                    'SensorWidth': float(item['sensor_width']),
                     'UAS': 'Generic',
                     'Barometer': float(item['gps_altitude']),
-                    'Laser': None
+                    'Laser': None,
+                    'PixelDimension': float(pixel_dimension),
+                    'MeasurementType': measurement_type  # Keep original type for reference
                 }
                 rows.append(row)
             
             df = pd.DataFrame(rows)
-            logger.info(f"Created DataFrame with {len(df)} rows")
-            logger.info(f"DataFrame dtypes:\n{df.dtypes}")
-            logger.info(f"DataFrame info:\n{df.info()}")
-            logger.info(f"Sample data:\n{df.head()}")
+            logger.info(f"Created DataFrame with {len(df)} rows including width segments")
+            logger.info(f"Measurement types: {df['Measurement'].unique()}")
             
             # Ensure all numeric columns are proper floats
-            numeric_cols = ['TL', 'FocalLength', 'ImageWidth', 'SensorWidth', 'Barometer']
+            numeric_cols = ['PixelCount', 'RealLength', 'FocalLength', 'ImageWidth', 'SensorWidth', 'Barometer', 'PixelDimension']
             for col in numeric_cols:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-                if df[col].isna().any():
-                    logger.warning(f"Found NaN values in {col}")
-                    df[col] = df[col].fillna(df[col].mean())
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+                    if df[col].isna().any():
+                        logger.warning(f"Found NaN values in {col}")
+                        df[col] = df[col].fillna(df[col].mean() if len(df) > 1 else 1.0)
             
-            # Create simple data structure for now (bypass parse_observations for testing)
+            # Create Xcertainty data structure
             xcertainty_data = {
-                'pixel_counts': df[['Subject', 'Image', 'TL']].rename(columns={'TL': 'PixelCount'}),
-                'training_objects': None,
-                'prediction_objects': df[['Subject', 'Image']].copy(),
-                'image_info': df[['Image', 'FocalLength', 'ImageWidth', 'SensorWidth', 'UAS', 'Barometer']].copy()
+                'pixel_counts': df[['Subject', 'Image', 'Measurement', 'Timepoint', 'PixelCount']].copy(),
+                'training_objects': df[['Subject', 'Image', 'Measurement', 'Timepoint', 'RealLength']].copy(),
+                'prediction_objects': df[['Subject', 'Image', 'Measurement', 'Timepoint']].copy(),
+                'image_info': df[['Image', 'FocalLength', 'ImageWidth', 'SensorWidth', 'UAS', 'Barometer', 'Laser']].drop_duplicates().copy()
             }
             
-            # Add required columns
-            xcertainty_data['pixel_counts']['Measurement'] = 'TL'
-            xcertainty_data['pixel_counts']['Timepoint'] = 1
-            xcertainty_data['prediction_objects']['Measurement'] = 'TL'
-            xcertainty_data['prediction_objects']['Timepoint'] = 1
-            xcertainty_data['image_info']['Laser'] = None
+            logger.info("Successfully converted to Xcertainty format with width segments")
+            logger.info(f"Data structure keys: {list(xcertainty_data.keys())}")
+            for key, data in xcertainty_data.items():
+                if data is not None:
+                    logger.info(f"{key} shape: {data.shape}")
+                    if key in ['pixel_counts', 'training_objects', 'prediction_objects']:
+                        logger.info(f"  Measurements: {data['Measurement'].unique()}")
             
-            logger.info("Successfully converted to Xcertainty format")
             return xcertainty_data
             
         except Exception as e:
@@ -1807,7 +1823,7 @@ class Xcertainty(View):
         return priors
 
     def format_xcertainty_results(self, results, whale_id, analysis_type):
-        """Convert results to frontend format"""
+        """Convert results to frontend format with proper width segment display"""
         logger = logging.getLogger(__name__)
         
         measurements_with_uncertainty = []
@@ -1816,9 +1832,25 @@ class Xcertainty(View):
             for key, obj_result in results['objects'].items():
                 summary = obj_result['summary'].iloc[0] if not obj_result['summary'].empty else None
                 if summary is not None:
+                    measurement_type = summary['Measurement']
+                    
+                    # Create user-friendly display names for different measurement types
+                    if measurement_type == 'TL':
+                        display_name = 'Total Length'
+                        original_type = 'total_length'
+                    elif measurement_type.startswith('TL_w'):
+                        # Extract percentage from width measurement (e.g., TL_w25.00 -> 25%)
+                        percentage = measurement_type.replace('TL_w', '').replace('.00', '')
+                        display_name = f'Width at {percentage}% of body length'
+                        original_type = 'width_measurement'
+                    else:
+                        display_name = measurement_type
+                        original_type = 'other'
+                    
                     measurements_with_uncertainty.append({
-                        'measurement_type': f"{summary['Subject']} {summary['Measurement']}",
-                        'original_type': 'length',
+                        'measurement_type': display_name,
+                        'original_type': original_type,
+                        'measurement_code': measurement_type,  # Keep original code for reference
                         'posterior_mean': float(summary['mean']),
                         'posterior_std': float(summary['sd']),
                         'credible_interval': [float(summary['HPD_low']), float(summary['HPD_high'])],
@@ -1826,15 +1858,26 @@ class Xcertainty(View):
                         'subject': str(summary['Subject'])
                     })
         
+        # Group measurements by type for summary statistics
+        total_length_measurements = [m for m in measurements_with_uncertainty if m['original_type'] == 'total_length']
+        width_measurements = [m for m in measurements_with_uncertainty if m['original_type'] == 'width_measurement']
+        
         # Calculate summary statistics
-        if measurements_with_uncertainty:
-            all_means = [m['posterior_mean'] for m in measurements_with_uncertainty]
-            all_stds = [m['posterior_std'] for m in measurements_with_uncertainty]
-            mean_length = np.mean(all_means)
-            uncertainty_range = np.mean(all_stds)
+        if total_length_measurements:
+            mean_total_length = np.mean([m['posterior_mean'] for m in total_length_measurements])
+            total_length_uncertainty = np.mean([m['posterior_std'] for m in total_length_measurements])
         else:
-            mean_length = 0
-            uncertainty_range = 0
+            mean_total_length = 0
+            total_length_uncertainty = 0
+        
+        if width_measurements:
+            mean_width = np.mean([m['posterior_mean'] for m in width_measurements])
+            width_uncertainty = np.mean([m['posterior_std'] for m in width_measurements])
+            width_count = len(width_measurements)
+        else:
+            mean_width = 0
+            width_uncertainty = 0
+            width_count = 0
         
         formatted_result = {
             "success": True,
@@ -1843,24 +1886,33 @@ class Xcertainty(View):
             "analysis_type": analysis_type,
             "selected_measurements_count": len(measurements_with_uncertainty),
             "summary": {
-                'convergence': f'{analysis_type} analysis completed with validated data',
+                'convergence': f'{analysis_type} analysis completed with width segment analysis',
                 'n_measurements': len(measurements_with_uncertainty),
-                'mean_length': float(mean_length),
-                'uncertainty_range': float(uncertainty_range),
+                'n_total_length': len(total_length_measurements),
+                'n_width_measurements': len(width_measurements),
+                'mean_total_length': float(mean_total_length),
+                'total_length_uncertainty': float(total_length_uncertainty),
+                'mean_width': float(mean_width),
+                'width_uncertainty': float(width_uncertainty),
                 'analysis_type': analysis_type,
-                'algorithm': f'Validated {analysis_type} Implementation'
+                'algorithm': f'Bayesian {analysis_type} with individual width segment analysis'
             },
-            "measurements": measurements_with_uncertainty
+            "measurements": measurements_with_uncertainty,
+            # Group measurements for easier display
+            "measurement_groups": {
+                "total_length": total_length_measurements,
+                "width_measurements": width_measurements
+            }
         }
         
-        logger.info(f"Formatted results: {len(measurements_with_uncertainty)} measurements")
+        logger.info(f"Formatted results: {len(total_length_measurements)} total length + {len(width_measurements)} width measurements")
         return formatted_result
 
     # Keep existing helper methods...
     def get_selected_measurements(self, request, whale_id, selected_measurement_ids):
-        """Get specific measurements by their IDs for a whale"""
+        """Get specific measurements by their IDs for a whale, including width segments"""
         try:
-            from .models import Measurement  # Import your model
+            from .models import Measurement
             logger = logging.getLogger(__name__)
             
             measurements_queryset = Measurement.objects.filter(id__in=selected_measurement_ids)
@@ -1869,19 +1921,80 @@ class Xcertainty(View):
             for measurement in measurements_queryset:
                 image = measurement.image
                 if str(image.whale_id) == str(whale_id) or str(image.whale_name) == str(whale_id):
-                    measurements.append({
-                        'image': image,
-                        'measurement': measurement,
-                        'whale_id': whale_id,
-                        'whale_name': getattr(image, 'whale_name', 'Unknown')
-                    })
+                    
+                    # Handle ruler_complete measurements - extract width segments
+                    if measurement.measurement_type == "ruler_complete":
+                        # Add the total length measurement
+                        measurements.append({
+                            'image': image,
+                            'measurement': measurement,
+                            'whale_id': whale_id,
+                            'whale_name': getattr(image, 'whale_name', 'Unknown'),
+                            'measurement_name': 'Total Length',
+                            'measurement_type': 'TL'
+                        })
+                        
+                        # Extract and add each width segment as separate measurement
+                        metadata = measurement.measurement_metadata
+                        if isinstance(metadata, str):
+                            try:
+                                metadata = json.loads(metadata)
+                            except json.JSONDecodeError:
+                                metadata = {}
+                        
+                        width_segments = metadata.get('width_segments', [])
+                        for i, segment in enumerate(width_segments):
+                            # Create a virtual measurement object for each width segment
+                            virtual_measurement = type('VirtualMeasurement', (), {
+                                'id': f"{measurement.id}_segment_{i}",
+                                'measurement_type': segment.get('measurement_type', f'TL_w{(i+1)*25}.00'),
+                                'scaled_dimension': segment.get('scaled_dimension', 0),
+                                'coordinate_data': segment.get('coordinate_data', []),
+                                'pixel_distance_computed': self.calculate_pixel_distance_from_coords(
+                                    segment.get('coordinate_data', [])
+                                ),
+                                'ruler_length_computed': segment.get('scaled_dimension', 0)
+                            })()
+                            
+                            measurements.append({
+                                'image': image,
+                                'measurement': virtual_measurement,
+                                'whale_id': whale_id,
+                                'whale_name': getattr(image, 'whale_name', 'Unknown'),
+                                'measurement_name': f'Width at {segment.get("measurement_type", "").replace("TL_w", "")}%',
+                                'measurement_type': segment.get('measurement_type', f'TL_w{(i+1)*25}.00')
+                            })
+                    
+                    else:
+                        # Handle other measurement types normally
+                        measurements.append({
+                            'image': image,
+                            'measurement': measurement,
+                            'whale_id': whale_id,
+                            'whale_name': getattr(image, 'whale_name', 'Unknown'),
+                            'measurement_name': measurement.measurement_name or measurement.measurement_type,
+                            'measurement_type': measurement.measurement_type
+                        })
             
-            logger.info(f"Retrieved {len(measurements)} selected measurements for whale {whale_id}")
+            logger.info(f"Retrieved {len(measurements)} measurements (including width segments) for whale {whale_id}")
             return measurements
             
         except Exception as e:
             logger.error(f"Error getting selected measurements: {str(e)}")
             return []
+
+    def calculate_pixel_distance_from_coords(self, coordinate_data):
+        """Calculate pixel distance from coordinate data"""
+        if not coordinate_data or len(coordinate_data) < 2:
+            return None
+        
+        try:
+            # Calculate distance between first and last point
+            x1, y1 = coordinate_data[0].get('x', 0), coordinate_data[0].get('y', 0)
+            x2, y2 = coordinate_data[-1].get('x', 0), coordinate_data[-1].get('y', 0)
+            return ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
+        except (KeyError, TypeError, IndexError):
+            return None
 
     def get_whale_measurements(self, request, whale_id):
         """Get all measurements for a whale"""
