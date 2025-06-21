@@ -126,6 +126,9 @@ class Measurement(models.Model):
     # Additional metadata
     created_date = models.DateTimeField(auto_now_add=True)
     measurement_metadata = models.JSONField(null=True, blank=True)  # Store any additional info
+
+    pixel_distance = models.FloatField(null=True, blank=True)
+    ruler_length = models.FloatField(null=True, blank=True)
     
     class Meta:
         ordering = ['-created_date']

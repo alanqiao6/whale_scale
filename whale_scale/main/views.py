@@ -1628,60 +1628,35 @@ class Xcertainty(View):
         logger = logging.getLogger(__name__)
         validated_measurements = []
         
-        for i, item in enumerate(measurements):
+        for item in measurements:
             try:
                 measurement = item['measurement']
                 image = item['image']
                 
-                logger.info(f"Validating measurement {i+1}/{len(measurements)}")
-                logger.info(f"  Measurement ID: {measurement.id}")
-                logger.info(f"  Pixel distance: {measurement.pixel_distance} (type: {type(measurement.pixel_distance)})")
-                logger.info(f"  Scaled dimension: {measurement.scaled_dimension} (type: {type(measurement.scaled_dimension)})")
-                logger.info(f"  Ruler length: {measurement.ruler_length} (type: {type(measurement.ruler_length)})")
-                
-                # Validate pixel distance
-                pixel_distance = self.safe_float_convert(measurement.pixel_distance, 'pixel_distance')
-                if pixel_distance is None or pixel_distance <= 0:
-                    logger.warning(f"Skipping measurement {measurement.id}: invalid pixel_distance")
+                # Simple validation - just check if we have basic data
+                if not measurement.scaled_dimension or measurement.scaled_dimension <= 0:
                     continue
-                
-                # Validate scaled dimension or ruler length
-                scaled_dimension = self.safe_float_convert(measurement.scaled_dimension, 'scaled_dimension')
-                ruler_length = self.safe_float_convert(measurement.ruler_length, 'ruler_length')
-                
-                # Use scaled_dimension if available, otherwise ruler_length
-                final_dimension = scaled_dimension if scaled_dimension is not None else ruler_length
-                
-                if final_dimension is None or final_dimension <= 0:
-                    logger.warning(f"Skipping measurement {measurement.id}: no valid dimension")
-                    continue
-                
-                # Validate image metadata
-                focal_length = self.safe_float_convert(getattr(image, 'focal_length_mm', None), 'focal_length', default=50.0)
-                image_width = self.safe_float_convert(getattr(image, 'image_width', None), 'image_width', default=4000.0)
-                gps_altitude = self.safe_float_convert(getattr(image, 'gps_altitude_m', None), 'gps_altitude', default=100.0)
-                
+                    
+                # Use scaled_dimension as both pixel and real dimension for now
                 validated_item = {
                     'measurement_id': measurement.id,
                     'whale_id': item['whale_id'],
                     'whale_name': item.get('whale_name', 'Unknown'),
                     'image_filename': getattr(image, 'filename', f'image_{image.id}'),
-                    'pixel_distance': pixel_distance,
-                    'final_dimension': final_dimension,
-                    'focal_length': focal_length,
-                    'image_width': image_width,
-                    'gps_altitude': gps_altitude,
-                    'measurement_type': getattr(measurement, 'measurement_type', 'default')
+                    'final_dimension': float(measurement.scaled_dimension),
+                    'focal_length': float(getattr(image, 'focal_length_mm', 50.0) or 50.0),
+                    'image_width': float(getattr(image, 'image_width', 4000.0) or 4000.0),
+                    'gps_altitude': float(getattr(image, 'gps_altitude_m', 100.0) or 100.0),
+                    'measurement_type': getattr(measurement, 'measurement_type', 'TL')
                 }
                 
                 validated_measurements.append(validated_item)
-                logger.info(f"  Validated successfully: dimension={final_dimension}")
                 
             except Exception as e:
-                logger.error(f"Error validating measurement {i}: {str(e)}")
+                logger.error(f"Error validating measurement: {str(e)}")
                 continue
         
-        logger.info(f"Validated {len(validated_measurements)} out of {len(measurements)} measurements")
+        logger.info(f"Validated {len(validated_measurements)} measurements")
         return validated_measurements
 
     def safe_float_convert(self, value, field_name, default=None):
@@ -2002,3 +1977,17 @@ class Xcertainty(View):
             logger.error(f"Error getting analysis details: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
             return JsonResponse({"error": "Analysis not found"}, status=404)
+    
+    def get(self, request, function_name):
+        """Handle GET requests for Xcertainty"""
+        logger = logging.getLogger(__name__)
+        
+        if function_name == 'list':
+            return self.list_analyses(request)
+        elif function_name == 'details':
+            analysis_id = request.GET.get('id')
+            if not analysis_id:
+                return JsonResponse({"error": "analysis_id parameter required"}, status=400)
+            return self.get_analysis_details(request, analysis_id)
+        else:
+            return JsonResponse({"error": f"Invalid GET function name: {function_name}"}, status=400)
