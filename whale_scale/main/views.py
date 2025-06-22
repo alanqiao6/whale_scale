@@ -1703,31 +1703,45 @@ class Xcertainty(View):
             parsed_data = data.get("parsed_data", {})
             priors = data.get("priors", {})
             
-            # Convert dict data back to DataFrames
-            xcertainty_data = {}
+            logger = logging.getLogger(__name__)
+            logger.info("=== DEBUG: parsed_data before conversion ===")
             for key, value in parsed_data.items():
-                if value is not None and isinstance(value, list):
-                    if len(value) > 0:  # Non-empty list - convert to DataFrame
-                        xcertainty_data[key] = pd.DataFrame(value)
-                    else:  # Empty list - create empty DataFrame with proper columns
-                        if key == 'training_objects':
-                            xcertainty_data[key] = pd.DataFrame(columns=['Subject', 'Measurement', 'Timepoint', 'Length'])
-                        elif key == 'pixel_counts':
-                            xcertainty_data[key] = pd.DataFrame(columns=['Subject', 'Measurement', 'Timepoint', 'Image', 'PixelCount'])
-                        elif key == 'prediction_objects':
-                            xcertainty_data[key] = pd.DataFrame(columns=['Subject', 'Measurement', 'Timepoint'])
-                        elif key == 'image_info':
-                            xcertainty_data[key] = pd.DataFrame(columns=['Image', 'Barometer', 'Laser', 'FocalLength', 'ImageWidth', 'SensorWidth', 'UAS'])
-                        else:
-                            xcertainty_data[key] = pd.DataFrame()
-                elif value is None:
-                    # Handle None values - create appropriate empty DataFrames
-                    if key == 'training_objects':
-                        xcertainty_data[key] = pd.DataFrame(columns=['Subject', 'Measurement', 'Timepoint', 'Length'])
-                    else:
-                        xcertainty_data[key] = None
-                else:
-                    xcertainty_data[key] = value
+                logger.info(f"{key}: {type(value)} - length: {len(value) if isinstance(value, list) else 'N/A'}")
+            logger.info("=== END DEBUG BEFORE ===")
+            
+            # Convert dict data back to DataFrames - EXPLICIT VERSION
+            xcertainty_data = {}
+
+            # Handle pixel_counts
+            if 'pixel_counts' in parsed_data and parsed_data['pixel_counts'] is not None:
+                xcertainty_data['pixel_counts'] = pd.DataFrame(parsed_data['pixel_counts'])
+            else:
+                xcertainty_data['pixel_counts'] = pd.DataFrame(columns=['Subject', 'Measurement', 'Timepoint', 'Image', 'PixelCount'])
+
+            # Handle training_objects  
+            if 'training_objects' in parsed_data and parsed_data['training_objects'] and len(parsed_data['training_objects']) > 0:
+                xcertainty_data['training_objects'] = pd.DataFrame(parsed_data['training_objects'])
+            else:
+                xcertainty_data['training_objects'] = pd.DataFrame(columns=['Subject', 'Measurement', 'Timepoint', 'Length'])
+
+            # Handle prediction_objects
+            if 'prediction_objects' in parsed_data and parsed_data['prediction_objects'] is not None:
+                xcertainty_data['prediction_objects'] = pd.DataFrame(parsed_data['prediction_objects'])
+            else:
+                xcertainty_data['prediction_objects'] = pd.DataFrame(columns=['Subject', 'Measurement', 'Timepoint'])
+
+            # Handle image_info
+            if 'image_info' in parsed_data and parsed_data['image_info'] is not None:
+                xcertainty_data['image_info'] = pd.DataFrame(parsed_data['image_info'])
+            else:
+                xcertainty_data['image_info'] = pd.DataFrame(columns=['Image', 'Barometer', 'Laser', 'FocalLength', 'ImageWidth', 'SensorWidth', 'UAS'])
+
+            logger.info("=== DEBUG: xcertainty_data after conversion ===")
+            for key, value in xcertainty_data.items():
+                logger.info(f"{key}: {type(value)} - shape: {value.shape if hasattr(value, 'shape') else 'N/A'}")
+                if hasattr(value, 'columns'):
+                    logger.info(f"  columns: {list(value.columns)}")
+            logger.info("=== END DEBUG AFTER ===")
             
             # Set default priors if not provided
             if not priors:
