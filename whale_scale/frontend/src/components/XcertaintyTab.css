@@ -612,4 +612,36 @@
     flex-direction: column;
     gap: 5px;
   }
+
+  .sample-toggle {
+    margin: 15px 0;
+    padding: 12px;
+    background: #fff3cd;
+    border-radius: 6px;
+    border-left: 4px solid #ffc107;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+
+  .sample-toggle label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    margin: 0;
+    color: #856404;
+  }
+
+  .sample-toggle input[type="checkbox"] {
+    margin: 0;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+  }
+
+  .sample-toggle label:hover {
+    color: #533f03;
+  }
+    
 }

@@ -14,6 +14,7 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [existingAnalyses, setExistingAnalyses] = useState([]);
+  const [showSamples, setShowSamples] = useState(false); // NEW: Toggle for sample arrays
   
   // State for measurement selection
   const [savedImages, setSavedImages] = useState([]);
@@ -367,6 +368,7 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
       const analysisPayload = {
         parsed_data: parsedData,
         priors: priors,
+        include_samples: showSamples, // NEW: Include the toggle state
         ...parameters
       };
 
@@ -543,7 +545,7 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
                 />
               </label>
               
-                                <label>
+              <label>
                 Burn-in (fraction):
                 <input 
                   type="number" 
@@ -556,6 +558,19 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
                 />
               </label>
             </div>
+          </div>
+
+          {/* NEW: Sample toggle */}
+          <div className="sample-toggle">
+            <label>
+              <input 
+                type="checkbox" 
+                checked={showSamples}
+                onChange={(e) => setShowSamples(e.target.checked)}
+                disabled={loading}
+              />
+              Include raw sample arrays (warning: large output)
+            </label>
           </div>
 
           <button 

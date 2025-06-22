@@ -1791,10 +1791,35 @@ class Xcertainty(View):
                 summary_burn=data.get("summary_burn", 0.5),
                 verbose=data.get("verbose", True)
             )
-            
+
             print("🔥 Sampler completed successfully!")
-            
-            # Convert results to JSON
+
+            # Check if samples should be included
+            include_samples = data.get('include_samples', False)
+            print(f"🔥 include_samples: {include_samples}")
+
+            # If samples not requested, strip them out to make response much smaller
+            if not include_samples:
+                print("🔥 Filtering out sample arrays for smaller response")
+                clean_result = {'summaries': result.get('summaries', [])}
+                
+                # Keep only meta and summary from each section, remove massive sample arrays
+                for section_name in ['altimeters', 'images', 'pixel_error', 'objects']:
+                    if section_name in result:
+                        clean_result[section_name] = {}
+                        for key, value in result[section_name].items():
+                            clean_result[section_name][key] = {
+                                'meta': value.get('meta', []),
+                                'summary': value.get('summary', [])
+                                # Skip the 'samples' array which contains thousands of values
+                            }
+                
+                # Convert results to JSON
+                json_result = self.convert_results_to_json(clean_result)
+                return JsonResponse(json_result, safe=False)
+
+            # If samples are requested, return the full result
+            print("🔥 Including full sample arrays in response")
             json_result = self.convert_results_to_json(result)
             return JsonResponse(json_result, safe=False)
             
