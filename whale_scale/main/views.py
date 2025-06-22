@@ -1837,18 +1837,58 @@ class Xcertainty(View):
             # If samples not requested, strip them out to make response much smaller
             if not include_samples:
                 print("🔥 Filtering out sample arrays for smaller response")
-                clean_result = {'summaries': result.get('summaries', [])}
+                clean_result = {}
                 
-                # Keep only meta and summary from each section, remove massive sample arrays
+                # Always include summaries if they exist
+                if 'summaries' in result:
+                    clean_result['summaries'] = result['summaries']
+                
+                # Process each major section
                 for section_name in ['altimeters', 'images', 'pixel_error', 'objects']:
-                    if section_name in result:
+                    if section_name in result and result[section_name] is not None:
+                        print(f"🔥 Processing section: {section_name}")
                         clean_result[section_name] = {}
-                        for key, value in result[section_name].items():
-                            clean_result[section_name][key] = {
-                                'meta': value.get('meta', []),
-                                'summary': value.get('summary', [])
-                                # Skip the 'samples' array which contains thousands of values
-                            }
+                        
+                        # Handle the section data
+                        section_data = result[section_name]
+                        if isinstance(section_data, dict):
+                            for key, value in section_data.items():
+                                print(f"🔥 Processing {section_name}.{key}, type: {type(value)}")
+                                
+                                # CRITICAL FIX: Handle different value types properly
+                                if isinstance(value, dict):
+                                    # For dictionary values, keep meta and summary, skip samples
+                                    filtered_value = {}
+                                    if 'meta' in value:
+                                        filtered_value['meta'] = value['meta']
+                                    if 'summary' in value:
+                                        filtered_value['summary'] = value['summary']
+                                    # Explicitly skip 'samples' key
+                                    clean_result[section_name][key] = filtered_value
+                                    
+                                elif hasattr(value, 'tolist'):
+                                    # Handle numpy arrays - skip them entirely for compact response
+                                    print(f"🔥 Skipping numpy array {section_name}.{key}")
+                                    continue
+                                    
+                                elif isinstance(value, (list, tuple)) and len(value) > 100:
+                                    # Skip very large lists (likely sample arrays)
+                                    print(f"🔥 Skipping large array {section_name}.{key} (length: {len(value)})")
+                                    continue
+                                    
+                                else:
+                                    # Include smaller objects as-is
+                                    print(f"🔥 Including {section_name}.{key} = {type(value)}")
+                                    clean_result[section_name][key] = value
+                        else:
+                            # If section is not a dict, include it as-is (but this shouldn't happen)
+                            print(f"🔥 Non-dict section {section_name}: {type(section_data)}")
+                            clean_result[section_name] = section_data
+                
+                print(f"🔥 Clean result structure: {list(clean_result.keys())}")
+                for section in clean_result:
+                    if isinstance(clean_result[section], dict):
+                        print(f"🔥   {section}: {list(clean_result[section].keys())}")
                 
                 # Convert results to JSON
                 json_result = self.convert_results_to_json(clean_result)
