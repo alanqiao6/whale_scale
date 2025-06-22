@@ -1652,6 +1652,13 @@ class Xcertainty(View):
                         result[key] = self.clean_json_response(value)
                         logger.info(f"Set {key} = {value}")
             
+            # ADDITIONAL FIX: Ensure all required keys exist with proper defaults
+            required_keys = ['pixel_counts', 'training_objects', 'prediction_objects', 'image_info']
+            for key in required_keys:
+                if key not in result or result[key] is None:
+                    result[key] = []
+                    logger.info(f"Added missing {key} as empty list")
+            
             # Final cleanup of the entire result
             clean_result = self.clean_json_response(result)
             
@@ -1661,7 +1668,7 @@ class Xcertainty(View):
             logger.error(f"Parse observations error: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
             return JsonResponse({"error": str(e)}, status=400)
-        
+
     def combine_observations(self, request):
         """Combine multiple parsed observation datasets."""
         try:
@@ -1710,35 +1717,49 @@ class Xcertainty(View):
 
             priors = data.get("priors", {})
             
-            # Convert dict data back to DataFrames - EXPLICIT VERSION
+            # Convert dict data back to DataFrames - EXPLICIT VERSION WITH ERROR HANDLING
             xcertainty_data = {}
 
             # Handle pixel_counts
             if 'pixel_counts' in parsed_data and parsed_data['pixel_counts'] is not None:
-                xcertainty_data['pixel_counts'] = pd.DataFrame(parsed_data['pixel_counts'])
-                print("🔥 AFTER CONVERSION - pixel_counts type:", type(xcertainty_data['pixel_counts']))
-                print("🔥 AFTER CONVERSION - pixel_counts shape:", xcertainty_data['pixel_counts'].shape)
-                print("🔥 AFTER CONVERSION - pixel_counts columns:", list(xcertainty_data['pixel_counts'].columns))
-                print("🔥 AFTER CONVERSION - pixel_counts head:", xcertainty_data['pixel_counts'].head())
+                if isinstance(parsed_data['pixel_counts'], list) and len(parsed_data['pixel_counts']) > 0:
+                    xcertainty_data['pixel_counts'] = pd.DataFrame(parsed_data['pixel_counts'])
+                    print("🔥 AFTER CONVERSION - pixel_counts type:", type(xcertainty_data['pixel_counts']))
+                    print("🔥 AFTER CONVERSION - pixel_counts shape:", xcertainty_data['pixel_counts'].shape)
+                    print("🔥 AFTER CONVERSION - pixel_counts columns:", list(xcertainty_data['pixel_counts'].columns))
+                    print("🔥 AFTER CONVERSION - pixel_counts head:", xcertainty_data['pixel_counts'].head())
+                else:
+                    xcertainty_data['pixel_counts'] = pd.DataFrame(columns=['Subject', 'Measurement', 'Timepoint', 'Image', 'PixelCount'])
+                    print("🔥 Created empty pixel_counts DataFrame (empty list)")
             else:
                 xcertainty_data['pixel_counts'] = pd.DataFrame(columns=['Subject', 'Measurement', 'Timepoint', 'Image', 'PixelCount'])
-                print("🔥 Created empty pixel_counts DataFrame")
+                print("🔥 Created empty pixel_counts DataFrame (missing)")
 
-            # Handle training_objects  
-            if 'training_objects' in parsed_data and parsed_data['training_objects'] and len(parsed_data['training_objects']) > 0:
+            # Handle training_objects - CRITICAL FIX
+            if ('training_objects' in parsed_data and 
+                parsed_data['training_objects'] is not None and 
+                isinstance(parsed_data['training_objects'], list) and 
+                len(parsed_data['training_objects']) > 0):
                 xcertainty_data['training_objects'] = pd.DataFrame(parsed_data['training_objects'])
+                print("🔥 Created training_objects DataFrame with data")
             else:
                 xcertainty_data['training_objects'] = pd.DataFrame(columns=['Subject', 'Measurement', 'Timepoint', 'Length'])
                 print("🔥 Created empty training_objects DataFrame")
 
             # Handle prediction_objects
-            if 'prediction_objects' in parsed_data and parsed_data['prediction_objects'] is not None:
+            if ('prediction_objects' in parsed_data and 
+                parsed_data['prediction_objects'] is not None and
+                isinstance(parsed_data['prediction_objects'], list) and 
+                len(parsed_data['prediction_objects']) > 0):
                 xcertainty_data['prediction_objects'] = pd.DataFrame(parsed_data['prediction_objects'])
             else:
                 xcertainty_data['prediction_objects'] = pd.DataFrame(columns=['Subject', 'Measurement', 'Timepoint'])
 
             # Handle image_info
-            if 'image_info' in parsed_data and parsed_data['image_info'] is not None:
+            if ('image_info' in parsed_data and 
+                parsed_data['image_info'] is not None and
+                isinstance(parsed_data['image_info'], list) and 
+                len(parsed_data['image_info']) > 0):
                 xcertainty_data['image_info'] = pd.DataFrame(parsed_data['image_info'])
             else:
                 xcertainty_data['image_info'] = pd.DataFrame(columns=['Image', 'Barometer', 'Laser', 'FocalLength', 'ImageWidth', 'SensorWidth', 'UAS'])
@@ -1748,6 +1769,12 @@ class Xcertainty(View):
                 print(f"🔥   {key}: {type(value)}")
                 if hasattr(value, 'shape'):
                     print(f"🔥     shape: {value.shape}")
+                if hasattr(value, 'empty'):
+                    print(f"🔥     is_empty: {value.empty}")
+            
+            # CRITICAL: Validate that we have the minimum required data
+            if xcertainty_data['pixel_counts'].empty:
+                raise ValueError("No pixel count data available. Cannot run analysis without measurements.")
             
             # Set default priors if not provided
             if not priors:
@@ -1761,8 +1788,17 @@ class Xcertainty(View):
                 from MMI_CODEX.xcertainty.samplers.independent_length_sampler import independent_length_sampler
                 print("🔥 Imported independent_length_sampler successfully")
                 print("🔥 Calling independent_length_sampler with xcertainty_data and priors...")
+                
+                # ADDITIONAL VALIDATION: Check the data structure before passing to sampler
+                print("🔥 Pre-sampler validation:")
+                print(f"   pixel_counts: {type(xcertainty_data['pixel_counts'])}, shape: {xcertainty_data['pixel_counts'].shape}")
+                print(f"   training_objects: {type(xcertainty_data['training_objects'])}, shape: {xcertainty_data['training_objects'].shape}")
+                print(f"   prediction_objects: {type(xcertainty_data['prediction_objects'])}, shape: {xcertainty_data['prediction_objects'].shape}")
+                print(f"   image_info: {type(xcertainty_data['image_info'])}, shape: {xcertainty_data['image_info'].shape}")
+                
                 sampler = independent_length_sampler(data=xcertainty_data, priors=priors)
                 print("🔥 independent_length_sampler returned successfully")
+                
             elif sampler_type == "nondecreasing_length":
                 from MMI_CODEX.xcertainty.samplers.nondecreasing_length_sampler import nondecreasing_length_sampler
                 sampler = nondecreasing_length_sampler(xcertainty_data, priors)
@@ -1823,6 +1859,12 @@ class Xcertainty(View):
             json_result = self.convert_results_to_json(result)
             return JsonResponse(json_result, safe=False)
             
+        except ValueError as ve:
+            print(f"🔥 VALIDATION ERROR in run_sampler: {str(ve)}")
+            logger = logging.getLogger(__name__)
+            logger.error(f"Validation error: {str(ve)}")
+            return JsonResponse({"error": f"Data validation failed: {str(ve)}"}, status=400)
+            
         except Exception as e:
             print(f"🔥 ERROR in run_sampler: {str(e)}")
             print(f"🔥 ERROR traceback: {traceback.format_exc()}")
@@ -1830,7 +1872,7 @@ class Xcertainty(View):
             logger.error(f"Run sampler error: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
             return JsonResponse({"error": str(e)}, status=400)
-
+    
     def extract_summaries(self, request):
         """Extract summaries from Xcertainty MCMC results."""
         try:
