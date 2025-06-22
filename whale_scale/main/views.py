@@ -1707,14 +1707,25 @@ class Xcertainty(View):
             xcertainty_data = {}
             for key, value in parsed_data.items():
                 if value is not None and isinstance(value, list):
-                    if len(value) > 0:  # Non-empty list
+                    if len(value) > 0:  # Non-empty list - convert to DataFrame
                         xcertainty_data[key] = pd.DataFrame(value)
-                    else:  # Empty list - handle training_objects specially
+                    else:  # Empty list - create empty DataFrame with proper columns
                         if key == 'training_objects':
-                            # Create empty DataFrame with expected columns for training_objects
                             xcertainty_data[key] = pd.DataFrame(columns=['Subject', 'Measurement', 'Timepoint', 'Length'])
+                        elif key == 'pixel_counts':
+                            xcertainty_data[key] = pd.DataFrame(columns=['Subject', 'Measurement', 'Timepoint', 'Image', 'PixelCount'])
+                        elif key == 'prediction_objects':
+                            xcertainty_data[key] = pd.DataFrame(columns=['Subject', 'Measurement', 'Timepoint'])
+                        elif key == 'image_info':
+                            xcertainty_data[key] = pd.DataFrame(columns=['Image', 'Barometer', 'Laser', 'FocalLength', 'ImageWidth', 'SensorWidth', 'UAS'])
                         else:
-                            xcertainty_data[key] = pd.DataFrame(value)
+                            xcertainty_data[key] = pd.DataFrame()
+                elif value is None:
+                    # Handle None values - create appropriate empty DataFrames
+                    if key == 'training_objects':
+                        xcertainty_data[key] = pd.DataFrame(columns=['Subject', 'Measurement', 'Timepoint', 'Length'])
+                    else:
+                        xcertainty_data[key] = None
                 else:
                     xcertainty_data[key] = value
             
@@ -1763,7 +1774,7 @@ class Xcertainty(View):
             logger.error(f"Run sampler error: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
             return JsonResponse({"error": str(e)}, status=400)
-    
+
     def extract_summaries(self, request):
         """Extract summaries from Xcertainty MCMC results."""
         try:
