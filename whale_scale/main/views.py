@@ -1862,29 +1862,20 @@ class Xcertainty(View):
 
     def get_default_priors(self, data):
         """Generate reasonable default priors based on the data."""
-        # Create DataFrames with 'altimeter' as a column, not index
-        altimeter_bias_df = pd.DataFrame({
-            'altimeter': ['Barometer', 'Laser'],
-            'mean': [0, 0],
-            'sd': [1, 1]
-        })
-        
-        altimeter_scaling_df = pd.DataFrame({
-            'altimeter': ['Barometer', 'Laser'],
-            'mean': [1, 1],
-            'sd': [0.1, 0.1]
-        })
-        
-        altimeter_variance_df = pd.DataFrame({
-            'altimeter': ['Barometer', 'Laser'],
-            'shape': [2, 2],
-            'rate': [1, 1]
-        })
-        
+        # FIXED: Return priors in the format xcertainty expects (dict format)
         return {
-            'altimeter_bias': altimeter_bias_df,
-            'altimeter_scaling': altimeter_scaling_df,
-            'altimeter_variance': altimeter_variance_df,
+            'altimeter_bias': {
+                'Barometer': {'mean': 0, 'sd': 1},
+                'Laser': {'mean': 0, 'sd': 1}
+            },
+            'altimeter_scaling': {
+                'Barometer': {'mean': 1, 'sd': 0.1},
+                'Laser': {'mean': 1, 'sd': 0.1}
+            },
+            'altimeter_variance': {
+                'Barometer': {'shape': 2, 'rate': 1},
+                'Laser': {'shape': 2, 'rate': 1}
+            },
             'image_altitude': [10, 100],
             'pixel_variance': [2, 1],
             'object_lengths': [[5, 20]] * len(data.get('prediction_objects', pd.DataFrame()))
