@@ -25,7 +25,7 @@ def format_pixel_output(pkg, samples, post_inds):
     """
     tgt = 'pixel_variance'
     
-    summary_samples = samples[post_inds][:, [tgt]]
+    summary_samples = samples[post_inds][:, tgt]
     
     summary = pd.DataFrame({
         'error': 'pixel',

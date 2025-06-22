@@ -32,7 +32,7 @@ def format_image_output(pkg, samples, post_inds):
         # Identify relevant posterior samples
         tgt = f'image_altitude[{model_index}]'
         
-        summary_samples = samples[post_inds][:, [tgt]]
+        summary_samples = samples[post_inds][:, tgt]
         
         # Compute posterior summaries
         summary = pd.DataFrame({

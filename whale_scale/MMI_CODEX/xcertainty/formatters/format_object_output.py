@@ -39,7 +39,7 @@ def format_object_output(pkg, samples, post_inds, prediction_objects):
         # Identify relevant posterior samples
         tgt = f'object_length[{model_index}]'
         
-        summary_samples = samples[post_inds][:, [tgt]]
+        summary_samples = samples[post_inds][:, tgt]
         
         # Compute posterior summaries
         summary = pd.DataFrame({
