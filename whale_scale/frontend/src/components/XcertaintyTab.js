@@ -364,7 +364,19 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
       
       console.log('Parsed data:', parsedData);
 
-      // Step 3: Prepare priors
+      const firstMeasurement = selectedMeasurementData[0];
+      const firstMetadata = firstMeasurement.metadata || firstMeasurement.measurement_metadata || {};
+      const parsedFirstMetadata = typeof firstMetadata === 'string' ? JSON.parse(firstMetadata) : firstMetadata;
+      const pixelDimension = Number(parsedFirstMetadata.pixel_dimension || 0.0026211757797421596);
+
+      // Convert meter ranges to pixel ranges
+      const minLengthMeters = 5.0;   // Minimum expected whale length in meters
+      const maxLengthMeters = 25.0;  // Maximum expected whale length in meters
+      const minLengthPixels = minLengthMeters / pixelDimension;  // Convert to pixels
+      const maxLengthPixels = maxLengthMeters / pixelDimension;  // Convert to pixels
+
+      console.log(`Priors: Expected whale length ${minLengthMeters}-${maxLengthMeters}m = ${minLengthPixels.toFixed(0)}-${maxLengthPixels.toFixed(0)} pixels`);
+
       const priors = {
         // Simple priors for demonstration
         altimeter_bias: {
@@ -381,7 +393,7 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
         },
         image_altitude: [10.0, 100.0],
         pixel_variance: [2.0, 1.0],
-        object_lengths: observations.map(() => [5.0, 25.0]) // Range for each measurement
+        object_lengths: observations.map(() => [minLengthPixels, maxLengthPixels]) // ✅ Now in pixels!
       };
 
       // Step 4: Run the analysis
