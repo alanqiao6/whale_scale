@@ -53,16 +53,16 @@ def format_object_output(pkg, samples, post_inds, prediction_objects):
         
         # Compute posterior summaries
         summary = pd.DataFrame({
-            'Subject': row['Subject'],
-            'Measurement': row['Measurement'],
-            'Timepoint': row['Timepoint'],
-            'parameter': 'length',
-            'mean': summary_samples.mean(),
-            'sd': summary_samples.std(),
-            'HPD_low': hpd_interval(summary_samples)[0],
-            'HPD_high': hpd_interval(summary_samples)[1],
-            'ESS': len(post_inds),  # Effective Sample Size placeholder
-            'PSS': len(post_inds)  # Posterior Sample Size
+            'Subject': [row['Subject']],
+            'Measurement': [row['Measurement']],
+            'Timepoint': [row['Timepoint']],
+            'parameter': ['length'],
+            'mean': [summary_samples.mean()],
+            'sd': [summary_samples.std()],
+            'HPD_low': [hpd_interval(summary_samples)[0]],
+            'HPD_high': [hpd_interval(summary_samples)[1]],
+            'ESS': [len(post_inds)],
+            'PSS': [len(post_inds)]
         })
         
         results[f"{row['Subject']} {row['Measurement']} {row['Timepoint']}"] = {

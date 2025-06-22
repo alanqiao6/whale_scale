@@ -46,7 +46,7 @@ def format_image_output(pkg, samples, post_inds):
         
         # Compute posterior summaries
         summary = pd.DataFrame({
-            'Image': image,
+            'Image': [image],  # Note the square brackets to make it a list
             'parameter': 'altitude',
             'mean': summary_samples.mean(),
             'sd': summary_samples.std(),

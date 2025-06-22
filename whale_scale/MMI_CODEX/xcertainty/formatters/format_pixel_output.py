@@ -38,14 +38,14 @@ def format_pixel_output(pkg, samples, post_inds):
     summary_samples = samples[post_inds][:, tgt_idx]
     
     summary = pd.DataFrame({
-        'error': 'pixel',
-        'parameter': 'variance',
-        'mean': summary_samples.mean(),
-        'sd': summary_samples.std(),
-        'HPD_low': hpd_interval(summary_samples)[0],
-        'HPD_high': hpd_interval(summary_samples)[1],
-        'ESS': len(post_inds),  # Effective Sample Size placeholder
-        'PSS': len(post_inds)  # Posterior Sample Size
+        'error': ['pixel'],
+        'parameter': ['variance'],
+        'mean': [summary_samples.mean()],
+        'sd': [summary_samples.std()],
+        'HPD_low': [hpd_interval(summary_samples)[0]],
+        'HPD_high': [hpd_interval(summary_samples)[1]],
+        'ESS': [len(post_inds)],
+        'PSS': [len(post_inds)]
     })
     
     return {
