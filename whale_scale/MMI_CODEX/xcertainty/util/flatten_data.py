@@ -64,21 +64,31 @@ def flatten_data(data=None, priors=None, pixel_counts=None,
     pkg['inits']['altimeter_scaling'] = np.ones(pkg['constants']['n_altimeters'])
     pkg['inits']['altimeter_variance'] = np.ones(pkg['constants']['n_altimeters'])
     
-    # Convert priors['altimeter_bias'] to DataFrame if it's a dict
-    if isinstance(priors['altimeter_bias'], dict):
-        altimeter_bias_df = pd.DataFrame(list(priors['altimeter_bias'].items()), columns=['altimeter', 'values'])
-        # If values is nested, flatten it
-        if isinstance(altimeter_bias_df['values'].iloc[0], dict):
-            altimeter_bias_df = pd.concat([
-                altimeter_bias_df.drop('values', axis=1),
-                pd.json_normalize(altimeter_bias_df['values'])
-            ], axis=1)
-    else:
-        altimeter_bias_df = priors['altimeter_bias']
+    # PATCH: Convert all prior dicts to DataFrames for merging
+    def convert_prior_dict_to_df(prior_dict, columns):
+        if isinstance(prior_dict, dict):
+            rows = []
+            for altimeter, values in prior_dict.items():
+                if isinstance(values, dict):
+                    rows.append({'altimeter': altimeter, **values})
+                else:
+                    # Handle list format [mean, sd] or [shape, rate]
+                    row = {'altimeter': altimeter}
+                    for i, col in enumerate(columns):
+                        row[col] = values[i] if i < len(values) else 0
+                    rows.append(row)
+            return pd.DataFrame(rows)
+        else:
+            return prior_dict
+
+    # Convert all three priors
+    altimeter_bias_df = convert_prior_dict_to_df(priors['altimeter_bias'], ['mean', 'sd'])
+    altimeter_scaling_df = convert_prior_dict_to_df(priors['altimeter_scaling'], ['mean', 'sd'])
+    altimeter_variance_df = convert_prior_dict_to_df(priors['altimeter_variance'], ['shape', 'rate'])
 
     pkg['constants']['prior_altimeter_bias'] = altimeter_types.merge(altimeter_bias_df, on='altimeter')[['mean', 'sd']].values
-    pkg['constants']['prior_altimeter_scaling'] = altimeter_types.merge(priors['altimeter_scaling'], on='altimeter')[['mean', 'sd']].values
-    pkg['constants']['prior_altimeter_variance'] = altimeter_types.merge(priors['altimeter_variance'], on='altimeter')[['shape', 'rate']].values
+    pkg['constants']['prior_altimeter_scaling'] = altimeter_types.merge(altimeter_scaling_df, on='altimeter')[['mean', 'sd']].values
+    pkg['constants']['prior_altimeter_variance'] = altimeter_types.merge(altimeter_variance_df, on='altimeter')[['shape', 'rate']].values
     
     pkg['maps']['images'] = image_info['Image'].tolist()
     pkg['constants']['n_images'] = len(pkg['maps']['images'])
