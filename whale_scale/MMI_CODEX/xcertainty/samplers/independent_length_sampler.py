@@ -28,8 +28,14 @@ def independent_length_sampler(data, priors, package_only=False):
     validate_training_objects(data['training_objects'])
     validate_prediction_objects(data['prediction_objects'])
     
-    pkg = flatten_data(data=data, priors=priors)
-    
+    pkg = flatten_data(
+        pixel_counts=data['pixel_counts'],
+        training_objects=data['training_objects'], 
+        image_info=data['image_info'],
+        prediction_objects=data['prediction_objects'],
+        priors=priors
+    ) 
+       
     # Set length priors
     pkg['constants']['n_basic_objects'] = len(data['prediction_objects'])
     pkg['constants']['prior_basic_object'] = np.array(priors['object_lengths'])
