@@ -1644,8 +1644,13 @@ class Xcertainty(View):
                     result[key] = clean_value.to_dict(orient='records')
                     logger.info(f"Converted {key} to dict with {len(result[key])} records")
                 else:
-                    result[key] = self.clean_json_response(value)
-                    logger.info(f"Set {key} = {value}")
+                    # CRITICAL FIX: Handle None training_objects properly
+                    if key == 'training_objects' and value is None:
+                        result[key] = []  # Empty list instead of None/null
+                        logger.info(f"Set {key} = [] (was None)")
+                    else:
+                        result[key] = self.clean_json_response(value)
+                        logger.info(f"Set {key} = {value}")
             
             # Final cleanup of the entire result
             clean_result = self.clean_json_response(result)
