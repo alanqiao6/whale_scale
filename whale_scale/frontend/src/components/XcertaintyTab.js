@@ -1,4 +1,4 @@
-// XcertaintyTab.js - FIXED VERSION with proper error handling and data flow
+// XcertaintyTab.js - FIXED VERSION with proper error handling and data flow 
 
 import React, { useState, useEffect } from 'react';
 import './XcertaintyTab.css';
