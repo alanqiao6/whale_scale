@@ -83,5 +83,6 @@ def validate_image_info(df, error='stop', verbose=True):
         handle_error('Some images have conflicting metadata.', error)
     
     altimeter_cols = {'Barometer', 'Laser'} & set(df.columns)
-    if not df[list(altimeter_cols)].applymap(np.isfinite).any(axis=1).all():
+    numeric_altimeter_data = df[list(altimeter_cols)].apply(pd.to_numeric, errors='coerce')
+    if not numeric_altimeter_data.applymap(np.isfinite).any(axis=1).all():
         handle_error('Some images do not have any altimeter data.', error)
