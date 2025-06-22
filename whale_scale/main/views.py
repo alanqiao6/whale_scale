@@ -1698,9 +1698,16 @@ class Xcertainty(View):
     
     def run_sampler(self, request, sampler_type):
         """Run the specified MCMC sampler on parsed data."""
+        print("🔥 RUN_SAMPLER CALLED!")
+        print(f"🔥 sampler_type: {sampler_type}")
         try:
             data = json.loads(request.body)
             parsed_data = data.get("parsed_data", {})
+
+            print("🔥 parsed_data keys:", list(parsed_data.keys()))
+            print("🔥 pixel_counts type:", type(parsed_data.get('pixel_counts')))
+            print("🔥 pixel_counts data:", parsed_data.get('pixel_counts'))
+
             priors = data.get("priors", {})
             
             logger = logging.getLogger(__name__)
