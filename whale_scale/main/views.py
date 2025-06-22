@@ -1710,26 +1710,26 @@ class Xcertainty(View):
 
             priors = data.get("priors", {})
             
-            logger = logging.getLogger(__name__)
-            logger.info("=== DEBUG: parsed_data before conversion ===")
-            for key, value in parsed_data.items():
-                logger.info(f"{key}: {type(value)} - length: {len(value) if isinstance(value, list) else 'N/A'}")
-            logger.info("=== END DEBUG BEFORE ===")
-            
             # Convert dict data back to DataFrames - EXPLICIT VERSION
             xcertainty_data = {}
 
             # Handle pixel_counts
             if 'pixel_counts' in parsed_data and parsed_data['pixel_counts'] is not None:
                 xcertainty_data['pixel_counts'] = pd.DataFrame(parsed_data['pixel_counts'])
+                print("🔥 AFTER CONVERSION - pixel_counts type:", type(xcertainty_data['pixel_counts']))
+                print("🔥 AFTER CONVERSION - pixel_counts shape:", xcertainty_data['pixel_counts'].shape)
+                print("🔥 AFTER CONVERSION - pixel_counts columns:", list(xcertainty_data['pixel_counts'].columns))
+                print("🔥 AFTER CONVERSION - pixel_counts head:", xcertainty_data['pixel_counts'].head())
             else:
                 xcertainty_data['pixel_counts'] = pd.DataFrame(columns=['Subject', 'Measurement', 'Timepoint', 'Image', 'PixelCount'])
+                print("🔥 Created empty pixel_counts DataFrame")
 
             # Handle training_objects  
             if 'training_objects' in parsed_data and parsed_data['training_objects'] and len(parsed_data['training_objects']) > 0:
                 xcertainty_data['training_objects'] = pd.DataFrame(parsed_data['training_objects'])
             else:
                 xcertainty_data['training_objects'] = pd.DataFrame(columns=['Subject', 'Measurement', 'Timepoint', 'Length'])
+                print("🔥 Created empty training_objects DataFrame")
 
             # Handle prediction_objects
             if 'prediction_objects' in parsed_data and parsed_data['prediction_objects'] is not None:
@@ -1743,22 +1743,26 @@ class Xcertainty(View):
             else:
                 xcertainty_data['image_info'] = pd.DataFrame(columns=['Image', 'Barometer', 'Laser', 'FocalLength', 'ImageWidth', 'SensorWidth', 'UAS'])
 
-            logger.info("=== DEBUG: xcertainty_data after conversion ===")
+            print("🔥 FINAL CHECK - All xcertainty_data types:")
             for key, value in xcertainty_data.items():
-                logger.info(f"{key}: {type(value)} - shape: {value.shape if hasattr(value, 'shape') else 'N/A'}")
-                if hasattr(value, 'columns'):
-                    logger.info(f"  columns: {list(value.columns)}")
-            logger.info("=== END DEBUG AFTER ===")
+                print(f"🔥   {key}: {type(value)}")
+                if hasattr(value, 'shape'):
+                    print(f"🔥     shape: {value.shape}")
             
             # Set default priors if not provided
             if not priors:
                 priors = self.get_default_priors(xcertainty_data)
             
+            print("🔥 About to call independent_length_sampler...")
+            
             # Import and use your real sampler functions
             sampler = None
             if sampler_type == "independent_length":
                 from MMI_CODEX.xcertainty.samplers.independent_length_sampler import independent_length_sampler
+                print("🔥 Imported independent_length_sampler successfully")
+                print("🔥 Calling independent_length_sampler with xcertainty_data and priors...")
                 sampler = independent_length_sampler(xcertainty_data, priors)
+                print("🔥 independent_length_sampler returned successfully")
             elif sampler_type == "nondecreasing_length":
                 from MMI_CODEX.xcertainty.samplers.nondecreasing_length_sampler import nondecreasing_length_sampler
                 sampler = nondecreasing_length_sampler(xcertainty_data, priors)
@@ -1778,6 +1782,8 @@ class Xcertainty(View):
             else:
                 return JsonResponse({"error": "Invalid sampler type"}, status=400)
             
+            print("🔥 About to run the sampler...")
+            
             # Run the sampler
             result = sampler(
                 niter=data.get("niter", 1000), 
@@ -1786,11 +1792,15 @@ class Xcertainty(View):
                 verbose=data.get("verbose", True)
             )
             
+            print("🔥 Sampler completed successfully!")
+            
             # Convert results to JSON
             json_result = self.convert_results_to_json(result)
             return JsonResponse(json_result, safe=False)
             
         except Exception as e:
+            print(f"🔥 ERROR in run_sampler: {str(e)}")
+            print(f"🔥 ERROR traceback: {traceback.format_exc()}")
             logger = logging.getLogger(__name__)
             logger.error(f"Run sampler error: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
