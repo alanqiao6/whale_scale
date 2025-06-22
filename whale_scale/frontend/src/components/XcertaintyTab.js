@@ -324,7 +324,23 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
         throw new Error(`Parse error: ${parseError.error || 'Failed to parse observations'}`);
       }
 
-      const parsedData = await parseResponse.json();
+      // CRITICAL FIX: Handle NaN values in response
+      const responseText = await parseResponse.text();
+      console.log('Raw response text:', responseText);
+      
+      // Replace NaN values with null before parsing JSON
+      const cleanedResponseText = responseText.replace(/:\s*NaN/g, ': null');
+      console.log('Cleaned response text:', cleanedResponseText);
+      
+      let parsedData;
+      try {
+        parsedData = JSON.parse(cleanedResponseText);
+      } catch (jsonError) {
+        console.error('JSON parse error:', jsonError);
+        console.error('Problematic response:', responseText.substring(0, 500));
+        throw new Error('Invalid JSON response from server');
+      }
+      
       console.log('Parsed data:', parsedData);
 
       // Step 3: Prepare priors
@@ -378,13 +394,33 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
       });
 
       if (analysisResponse.ok) {
-        const result = await analysisResponse.json();
+        // Handle NaN in analysis response too
+        const analysisResponseText = await analysisResponse.text();
+        const cleanedAnalysisText = analysisResponseText.replace(/:\s*NaN/g, ': null');
+        
+        let result;
+        try {
+          result = JSON.parse(cleanedAnalysisText);
+        } catch (jsonError) {
+          console.error('Analysis JSON parse error:', jsonError);
+          throw new Error('Invalid JSON response from analysis endpoint');
+        }
+        
         console.log('Analysis result:', result);
         setResults(result);
         fetchExistingAnalyses(); // Refresh the list
         setError(''); // Clear any previous errors
       } else {
-        const errorData = await analysisResponse.json();
+        const errorResponseText = await analysisResponse.text();
+        const cleanedErrorText = errorResponseText.replace(/:\s*NaN/g, ': null');
+        
+        let errorData;
+        try {
+          errorData = JSON.parse(cleanedErrorText);
+        } catch (jsonError) {
+          throw new Error(`Analysis failed with status ${analysisResponse.status}`);
+        }
+        
         throw new Error(errorData.error || 'Analysis failed');
       }
     } catch (err) {

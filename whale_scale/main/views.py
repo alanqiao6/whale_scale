@@ -1557,8 +1557,20 @@ class Xcertainty(View):
             logger.error(f"Traceback: {traceback.format_exc()}")
             return JsonResponse({"error": f"Request failed: {str(e)}"}, status=500)
     
-    # Replace your parse_observations method in the Django views with this debug version:
-
+    def clean_json_response(self, data):
+        """Convert NaN values to None for JSON serialization"""
+        if isinstance(data, dict):
+            return {k: self.clean_json_response(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self.clean_json_response(item) for item in data]
+        elif isinstance(data, (np.floating, float)) and np.isnan(data):
+            return None
+        elif isinstance(data, pd.DataFrame):
+            # Replace NaN values in DataFrame
+            return data.where(pd.notna(data), None).to_dict(orient='records')
+        else:
+            return data
+        
     def parse_observations(self, request):
         """Parse wide-format photogrammetric data into structured observations."""
         logger = logging.getLogger(__name__)
@@ -1568,29 +1580,17 @@ class Xcertainty(View):
             observations = data.get("observations", [])
             
             logger.info(f"Received observations count: {len(observations)}")
-            logger.info(f"First observation: {observations[0] if observations else 'None'}")
             
             if not observations:
                 return JsonResponse({"error": "No observations provided"}, status=400)
             
             df = pd.DataFrame(observations)
             logger.info(f"DataFrame created with shape: {df.shape}")
-            logger.info(f"DataFrame columns: {list(df.columns)}")
-            logger.info(f"DataFrame dtypes:\n{df.dtypes}")
-            
-            # Check for any problematic data
-            for col in df.columns:
-                logger.info(f"Column {col} - sample values: {df[col].head().tolist()}")
-                logger.info(f"Column {col} - unique types: {df[col].apply(type).unique()}")
-                if df[col].isna().any():
-                    logger.warning(f"Column {col} has NaN values: {df[col].isna().sum()}")
             
             # CRITICAL FIX: Ensure meas_col is always a list
             meas_col = data.get("meas_col", ["TL"])
             if isinstance(meas_col, str):
                 meas_col = [meas_col]
-            
-            logger.info(f"meas_col: {meas_col}")
             
             # NEW FIX: Ensure Timepoint column exists and is numeric
             if 'Timepoint' not in df.columns:
@@ -1601,25 +1601,17 @@ class Xcertainty(View):
             numeric_cols = ['Timepoint', 'FocalLength', 'ImageWidth', 'SensorWidth', 'Barometer'] + meas_col
             for col in numeric_cols:
                 if col in df.columns:
-                    logger.info(f"Converting {col} to numeric...")
-                    original_dtype = df[col].dtype
                     df[col] = pd.to_numeric(df[col], errors='coerce')
-                    logger.info(f"Column {col}: {original_dtype} -> {df[col].dtype}")
-                    
-                    # Check for NaN values after conversion
-                    if df[col].isna().any():
-                        nan_count = df[col].isna().sum()
-                        logger.error(f"Column {col} has {nan_count} NaN values after numeric conversion!")
-                        
+                    # CRITICAL: Replace NaN with None for JSON compatibility
+                    df[col] = df[col].where(pd.notna(df[col]), None)
+            
             # Ensure string columns are strings
             string_cols = ['Subject', 'Image', 'UAS']
             for col in string_cols:
                 if col in df.columns:
                     df[col] = df[col].astype(str)
-                    logger.info(f"Converted {col} to string")
             
             logger.info(f"Final DataFrame dtypes:\n{df.dtypes}")
-            logger.info(f"Final DataFrame sample:\n{df.head()}")
             
             # Import your real parse_observations function
             from MMI_CODEX.xcertainty.parsers.parse_observations import parse_observations
@@ -1643,23 +1635,28 @@ class Xcertainty(View):
             
             logger.info("parse_observations completed successfully")
             
-            # Convert DataFrames to dicts for JSON serialization
+            # Convert DataFrames to dicts for JSON serialization AND clean NaN values
             result = {}
             for key, value in parsed_data.items():
                 if value is not None and hasattr(value, 'to_dict'):
-                    result[key] = value.to_dict(orient='records')
+                    # Clean NaN values from DataFrame before converting to dict
+                    clean_value = value.where(pd.notna(value), None)
+                    result[key] = clean_value.to_dict(orient='records')
                     logger.info(f"Converted {key} to dict with {len(result[key])} records")
                 else:
-                    result[key] = value
+                    result[key] = self.clean_json_response(value)
                     logger.info(f"Set {key} = {value}")
             
-            return JsonResponse(result, safe=False)
+            # Final cleanup of the entire result
+            clean_result = self.clean_json_response(result)
+            
+            return JsonResponse(clean_result, safe=False)
             
         except Exception as e:
             logger.error(f"Parse observations error: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
             return JsonResponse({"error": str(e)}, status=400)
-
+        
     def combine_observations(self, request):
         """Combine multiple parsed observation datasets."""
         try:
