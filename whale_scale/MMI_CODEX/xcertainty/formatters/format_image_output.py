@@ -30,9 +30,19 @@ def format_image_output(pkg, samples, post_inds):
         model_index = str(idx + 1)  # Adjust indexing for Python
         
         # Identify relevant posterior samples
-        tgt = f'image_altitude[{model_index}]'
-        
-        summary_samples = samples[post_inds][:, tgt]
+        tgt_param = f'image_altitude[{model_index}]'
+
+        # Find the column index for this parameter
+        if 'param_names' in pkg and tgt_param in pkg['param_names']:
+            tgt_idx = pkg['param_names'].index(tgt_param)
+        elif hasattr(pkg, 'param_names') and tgt_param in pkg.param_names:
+            tgt_idx = list(pkg.param_names).index(tgt_param)
+        else:
+            # Fallback: assume the parameter index matches the image index
+            tgt_idx = idx
+            print(f"Warning: Could not find parameter '{tgt_param}' in param_names, using index {tgt_idx}")
+
+        summary_samples = samples[post_inds][:, tgt_idx]
         
         # Compute posterior summaries
         summary = pd.DataFrame({
@@ -48,7 +58,7 @@ def format_image_output(pkg, samples, post_inds):
         
         results[image] = {
             'meta': meta,
-            'samples': samples[:, [tgt]],
+            'samples': samples[:, [tgt_idx]],  # Use integer index instead of string
             'summary': summary
         }
     

@@ -37,9 +37,19 @@ def format_object_output(pkg, samples, post_inds, prediction_objects):
         model_index = str(int(row['model_index']) + 1)
         
         # Identify relevant posterior samples
-        tgt = f'object_length[{model_index}]'
-        
-        summary_samples = samples[post_inds][:, tgt]
+        tgt_param = f'object_length[{model_index}]'
+
+        # Find the column index for this parameter
+        if 'param_names' in pkg and tgt_param in pkg['param_names']:
+            tgt_idx = pkg['param_names'].index(tgt_param)
+        elif hasattr(pkg, 'param_names') and tgt_param in pkg.param_names:
+            tgt_idx = list(pkg.param_names).index(tgt_param)
+        else:
+            # Fallback: assume the parameter index matches the object index
+            tgt_idx = int(row['model_index'])
+            print(f"Warning: Could not find parameter '{tgt_param}' in param_names, using index {tgt_idx}")
+
+        summary_samples = samples[post_inds][:, tgt_idx]
         
         # Compute posterior summaries
         summary = pd.DataFrame({
@@ -57,7 +67,7 @@ def format_object_output(pkg, samples, post_inds, prediction_objects):
         
         results[f"{row['Subject']} {row['Measurement']} {row['Timepoint']}"] = {
             'meta': meta,
-            'samples': samples[:, [tgt]],
+            'samples': samples[:, [tgt_idx]],  # Use integer index instead of string
             'summary': summary
         }
     

@@ -23,9 +23,19 @@ def format_pixel_output(pkg, samples, post_inds):
     Returns:
         dict: Formatted results containing samples and summary statistics.
     """
-    tgt = 'pixel_variance'
-    
-    summary_samples = samples[post_inds][:, tgt]
+    tgt_param = 'pixel_variance'
+
+    # Find the column index for this parameter
+    if 'param_names' in pkg and tgt_param in pkg['param_names']:
+        tgt_idx = pkg['param_names'].index(tgt_param)
+    elif hasattr(pkg, 'param_names') and tgt_param in pkg.param_names:
+        tgt_idx = list(pkg.param_names).index(tgt_param)
+    else:
+        # Fallback: assume pixel_variance is at index 0 or last column
+        tgt_idx = 0  # or samples.shape[1] - 1
+        print(f"Warning: Could not find parameter '{tgt_param}' in param_names, using index {tgt_idx}")
+
+    summary_samples = samples[post_inds][:, tgt_idx]
     
     summary = pd.DataFrame({
         'error': 'pixel',
@@ -39,6 +49,6 @@ def format_pixel_output(pkg, samples, post_inds):
     })
     
     return {
-        'samples': samples[:, [tgt]],
+        'samples': samples[:, [tgt_idx]],  # Use integer index instead of string
         'summary': summary
     }
