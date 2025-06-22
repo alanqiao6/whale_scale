@@ -1707,7 +1707,14 @@ class Xcertainty(View):
             xcertainty_data = {}
             for key, value in parsed_data.items():
                 if value is not None and isinstance(value, list):
-                    xcertainty_data[key] = pd.DataFrame(value)
+                    if len(value) > 0:  # Non-empty list
+                        xcertainty_data[key] = pd.DataFrame(value)
+                    else:  # Empty list - handle training_objects specially
+                        if key == 'training_objects':
+                            # Create empty DataFrame with expected columns for training_objects
+                            xcertainty_data[key] = pd.DataFrame(columns=['Subject', 'Measurement', 'Timepoint', 'Length'])
+                        else:
+                            xcertainty_data[key] = pd.DataFrame(value)
                 else:
                     xcertainty_data[key] = value
             
