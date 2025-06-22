@@ -209,6 +209,26 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
         measurement_type: measurement.measurement_type
       });
 
+      // CRITICAL FIX: Extract actual camera parameters from measurement metadata
+      const metadata = measurement.metadata || measurement.measurement_metadata || {};
+      const parsedMetadata = typeof metadata === 'string' ? JSON.parse(metadata) : metadata;
+      
+      // Get real camera parameters (these are the ones that were used for the original measurement)
+      const focalLength = Number(parsedMetadata.focal_length || 19.35);
+      const imageWidth = Number(parsedMetadata.image_width || 8064);
+      const altitude = Number(parsedMetadata.altitude || 41.1);
+      const pixelDimension = Number(parsedMetadata.pixel_dimension || 0.0026211757797421596);
+      
+      console.log('Extracted camera parameters:', {
+        focalLength, imageWidth, altitude, pixelDimension
+      });
+
+      // CRITICAL FIX: Convert meters back to pixel count for Xcertainty
+      // Xcertainty expects raw pixel counts, not pre-converted meters
+      const pixelCount = measurementValue / pixelDimension;
+      
+      console.log(`Converting ${measurementValue} meters to ${pixelCount} pixels using dimension ${pixelDimension}`);
+
       // Handle different measurement types
       let measurementType = 'TL'; // Default to Total Length
       if (measurement.measurement_type === 'ruler_complete' || 
@@ -219,19 +239,19 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
         measurementType = 'CurveLength';
       }
       
-      // CRITICAL FIX: Ensure all numeric values are proper numbers
+      // FIXED: Build observation with real parameters and converted pixel count
       const observation = {
-        Subject: String(selectedWhaleId), // Ensure string
-        Timepoint: Number(timepoint),     // Ensure number
-        Image: String(measurement.image_filename), // Ensure string
-        [measurementType]: Number(measurementValue), // Ensure number
-        // Required fields with default values - ALL AS NUMBERS
-        FocalLength: Number(50.0),  // mm
-        ImageWidth: Number(4000),   // pixels  
-        SensorWidth: Number(23.5),  // mm
-        UAS: String('DJI'),         // string
-        Barometer: Number(25.0),    // Add default altitude as number
-        Laser: null                 // null is ok
+        Subject: String(selectedWhaleId),
+        Timepoint: Number(timepoint),
+        Image: String(measurement.image_filename),
+        [measurementType]: Number(pixelCount), // ✅ Send pixels, not meters!
+        // Use real camera parameters from measurement metadata
+        FocalLength: Number(focalLength),
+        ImageWidth: Number(imageWidth),
+        SensorWidth: Number(13.2), // Standard DJI sensor width - you might want to extract this too
+        UAS: String('DJI'),
+        Barometer: Number(altitude),
+        Laser: null
       };
       
       // DEBUG: Log the final observation
@@ -256,7 +276,7 @@ const XcertaintyTab = ({ currentWhaleId, formData }) => {
       throw new Error('No valid observations could be created from selected measurements');
     }
 
-    console.log('ALL prepared observations with types:', observations);
+    console.log('ALL prepared observations:', observations);
     
     // Additional validation - check that all numeric columns are actually numbers
     observations.forEach((obs, i) => {
