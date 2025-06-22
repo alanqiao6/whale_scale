@@ -1761,7 +1761,7 @@ class Xcertainty(View):
                 from MMI_CODEX.xcertainty.samplers.independent_length_sampler import independent_length_sampler
                 print("🔥 Imported independent_length_sampler successfully")
                 print("🔥 Calling independent_length_sampler with xcertainty_data and priors...")
-                sampler = independent_length_sampler(data=xcertainty_data, priors=priors)d     
+                sampler = independent_length_sampler(data=xcertainty_data, priors=priors)
                 print("🔥 independent_length_sampler returned successfully")
             elif sampler_type == "nondecreasing_length":
                 from MMI_CODEX.xcertainty.samplers.nondecreasing_length_sampler import nondecreasing_length_sampler
