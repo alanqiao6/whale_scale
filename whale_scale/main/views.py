@@ -1761,7 +1761,7 @@ class Xcertainty(View):
                 from MMI_CODEX.xcertainty.samplers.independent_length_sampler import independent_length_sampler
                 print("🔥 Imported independent_length_sampler successfully")
                 print("🔥 Calling independent_length_sampler with xcertainty_data and priors...")
-                sampler = independent_length_sampler(data=xcertainty_data, priors=priors)     
+                sampler = independent_length_sampler(data=xcertainty_data, priors=priors)d     
                 print("🔥 independent_length_sampler returned successfully")
             elif sampler_type == "nondecreasing_length":
                 from MMI_CODEX.xcertainty.samplers.nondecreasing_length_sampler import nondecreasing_length_sampler
@@ -1862,19 +1862,29 @@ class Xcertainty(View):
 
     def get_default_priors(self, data):
         """Generate reasonable default priors based on the data."""
+        # Create DataFrames with 'altimeter' as a column, not index
+        altimeter_bias_df = pd.DataFrame({
+            'altimeter': ['Barometer', 'Laser'],
+            'mean': [0, 0],
+            'sd': [1, 1]
+        })
+        
+        altimeter_scaling_df = pd.DataFrame({
+            'altimeter': ['Barometer', 'Laser'],
+            'mean': [1, 1],
+            'sd': [0.1, 0.1]
+        })
+        
+        altimeter_variance_df = pd.DataFrame({
+            'altimeter': ['Barometer', 'Laser'],
+            'shape': [2, 2],
+            'rate': [1, 1]
+        })
+        
         return {
-            'altimeter_bias': pd.DataFrame({
-                'Barometer': {'mean': 0, 'sd': 1},
-                'Laser': {'mean': 0, 'sd': 1}
-            }).T,
-            'altimeter_scaling': pd.DataFrame({
-                'Barometer': {'mean': 1, 'sd': 0.1},
-                'Laser': {'mean': 1, 'sd': 0.1}
-            }).T,
-            'altimeter_variance': pd.DataFrame({
-                'Barometer': {'shape': 2, 'rate': 1},
-                'Laser': {'shape': 2, 'rate': 1}
-            }).T,
+            'altimeter_bias': altimeter_bias_df,
+            'altimeter_scaling': altimeter_scaling_df,
+            'altimeter_variance': altimeter_variance_df,
             'image_altitude': [10, 100],
             'pixel_variance': [2, 1],
             'object_lengths': [[5, 20]] * len(data.get('prediction_objects', pd.DataFrame()))
