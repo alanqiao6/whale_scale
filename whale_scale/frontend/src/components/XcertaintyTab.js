@@ -6,7 +6,7 @@ import './XcertaintyTab.css';
 const XcertaintyTab = ({ currentWhaleId, formData }) => {
   const [analysisType, setAnalysisType] = useState('independent_length');
   const [parameters, setParameters] = useState({
-    niter: 1000,  // Reduced for faster testing
+    niter: 1000,  // Reduced for faster testing 
     thin: 1,
     summary_burn: 0.5
   });
